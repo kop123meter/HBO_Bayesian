@@ -39,7 +39,7 @@
 
     <fragment
         android:id="@+id/sceneform_fragment"
-        android:name="com.arcore.MixedAIAR.WritingArFragment"
+        android:name="com.arcore.AI_ResourceControl.WritingArFragment"
         android:layout_width="422dp"
         android:layout_height="886dp"
 

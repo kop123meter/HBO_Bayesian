@@ -5,7 +5,7 @@ android {
     compileSdkVersion 28
     //buildToolsVersion "28"
     defaultConfig {
-        applicationId "com.arcore.MixedAIAR"
+        applicationId "com.arcore.AI_ResourceControl"
         minSdkVersion 24
         //noinspection ExpiredTargetSdkVersion
         targetSdkVersion 28
@@ -81,32 +81,26 @@ dependencies {
 
 
     //commented 10.20.22 -> deactivates GPU
-    implementation 'org.tensorflow:tensorflow-lite-support:0.1.0-rc1'
+    //implementation 'org.tensorflow:tensorflow-lite-support:0.1.0-rc1'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.3.0'
     //-> deactivates GPU and just activates NPU
-    implementation 'org.tensorflow:tensorflow-lite:2.0.0'
+  //  implementation 'org.tensorflow:tensorflow-lite:2.0.0'
 
-   // implementation 'org.tensorflow:tensorflow-lite-gpu-delegate-plugin'
-
-
-    //   implementation 'org.tensorflow:tensorflow-lite-metadata:0.1.0-rc1'
-
-    //implementation "com.google.ar.sceneform.ux:sceneform-ux:1.15.0"
-    // testImplementation 'junit:junit:4.13.2'
-    //androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    //androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.9.0'
+    implementation 'org.tensorflow:tensorflow-lite-gpu-delegate-plugin:0.3.0'
 
 
-    //  implementation fileTree(dir: 'libs', include: ['*.jar'])
-    // implementation 'com.android.support:appcompat-v7:28.0.0'
-    //implementation 'com.android.support.constraint:constraint-layout:2.0.4'
-    // implementation 'com.android.support:design:28.0.0'
     implementation 'androidx.annotation:annotation:1.0.0'
     implementation 'androidx.legacy:legacy-support-v13:1.0.0'
     // Build off of nightly TensorFlow Lite
-    implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly-SNAPSHOT'
-    implementation 'org.tensorflow:tensorflow-lite-gpu:0.0.0-nightly-SNAPSHOT'
+    //implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly-SNAPSHOT'
+    //implementation 'org.tensorflow:tensorflow-lite-gpu:0.0.0-nightly-SNAPSHOT'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
 
+    // TFLite for new object detection
+   // implementation 'org.tensorflow:tensorflow-lite-task-vision: 0.3.1'
+    implementation 'org.tensorflow:tensorflow-lite-task-vision:0.3.0'
+    implementation 'androidx.exifinterface:exifinterface:1.3.2'
 }
 
 apply plugin: 'com.google.ar.sceneform.plugin'
@@ -121,85 +115,8 @@ def localCacheFloat = "build/intermediates/mobilenet_v1_1.0_224.tgz"
 def localCacheQuant = "build/intermediates/mmobilenet_v1_1.0_224_quant.tgz"
 def localCacheInceptionV4Float = "build/intermediates/inception_v4_2018_04_27.tgz"
 
-
-task downloadModelFloat(type: DownloadUrlTask) {
-    doFirst {
-        println "Downloading ${modelFloatDownloadUrl}"
-    }
-    sourceUrl = "${modelFloatDownloadUrl}"
-    target = file("${localCacheFloat}")
-}
-
-task downloadModelQuant(type: DownloadUrlTask) {
-    doFirst {
-        println "Downloading ${modelQuantDownloadUrl}"
-    }
-    sourceUrl = "${modelQuantDownloadUrl}"
-    target = file("${localCacheQuant}")
-}
-task downloadInceptionV4Float(type: DownloadUrlTask) {
-    doFirst {
-        println "Downloading ${model_inception_v4_float_url}"
-    }
-    sourceUrl = "${model_inception_v4_float_url}"
-    target = file("${localCacheInceptionV4Float}")
-}
-
-task unzipModelFloat(type: Copy, dependsOn: 'downloadModelFloat') {
-    doFirst {
-        println "Unzipping ${localCacheFloat}"
-    }
-    from tarTree("${localCacheFloat}")
-    into "${targetFolder}"
-}
-
-task unzipModelQuant(type: Copy, dependsOn: 'downloadModelQuant') {
-    doFirst {
-        println "Unzipping ${localCacheQuant}"
-    }
-    from tarTree("${localCacheQuant}")
-    into "${targetFolder}"
-}
-task unzipModelInceptionV4Float(type: Copy, dependsOn: 'downloadInceptionV4Float') {
-    doFirst {
-        println "Unzipping ${localCacheInceptionV4Float}"
-    }
-    from tarTree("${localCacheInceptionV4Float}")
-    into "${targetFolder}"
-}
-
-task cleanUnusedFiles(type: Delete, dependsOn: ['unzipModelFloat', 'unzipModelQuant', 'unzipModelInceptionV4Float']) {
-    delete fileTree("${targetFolder}").matching {
-        include "*.pb"
-        include "*.ckpt.*"
-        include "*.pbtxt.*"
-        include "*.quant_info.*"
-        include "*.meta"
-    }
-}
-
-
-// Ensure the model file is downloaded and extracted before every build
-preBuild.dependsOn unzipModelFloat
-preBuild.dependsOn unzipModelQuant
-preBuild.dependsOn unzipModelInceptionV4Float
-preBuild.dependsOn cleanUnusedFiles
-repositories {
-    mavenCentral()
-}
-
-class DownloadUrlTask extends DefaultTask {
-    @Input
-    String sourceUrl
-
-    @OutputFile
-    File target
-
-    @TaskAction
-    void download() {
-        ant.get(src: sourceUrl, dest: target)
-    }
-}
+//to dl models
+//apply from:'download_models.gradle'
 
 //task downloadModelFloat(type: DownloadUrlTask) {
 //    doFirst {
@@ -216,7 +133,14 @@ class DownloadUrlTask extends DefaultTask {
 //    sourceUrl = "${modelQuantDownloadUrl}"
 //    target = file("${localCacheQuant}")
 //}
-
+//task downloadInceptionV4Float(type: DownloadUrlTask) {
+//    doFirst {
+//        println "Downloading ${model_inception_v4_float_url}"
+//    }
+//    sourceUrl = "${model_inception_v4_float_url}"
+//    target = file("${localCacheInceptionV4Float}")
+//}
+//
 //task unzipModelFloat(type: Copy, dependsOn: 'downloadModelFloat') {
 //    doFirst {
 //        println "Unzipping ${localCacheFloat}"
@@ -232,8 +156,15 @@ class DownloadUrlTask extends DefaultTask {
 //    from tarTree("${localCacheQuant}")
 //    into "${targetFolder}"
 //}
+//task unzipModelInceptionV4Float(type: Copy, dependsOn: 'downloadInceptionV4Float') {
+//    doFirst {
+//        println "Unzipping ${localCacheInceptionV4Float}"
+//    }
+//    from tarTree("${localCacheInceptionV4Float}")
+//    into "${targetFolder}"
+//}
 //
-//task cleanUnusedFiles(type: Delete, dependsOn: ['unzipModelFloat', 'unzipModelQuant']) {
+//task cleanUnusedFiles(type: Delete, dependsOn: ['unzipModelFloat', 'unzipModelQuant', 'unzipModelInceptionV4Float']) {
 //    delete fileTree("${targetFolder}").matching {
 //        include "*.pb"
 //        include "*.ckpt.*"
@@ -242,13 +173,17 @@ class DownloadUrlTask extends DefaultTask {
 //        include "*.meta"
 //    }
 //}
-
-
-// Ensure the model file is downloaded and extracted before every build
+//
+//
+//// Ensure the model file is downloaded and extracted before every build
 //preBuild.dependsOn unzipModelFloat
 //preBuild.dependsOn unzipModelQuant
+//preBuild.dependsOn unzipModelInceptionV4Float
 //preBuild.dependsOn cleanUnusedFiles
-
+//repositories {
+//    mavenCentral()
+//}
+//
 //class DownloadUrlTask extends DefaultTask {
 //    @Input
 //    String sourceUrl
@@ -261,23 +196,3 @@ class DownloadUrlTask extends DefaultTask {
 //        ant.get(src: sourceUrl, dest: target)
 //    }
 //}
-
-//sceneform.asset('sampledata/models/andy.obj',
-//        'default',
-//        'sampledata/models/andy.sfa',
-//        'src/main/assets/andy')
-//
-//sceneform.asset('sampledata/models/Cabin.obj',
-//        'default',
-//        'sampledata/models/Cabin.sfa',
-//        'src/main/assets/Cabin')
-//
-//sceneform.asset('sampledata/models/House.obj',
-//        'default',
-//        'sampledata/models/House.sfa',
-//        'src/main/assets/House')
-
-//sceneform.asset('sampledata/models/airplane/airplane.obj',
-//        'default',
-//        'sampledata/models/airplane/airplane.sfa',
-//        'src/main/assets/airplane')

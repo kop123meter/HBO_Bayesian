@@ -19,7 +19,7 @@
     android:layout_height="match_parent"
     android:background="#bb7700">
 
-    <com.arcore.MixedAIAR.AutoFitTextureView
+    <com.arcore.AI_ResourceControl.AutoFitTextureView
         android:id="@+id/texture"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
