@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
+import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper
 import java.io.File
 
 
@@ -24,7 +25,10 @@ class BitmapCollector(
     val classifier: ImageClassifier?,
     var index: Int, // to ensure unique filename.
     private val activity: Activity,
-    var mInstance: MainActivity
+    var mInstance: MainActivity,
+
+   // private var objectDetectorHelper: ObjectDetectorHelper
+
 
 ): ViewModel() {
 
@@ -104,9 +108,18 @@ class BitmapCollector(
                     if(end!=0L) {
                         overhead = start-end
                     }
-//object detection
-                    val odetector  = ObjectDet(mInstance)
-                    odetector.runObjectDetection(bitmap)
+//object detection version simple:
+                    //val odetector  = ObjectDet(mInstance)
+                   // odetector.runObjectDetection(bitmap)
+
+//object detection version complex:
+                    var objectDetectorHelper: ObjectDetectorHelper
+                    objectDetectorHelper = ObjectDetectorHelper(
+                        context = mInstance)
+
+
+
+                    objectDetectorHelper.detect(bitmap, 0)
 
 //object detection
 
