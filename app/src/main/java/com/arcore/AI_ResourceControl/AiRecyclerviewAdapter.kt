@@ -235,13 +235,17 @@ class AiRecyclerviewAdapter(
 
     private fun updateActiveModel(holder: ViewHolder, itemsView : AiItemsViewModel, position: Int) { // update changes in model's setting- add for each model
         updateActiveModel(holder.modelListView.checkedItemPosition, holder.deviceListView.checkedItemPosition, holder.numberPicker.value, itemsView, position)
-        holder.textAiInfo.text = "Threads: ${itemsView.classifier?.numThreads}\n" +
-                "Model: ${itemsView.classifier?.modelName}\n" +
-                "Device: ${itemsView.classifier?.device}" +
 
-        "Threads: ${itemsView.objectDetector?.numThreads}\n" +
-                "Model: ${itemsView.objectDetector?.modelUsed()}\n" +
-                "Device: ${itemsView.objectDetector?.deviceUsed()}"
+       if(itemsView.classifier!=null)
+        holder.textAiInfo.text =
+            "Threads: ${itemsView.classifier?.numThreads}\n" +
+                "Model: ${itemsView.classifier?.modelName}\n" +
+                "Device: ${itemsView.classifier?.device}\n"
+
+      else if(itemsView.objectDetector!=null)
+          holder.textAiInfo.text =  "Threads: ${itemsView.objectDetector?.numThreads}\n" +
+                  "Model: ${itemsView.objectDetector?.modelUsed()}\n" +
+                  "Device: ${itemsView.objectDetector?.deviceUsed()}"
 
 
 
