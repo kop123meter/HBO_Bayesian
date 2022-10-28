@@ -210,14 +210,17 @@ class AiRecyclerviewAdapter(
 
         when(device) {
             itemsView.devices[0]-> { itemsView.classifier?.useCPU()
-                itemsView.objectDetector?.currentDelegate ?: 0
+                itemsView.objectDetector?.currentDelegate = 0
+                itemsView.objectDetector?.clearObjectDetector()
             }
             itemsView.devices[1]-> {itemsView.classifier?.useGpu()
-                itemsView.objectDetector?.currentDelegate ?: 1
+                itemsView.objectDetector?.currentDelegate = 1
+                itemsView.objectDetector?.clearObjectDetector()
             }
             itemsView.devices[2]-> {
                 itemsView.classifier?.useNNAPI()
-                itemsView.objectDetector?.currentDelegate ?: 2
+                itemsView.objectDetector?.currentDelegate =2
+                itemsView.objectDetector?.clearObjectDetector()
             }
 
 
@@ -225,6 +228,7 @@ class AiRecyclerviewAdapter(
 
         itemsView.classifier?.numThreads = threads
         itemsView.objectDetector?.numThreads= threads // object detector
+        itemsView.objectDetector?.clearObjectDetector()
 
         // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
         itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity,itemsView.objectDetector)
@@ -237,13 +241,13 @@ class AiRecyclerviewAdapter(
         updateActiveModel(holder.modelListView.checkedItemPosition, holder.deviceListView.checkedItemPosition, holder.numberPicker.value, itemsView, position)
 
        if(itemsView.classifier!=null)
-        holder.textAiInfo.text =
+        holder.textAiInfo.text = "Object Classificatin\n"+
             "Threads: ${itemsView.classifier?.numThreads}\n" +
                 "Model: ${itemsView.classifier?.modelName}\n" +
                 "Device: ${itemsView.classifier?.device}\n"
 
       else if(itemsView.objectDetector!=null)
-          holder.textAiInfo.text =  "Threads: ${itemsView.objectDetector?.numThreads}\n" +
+          holder.textAiInfo.text = "Object detection\n"+ "Threads: ${itemsView.objectDetector?.numThreads}\n" +
                   "Model: ${itemsView.objectDetector?.modelUsed()}\n" +
                   "Device: ${itemsView.objectDetector?.deviceUsed()}"
 

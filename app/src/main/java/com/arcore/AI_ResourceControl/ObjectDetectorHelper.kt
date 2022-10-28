@@ -36,7 +36,7 @@ class ObjectDetectorHelper(
     var threshold: Float = 0.5f,
     var numThreads: Int = 2,
     var maxResults: Int = 3,
-    var currentDelegate: Int = 2,
+    var currentDelegate: Int = 0,
     var currentModel: Int = 0,
     var context: Context,
 
@@ -61,11 +61,13 @@ class ObjectDetectorHelper(
     fun  deviceUsed() :String {
         if(currentDelegate==0)
             return "CPU"
-        else  if(currentDelegate==0)
-            return "CPU"
+        else  if(currentDelegate==1)
+            return "GPU"
 
-        else
+        else if(currentDelegate==2)
             return "NPU"
+
+        return "CPU"
     }
 
 

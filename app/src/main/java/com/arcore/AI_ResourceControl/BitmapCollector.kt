@@ -35,7 +35,7 @@ class BitmapCollector(
     var start: Long = 0
     var end: Long = 0
     var overhead: Long = 0
-    var classificationTime: Long = 0
+    var InferenceTime: Long = 0
     var responseTime: Long = 0
     var totalResponseTime: Long = 0
     var numOfTimesExecuted = 0
@@ -102,18 +102,21 @@ class BitmapCollector(
                 Log.d("CANCEL", "$index collected $it")
 
               //  nill added to get the latest bitmap for inference
-                val  bm= bitmapSource?.bitmapUpdaterApi?.latestBitmap
+                var  bitmap= bitmapSource?.bitmapUpdaterApi?.latestBitmap
 
-                if(it!=null && run) {
+                if( run) { // resize it for image classification
 
-
-                    val bitmap = Bitmap.createScaledBitmap(
-                       // it,
-                        bm,
-                        classifier!!.imageSizeX,
-                        classifier.imageSizeY,
-                        true
-                    )
+                    if(classifier!= null)
+                    {
+                        val bitmap2 = Bitmap.createScaledBitmap(
+                            // it,
+                            bitmap,
+                            classifier!!.imageSizeX,
+                            classifier.imageSizeY,
+                            true
+                        )
+                        bitmap=bitmap2// resized value for classification
+                    }
 
                     start = System.nanoTime()/1000000
                     if(end!=0L) {
@@ -125,19 +128,19 @@ class BitmapCollector(
 
 //object detection version complex: this is the main
                     if(objectDetector!= null)
-                        objectDetector?.detect(bitmap, 0)
+                        bitmap?.let { it1 -> objectDetector?.detect(it1, 0) }
 
 
-                    if(classifier!= null)
+                   else if(classifier!= null)
                         classifier.classifyFrame(bitmap)
 
                     end = System.nanoTime()/1000000
-                    classificationTime = end-start
-                    responseTime=overhead+classificationTime
+                    InferenceTime = end-start
+                    responseTime=overhead+InferenceTime
                     numOfTimesExecuted++
                     totalResponseTime+=responseTime
-                    Log.d("times", "${overhead},${classificationTime},${responseTime}")
-                    outputText.append("${overhead},${classificationTime},${responseTime}\n")
+                    Log.d("times", "${overhead},${InferenceTime},${responseTime}")
+                    outputText.append("${overhead},${InferenceTime},${responseTime}\n")
 //                    file.appendText(outputText.toString())
                 }
             }

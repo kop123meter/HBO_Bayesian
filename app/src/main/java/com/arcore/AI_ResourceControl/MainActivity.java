@@ -11,7 +11,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -31,7 +30,6 @@ import android.util.Log;
 
 import java.util.LinkedList;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import android.net.Uri;
 import android.opengl.Matrix;
@@ -53,7 +51,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
-import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -754,16 +751,16 @@ else{
 
 
 
-                    boolean noNullClassifiers = true;
+                    boolean noNullModelRunner = true;
                     for (int i = 0; i < mList.size(); i++) {
-                        if (mList.get(i).getClassifier()==null) {
-                            noNullClassifiers = false;
+                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null) {
+                            noNullModelRunner = false;
                         }
                     }
 
                     // The toggle is enabled
 
-                    if(noNullClassifiers) {
+                    if(noNullModelRunner) {
                         source.startStream();
                         for (int i = 0; i < mList.size(); i++) {
 //                        Log.d("CHECKCHG", String.valueOf((mList.get(i).getClassifier()==null)));

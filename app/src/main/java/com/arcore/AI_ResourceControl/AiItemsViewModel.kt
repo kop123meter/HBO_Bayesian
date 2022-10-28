@@ -18,6 +18,7 @@ class AiItemsViewModel {
     var currentModel = 0
     var currentNumThreads = 1
     var  objectDetector : ObjectDetectorHelper? = null // first add new AI here
+    var  segmentation : ObjectDetectorHelper? = null
 
     //var runCollection = true
 }
@@ -30,7 +31,9 @@ class AiItemsViewModel {
     2-3 thread set
 
 
-3- in bitmap collector
+3- in bitmap collector run the models indicudually
+
+ -  in Activitymain check for noNullModelRunner if at least one model is not null
  *
  *
  */
