@@ -11,6 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -30,6 +31,7 @@ import android.util.Log;
 
 import java.util.LinkedList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import android.net.Uri;
 import android.opengl.Matrix;
@@ -51,6 +53,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CompoundButton;
+import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Switch;
@@ -84,7 +87,7 @@ import java.io.InputStream;
 
 import static java.lang.Math.abs;
 import static java.lang.Math.min;
-
+//import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper;
 
 /*TODO: constant update distance to file
   see if we can update AR capabilities -- find out pointer operation (why will it not draw past 2 meters or whateverz
@@ -334,13 +337,16 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
   //  private static final int KEEP_ALIVE_TIME = 500;
   //  private final int CORE_THREAD_POOL_SIZE = 10;
     SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm");
-    String fileseries=dateFormat.format(new Date());
+    public String fileseries=dateFormat.format(new Date());
     private final int MAX_THREAD_POOL_SIZE = 10;
     //KEEP_ALIVE_TIME_UNIT  =
     private final TimeUnit KEEP_ALIVE_TIME_UNIT= TimeUnit.MILLISECONDS;
     private final BlockingQueue<Runnable> mWorkQueue= new LinkedBlockingQueue<Runnable>();
   //  private final ThreadPoolExecutor algoThreadPool=new ThreadPoolExecutor(CORE_THREAD_POOL_SIZE, MAX_THREAD_POOL_SIZE, KEEP_ALIVE_TIME, KEEP_ALIVE_TIME_UNIT, mWorkQueue);
 
+
+    /**coroutine flow source that captures camera frames from updateTracking() function*/
+     DynamicBitmapSource source = new DynamicBitmapSource(bitmapUpdaterApi);
 
     //Eric code recieves messages from modelrequest manager
     private final Handler handler = new Handler(Looper.getMainLooper()) {
@@ -677,7 +683,7 @@ else{
         ////////////////
 
         /**coroutine flow source that captures camera frames from updateTracking() function*/
-        DynamicBitmapSource source = new DynamicBitmapSource(bitmapUpdaterApi);
+       // DynamicBitmapSource source = new DynamicBitmapSource(bitmapUpdaterApi);
         /** coroutine flow source that passes static jpeg*/
 //        BitmapSource source = new BitmapSource(this, "chair_600.jpg");
 
@@ -698,6 +704,8 @@ else{
         Button buttonPushAiTask = (Button) findViewById(R.id.button_pushAiTask);
         Button buttonPopAiTask = (Button) findViewById(R.id.button_popAiTask);
         TextView textNumOfAiTasks = (TextView) findViewById(R.id.text_numOfAiTasks);
+        TextView textThroughput = (TextView) findViewById(R.id.textView_throughput);
+        TextView textGpuUtilization = (TextView) findViewById(R.id.textView_gpuUtilization);
 
         buttonPushAiTask.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
@@ -760,6 +768,7 @@ else{
                         for (int i = 0; i < mList.size(); i++) {
 //                        Log.d("CHECKCHG", String.valueOf((mList.get(i).getClassifier()==null)));
 //                            mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+                          //  if(mList.get(i).getRunCollection())
                             mList.get(i).getCollector().startCollect();
                         }
                     } else {
@@ -2820,6 +2829,16 @@ private float computeWidth(ArrayList<Float> point){
 //        bitmapUpdaterApi.updateBitmap(bmp);
         bitmapUpdaterApi.setLatestBitmap(bmp);
 
+//        ObjectDet odetector  = new ObjectDet(this);
+//        odetector.runObjectDetection(bmp);
+
+       // objectDetectorHelper odet= new  ObjectDetectorHelper(0.5f, 2, 3, 2, 0,MainActivity.this, fileseries );
+       // objectDetectorHelper odet= new  ObjectDetectorHelper();
+        //  odet.detect(bmp,0);
+
+
+
+
         ///////writes images as file to storage for testing
 //        File path = this.getExternalFilesDir(null);
 //        File dir = new File(path, "data");
@@ -4100,7 +4119,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
                             while ((current_cpu = stdInput.readLine()) != null )
 
-                                if(current_cpu.contains("com.arcore.Mix")){
+                                if(current_cpu.contains("com.arcore.AI_")){ // based on the name of the app which starts with AI_Res...
                                // PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true));
 
                                      while (current_cpu.contains("  "))

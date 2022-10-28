@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
-import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper
+//import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper
 import java.io.File
 
 
@@ -20,14 +20,14 @@ class BitmapCollector(
     /**
      * If using static jpg, comment out DynamicBitmapSource, uncomment BitmapSource
      */
-//    private val bitmapSource: BitmapSource?,
+
     private val bitmapSource: DynamicBitmapSource?,
     val classifier: ImageClassifier?,
     var index: Int, // to ensure unique filename.
     private val activity: Activity,
     var mInstance: MainActivity,
+    var objectDetector: ObjectDetectorHelper?
 
-   // private var objectDetectorHelper: ObjectDetectorHelper
 
 
 ): ViewModel() {
@@ -39,6 +39,9 @@ class BitmapCollector(
     var responseTime: Long = 0
     var totalResponseTime: Long = 0
     var numOfTimesExecuted = 0
+  // first worked: var  objectDetectorHelper = ObjectDetectorHelper( context = mInstance, fileseries = mInstance.fileseries)
+
+
     //
     private val outputPath = activity.getExternalFilesDir(null)
     private val childDirectory = File(outputPath, "data")
@@ -91,14 +94,22 @@ class BitmapCollector(
                     classifier?.numThreads + "T_"+
                     classifier?.time +
                     ".csv")
-//        file.appendText("timestamp,response,guess3,acc3,guess2,acc2,guess1,acc1\n")
-//        file.appendText("overhead,classification Time,response time\n ")
+
+
+
         job = viewModelScope.launch(Dispatchers.IO) {
             bitmapSource?.bitmapStream?.collect {
                 Log.d("CANCEL", "$index collected $it")
+
+              //  nill added to get the latest bitmap for inference
+                val  bm= bitmapSource?.bitmapUpdaterApi?.latestBitmap
+
                 if(it!=null && run) {
+
+
                     val bitmap = Bitmap.createScaledBitmap(
-                        it,
+                       // it,
+                        bm,
                         classifier!!.imageSizeX,
                         classifier.imageSizeY,
                         true
@@ -109,22 +120,16 @@ class BitmapCollector(
                         overhead = start-end
                     }
 //object detection version simple:
-                    //val odetector  = ObjectDet(mInstance)
-                   // odetector.runObjectDetection(bitmap)
+                 //   val odetector  = ObjectDet(mInstance)
+                  //  odetector.runObjectDetection(bitmap)
 
-//object detection version complex:
-                    var objectDetectorHelper: ObjectDetectorHelper
-                    objectDetectorHelper = ObjectDetectorHelper(
-                        context = mInstance)
-
+//object detection version complex: this is the main
+                    if(objectDetector!= null)
+                        objectDetector?.detect(bitmap, 0)
 
 
-                    objectDetectorHelper.detect(bitmap, 0)
-
-//object detection
-
-// temp comment to check GPU-CPU usage
-                  //  classifier.classifyFrame(bitmap)
+                    if(classifier!= null)
+                        classifier.classifyFrame(bitmap)
 
                     end = System.nanoTime()/1000000
                     classificationTime = end-start

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.tensorflow.lite.examples.objectdetection
+package  com.arcore.AI_ResourceControl
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -36,17 +36,18 @@ class ObjectDetectorHelper(
     var threshold: Float = 0.5f,
     var numThreads: Int = 2,
     var maxResults: Int = 3,
-    var currentDelegate: Int = 0,
+    var currentDelegate: Int = 2,
     var currentModel: Int = 0,
     var context: Context,
-    val dateFormat: SimpleDateFormat = SimpleDateFormat("HH:mm"),
-    val fileseries: String = dateFormat.format(Date()),
+
+    val fileseries: String ,
+
     //val objectDetectorListener: DetectorListener?
 ) {
 
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
     // will not change, a lazy val would be preferable.
-    private var objectDetector: ObjectDetector? = null
+    public var objectDetector: ObjectDetector? = null
 
     init {
         setupObjectDetector()
@@ -56,11 +57,36 @@ class ObjectDetectorHelper(
         objectDetector = null
     }
 
+
+    fun  deviceUsed() :String {
+        if(currentDelegate==0)
+            return "CPU"
+        else  if(currentDelegate==0)
+            return "CPU"
+
+        else
+            return "NPU"
+    }
+
+
+    fun  modelUsed() :String {
+        val modelName =
+            when (currentModel) {
+                MODEL_MOBILENETV1 -> "mobilenetv1.tflite"
+                MODEL_EFFICIENTDETV0 -> "efficientdet-lite0.tflite"
+                MODEL_EFFICIENTDETV1 -> "efficientdet-lite1.tflite"
+                MODEL_EFFICIENTDETV2 -> "efficientdet-lite2.tflite"
+                else -> "mobilenetv1.tflite"
+            }
+
+            return modelName
+    }
+
     // Initialize the object detector using current settings on the
     // thread that is using it. CPU and NNAPI delegates can be used with detectors
     // that are created on the main thread and used on a background thread, but
     // the GPU delegate needs to be used on the thread that initialized the detector
-    fun setupObjectDetector() {
+    public fun setupObjectDetector() {
         // Create the base options for the detector using specifies max results and score threshold
         val optionsBuilder =
             ObjectDetector.ObjectDetectorOptions.builder()
@@ -109,7 +135,7 @@ class ObjectDetectorHelper(
         }
     }
 
-    fun detect(image: Bitmap, imageRotation: Int) {
+   public  fun detect(image: Bitmap, imageRotation: Int) {
         if (objectDetector == null) {
             setupObjectDetector()
         }

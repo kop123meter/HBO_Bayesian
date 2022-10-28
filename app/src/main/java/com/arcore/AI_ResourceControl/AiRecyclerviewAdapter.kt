@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.*
 import android.widget.AbsListView.CHOICE_MODE_SINGLE
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.delay
 import java.io.IOException
 import java.lang.Thread.sleep
 
@@ -75,8 +76,10 @@ class AiRecyclerviewAdapter(
         holder.deviceListView.setOnItemClickListener {
                 parent, view, pos, id -> updateActiveModel(holder, itemsViewModel, position)
         }
-        // display current model info
-//        holder.textAiInfo.text = "${itemsViewModel.classifier?.modelName} ${itemsViewModel.classifier?.device}"
+//        holder.toggle.setOnCheckedChangeListener { buttonView, isChecked ->
+//            itemsViewModel.runCollection = isChecked
+//        }
+
         holder.textAiInfo.text = "Threads: ${itemsViewModel.classifier?.numThreads}\n" +
                 "Model: ${itemsViewModel.classifier?.modelName}\n" +
                 "Device: ${itemsViewModel.classifier?.device}"
@@ -97,6 +100,7 @@ class AiRecyclerviewAdapter(
         val deviceListView: ListView = itemView.findViewById(R.id.device)
         val numberPicker: NumberPicker= itemView.findViewById(R.id.numberPicker_aiThreadCount)
         val textAiInfo : TextView = itemView.findViewById(R.id.textView_aiModelInfo)
+      //  val toggle : Switch = itemView.findViewById(R.id.switchToggleCollection)
     }
 
     /**
@@ -108,7 +112,7 @@ class AiRecyclerviewAdapter(
         itemsView.currentNumThreads = 1
         itemsView.classifier=ImageClassifierFloatMobileNet(activity)
         itemsView.classifier?.numThreads = 1
-        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity)
+        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity, itemsView.objectDetector )
         itemsView.classifier?.useCPU()
     }
 
@@ -170,13 +174,13 @@ class AiRecyclerviewAdapter(
                 itemsView.models[0]->itemsView.classifier=ImageClassifierFloatMobileNet(activity)
                 itemsView.models[1]->itemsView.classifier=ImageClassifierQuantizedMobileNetV2_1_0_224(activity)
                 itemsView.models[2]->itemsView.classifier=ImageClassifierQuantizedMobileNet(activity)
-                itemsView.models[3]->itemsView.classifier=ImageClassifier_Inception_V1_Quantized_224(activity)
-                itemsView.models[4]->itemsView.classifier=ImageClassifierQuantizedMobileNetV1_25_0_128(activity)
-                itemsView.models[5]->itemsView.classifier=ImageClassifier_mnasnet_05_224(activity)
-                itemsView.models[6]->itemsView.classifier=ImageClassifier_Inception_V4_Quantized_299(activity)
-                itemsView.models[7]->itemsView.classifier=ImageClassifier_Inception_v4_Float_299(activity)
-                itemsView.models[8]->itemsView.classifier=ImageClassifier_MobileNet_V2_Float_224(activity)
-
+//                itemsView.models[3]->itemsView.classifier=ImageClassifier_Inception_V1_Quantized_224(activity)
+//                itemsView.models[4]->itemsView.classifier=ImageClassifierQuantizedMobileNetV1_25_0_128(activity)
+//                itemsView.models[5]->itemsView.classifier=ImageClassifier_mnasnet_05_224(activity)
+//                itemsView.models[6]->itemsView.classifier=ImageClassifier_Inception_V4_Quantized_299(activity)
+//                itemsView.models[7]->itemsView.classifier=ImageClassifier_Inception_v4_Float_299(activity)
+//                itemsView.models[8]->itemsView.classifier=ImageClassifier_MobileNet_V2_Float_224(activity)
+//                itemsView.models[3]->itemsView.objectDetector=ObjectDetectorHelper( context = mainActivity, fileseries = mainActivity.fileseries)
 
             }
         } catch (e: IOException) {
@@ -188,24 +192,58 @@ class AiRecyclerviewAdapter(
             itemsView.classifier = null
         }
 
+        try {// for object detector
+            when(model) {
+                 itemsView.models[3]->itemsView.objectDetector=ObjectDetectorHelper( context = mainActivity, fileseries = mainActivity.fileseries)
+            }
+        } catch (e: IOException) {
+            Log.d(
+                "Custom Adapter",
+                "Failed to load",
+                e
+            )
+            itemsView.objectDetector = null
+        }
+
+
+
+
         when(device) {
-            itemsView.devices[0]-> itemsView.classifier?.useCPU()
-            itemsView.devices[1]-> itemsView.classifier?.useGpu()
-            itemsView.devices[2]-> itemsView.classifier?.useNNAPI()
+            itemsView.devices[0]-> { itemsView.classifier?.useCPU()
+                itemsView.objectDetector?.currentDelegate ?: 0
+            }
+            itemsView.devices[1]-> {itemsView.classifier?.useGpu()
+                itemsView.objectDetector?.currentDelegate ?: 1
+            }
+            itemsView.devices[2]-> {
+                itemsView.classifier?.useNNAPI()
+                itemsView.objectDetector?.currentDelegate ?: 2
+            }
+
+
         }
 
         itemsView.classifier?.numThreads = threads
+        itemsView.objectDetector?.numThreads= threads // object detector
 
-        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity)
+        // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
+        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity,itemsView.objectDetector)
         if (switchToggleStream.isChecked) {
             itemsView.collector!!.startCollect()
         }
     }
 
-    private fun updateActiveModel(holder: ViewHolder, itemsView : AiItemsViewModel, position: Int) {
+    private fun updateActiveModel(holder: ViewHolder, itemsView : AiItemsViewModel, position: Int) { // update changes in model's setting- add for each model
         updateActiveModel(holder.modelListView.checkedItemPosition, holder.deviceListView.checkedItemPosition, holder.numberPicker.value, itemsView, position)
         holder.textAiInfo.text = "Threads: ${itemsView.classifier?.numThreads}\n" +
                 "Model: ${itemsView.classifier?.modelName}\n" +
-                "Device: ${itemsView.classifier?.device}"
+                "Device: ${itemsView.classifier?.device}" +
+
+        "Threads: ${itemsView.objectDetector?.numThreads}\n" +
+                "Model: ${itemsView.objectDetector?.modelUsed()}\n" +
+                "Device: ${itemsView.objectDetector?.deviceUsed()}"
+
+
+
     }
 }

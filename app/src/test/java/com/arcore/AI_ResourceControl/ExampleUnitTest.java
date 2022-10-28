@@ -1,4 +1,4 @@
-package com.arcore.MixedAIAR;
+package com.arcore.AI_ResourceControl;
 
 import org.junit.Test;
 

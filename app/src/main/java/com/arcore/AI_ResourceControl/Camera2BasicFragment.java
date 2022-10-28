@@ -173,13 +173,13 @@ public class Camera2BasicFragment extends Fragment
 //        }
 //    }
 
-//    public static Camera2BasicFragment Instance
-//            = new Camera2BasicFragment();
+    public static Camera2BasicFragment Instance
+            = new Camera2BasicFragment();
 
-//    public static Camera2BasicFragment getInstance() {
-//
-//        return Instance;
-//    }
+    public static Camera2BasicFragment getInstance() {
+
+        return Instance;
+    }
 
 
 //    double getThr( ){

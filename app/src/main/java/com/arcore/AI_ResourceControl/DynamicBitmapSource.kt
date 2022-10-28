@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.flowOn
 /**
  * Emits latest bitmap from BitmapUpdaterApi
  */
-class DynamicBitmapSource(private val bitmapUpdaterApi : BitmapUpdaterApi) {
+class DynamicBitmapSource(val bitmapUpdaterApi : BitmapUpdaterApi) {
     var run = false
     lateinit var bitmapStream : Flow<Bitmap?>
 
