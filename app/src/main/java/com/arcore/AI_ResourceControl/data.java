@@ -148,47 +148,11 @@ public class data implements Runnable {
     }//run
 
 
-    public void cleanOutArraysRE(double totTris, double predDis, MainActivity mInstance){
-
-        int index;
-        if ( mInstance.trisMeanDisk.get(totTris).size() == binCap)
-        { // we keep inf of last 10 points
-            double []disArray= mInstance.trisMeanDisk.get(totTris).stream()
-                    .mapToDouble(Double::doubleValue)
-                    .toArray();
-            index= findClosest(disArray , predDis);// the index of value needed to be deleted
-            // since we add if objcount != zero to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
-           if(index<mInstance.trisRe.get(totTris).size() &&  index<mInstance.reParamList.get(totTris).size())
-            {
-                mInstance.trisRe.get(totTris).remove(index);
-            mInstance.reParamList.get(totTris).remove(index);
-            }
-        }
-
-        // return index;
-    }
 
 
 
 
-    public int cleanOutArraysThr(double totTris, double predDis, MainActivity mInstance){
 
-        int index=-1;
-        if ( mInstance.trisMeanDisk.get(totTris).size() == binCap) {
-            double[] disArray = mInstance.trisMeanDisk.get(totTris).stream()
-                    .mapToDouble(Double::doubleValue)
-                    .toArray(); // this has the array of predicted distance
-
-            index = findClosest(disArray, predDis);// the index of value(closest to current mean dis) needed to be deleted
-            mInstance.trisMeanThr.get(totTris).remove(index); // has the real throughput
-            mInstance.thParamList.get(totTris).remove(index);
-
-            mInstance.trisMeanDisk.get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
-            // mInstance.trisMeanDiskk.get(totTris).remove(index);
-        }
-
-        return  index;
-    }
 
 
     public static int findClosest(double[] arr, double target) { // find the closest index of arr to value distance= target to then substitue that with the newer one
@@ -207,71 +171,7 @@ public class data implements Runnable {
         return idx;
     }
 
-    public void writequality(){
 
-
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
-        String FILEPATH = currentFolder + File.separator + "Quality"+mInstance. fileseries+".csv";
-
-        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-           for (int i=0; i<objC-1; i++) {
-               float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
-//               if (mInstance.renderArray.get(i).fileName.contains("0.6")) // third scenario has ratio 0.6
-//                   r1 = 0.6f; // jsut for scenario3 objects are decimated
-//               else if(mInstance.renderArray.get(i).fileName.contains("0.3")) // sixth scenario has ratio 0.3
-//                   r1=0.3f;
-
-
-               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
-               int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
-               // excel file has all information for the degredation model
-               float gamma = mInstance.excel_gamma.get(indq);
-               float a = mInstance.excel_alpha.get(indq);
-               float b = mInstance.excel_betta.get(indq);
-               float c = mInstance.excel_c.get(indq);
-               float d_k = mInstance.renderArray.get(i).return_distance();// current distance
-
-               float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
-               float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
-
-
-
-
-
-               float max_nrmd = mInstance.excel_maxd.get(indq);
-               tmper1 = tmper1 / max_nrmd; // normalized
-               tmper2= tmper2 /max_nrmd;
-
-               if (tmper2 < 0)
-                   tmper2 = 0;
-
-               //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
-               sensitivity[i] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));
-               tmper1 = (float) (Math.round((float) (tmper1 * 1000))) / 1000;
-
-                StringBuilder sb = new StringBuilder();
-                sb.append(dateFormat.format(new Date()));
-                sb.append(',');
-                sb.append(mInstance.renderArray.get(i).fileName+"_n"+(i+1)+"_d"+(d_k));
-                sb.append(',');
-                sb.append(sensitivity[i]);
-                sb.append(',');
-                sb.append(r1);
-                sb.append(',');
-                sb.append(1-tmper1);
-              //  sb.append(mInstance.tasks.toString());
-
-                sb.append('\n');
-                writer.write(sb.toString());
-                System.out.println("done!");
-            }
-        }catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
-        }
-
-    }
     public void writeThr(double realThr, double predThr, boolean trainedFlag){
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
@@ -295,12 +195,16 @@ public class data implements Runnable {
             StringBuilder sb = new StringBuilder();
             sb.append(dateFormat.format(new Date())); sb.append(',');
             sb.append(realThr);sb.append(',');
-            sb.append(predThr);
-            sb.append(',');  sb.append(trainedFlag);
             sb.append(','); sb.append(mInstance.total_tris);
-            sb.append(mInstance.tasks.toString());
-            sb.append(','); sb.append(mInstance.des_Thr);
-            sb.append(','); sb.append(mInstance.des_Q);
+
+            for (AiItemsViewModel taskView :mInstance. mList) {
+
+                sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+                        .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+                        .append(",").append(taskView.getCurrentNumThreads())
+                        ;
+            }
+            //date, thr, tris, model, device, thread
             sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");

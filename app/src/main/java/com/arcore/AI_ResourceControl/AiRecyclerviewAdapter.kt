@@ -106,15 +106,15 @@ class AiRecyclerviewAdapter(
     /**
      * Initializes model to default parameters
      */
-    fun initializeActiveModel(itemsView: AiItemsViewModel, position: Int) {
-        itemsView.currentModel = 0
-        itemsView.currentDevice = 0
-        itemsView.currentNumThreads = 1
-        itemsView.classifier=ImageClassifierFloatMobileNet(activity)
-        itemsView.classifier?.numThreads = 1
-        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity, itemsView.objectDetector )
-        itemsView.classifier?.useCPU()
-    }
+//    fun initializeActiveModel(itemsView: AiItemsViewModel, position: Int) {
+//        itemsView.currentModel = 0
+//        itemsView.currentDevice = 0
+//        itemsView.currentNumThreads = 1
+//        itemsView.classifier=ImageClassifierFloatMobileNet(activity)
+//        itemsView.classifier?.numThreads = 1
+//        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity, itemsView.objectDetector )
+//        itemsView.classifier?.useCPU()
+//    }
 
     /**
      * Updates model to parameters chosen by pressing ai_settings_card_view_design
@@ -135,17 +135,13 @@ class AiRecyclerviewAdapter(
         }
 //        }
 
-
-        // Get UI information before delegating to background
-//        val modelIndex: Int = holder.modelListView.checkedItemPosition
-//        val deviceIndex: Int = holder.deviceListView.checkedItemPosition
-//        val numThreads: Int = holder.numberPicker.value
-
-        // Do not update if there is no change
+        // Do not update if there is no change /
         if (modelIndex == itemsView.currentModel
             && deviceIndex == itemsView.currentDevice
             && numThreads == itemsView.currentNumThreads
-            && itemsView.classifier != null) {
+            && ( itemsView.classifier != null   || itemsView.newclassifier != null  || itemsView.objectDetector != null  )
+
+        ) {
             return
         }
         itemsView.currentModel = modelIndex
@@ -153,7 +149,7 @@ class AiRecyclerviewAdapter(
         itemsView.currentNumThreads = numThreads
 
 
-        // Disable classifier while updating
+        // Disable classifier while updating  ... ? should I add this for detector and newClassifier?
         if (itemsView.classifier != null) {
             itemsView.classifier?.close()
             itemsView.classifier = null
@@ -164,9 +160,6 @@ class AiRecyclerviewAdapter(
         val device: String = itemsView.devices[itemsView.currentDevice]
         val threads = itemsView.currentNumThreads
 
-//        Log.i("Custom Adapter",
-//            "Changing model to $model device $device"
-//        )
 
         // Try to load model.
         try {
@@ -191,10 +184,15 @@ class AiRecyclerviewAdapter(
             )
             itemsView.classifier = null
         }
-
-        try {// for object detector
+//***************** for object detector
+        try {
             when(model) {
-                 itemsView.models[3]->itemsView.objectDetector=ObjectDetectorHelper( context = mainActivity, fileseries = mainActivity.fileseries)
+                 itemsView.models[3]-> {
+                     itemsView.objectDetector = ObjectDetectorHelper(
+                         context = mainActivity, fileseries = mainActivity.fileseries)
+                     itemsView.objectDetector!!.currentModel=0 // need to update the model too
+                    //itemsView.objectDetector?.clearObjectDetector()
+                 }
             }
         } catch (e: IOException) {
             Log.d(
@@ -205,22 +203,61 @@ class AiRecyclerviewAdapter(
             itemsView.objectDetector = null
         }
 
+//***************** for object detector
+
+//***************** for new object CLASSIFICATION
+        try {
+            when(model) {
+                itemsView.models[4]->
+                {itemsView.newclassifier=ImageClassifierHelper( context = mainActivity,fileseries = mainActivity.fileseries)
+                    itemsView.newclassifier!!.currentModel=1 // need to update the model too
+                    itemsView.newclassifier?.clearImageClassifier()
+                }
+
+
+            }
+        } catch (e: IOException) {
+            Log.d(
+                "Custom Adapter",
+                "Failed to load",
+                e
+            )
+            itemsView.newclassifier = null
+        }
+
+//***************** for new object CLASSIFICATION
+
 
 
 
         when(device) {
             itemsView.devices[0]-> { itemsView.classifier?.useCPU()
                 itemsView.objectDetector?.currentDelegate = 0
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.objectDetector?.clearObjectDetector()
+
+                itemsView.newclassifier?.currentDelegate = 0
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                itemsView.newclassifier?.clearImageClassifier()
+
+
             }
             itemsView.devices[1]-> {itemsView.classifier?.useGpu()
                 itemsView.objectDetector?.currentDelegate = 1
                 itemsView.objectDetector?.clearObjectDetector()
+
+                itemsView.newclassifier?.currentDelegate = 1
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                itemsView.newclassifier?.clearImageClassifier()
             }
             itemsView.devices[2]-> {
                 itemsView.classifier?.useNNAPI()
                 itemsView.objectDetector?.currentDelegate =2
                 itemsView.objectDetector?.clearObjectDetector()
+
+                itemsView.newclassifier?.currentDelegate = 2
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                itemsView.newclassifier?.clearImageClassifier()
             }
 
 
@@ -229,9 +266,11 @@ class AiRecyclerviewAdapter(
         itemsView.classifier?.numThreads = threads
         itemsView.objectDetector?.numThreads= threads // object detector
         itemsView.objectDetector?.clearObjectDetector()
+        itemsView.newclassifier?.numThreads= threads // NEW object classification
+        itemsView.newclassifier?.clearImageClassifier()
 
         // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
-        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity,itemsView.objectDetector)
+        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity,itemsView.objectDetector,itemsView.newclassifier)
         if (switchToggleStream.isChecked) {
             itemsView.collector!!.startCollect()
         }
@@ -251,6 +290,10 @@ class AiRecyclerviewAdapter(
                   "Model: ${itemsView.objectDetector?.modelUsed()}\n" +
                   "Device: ${itemsView.objectDetector?.deviceUsed()}"
 
+       else if(itemsView.newclassifier!=null)
+           holder.textAiInfo.text = "NEW Image classificatio\n"+ "Threads: ${itemsView.newclassifier?.numThreads}\n" +
+                   "Model: ${itemsView.newclassifier?.modelUsed()}\n" +
+                   "Device: ${itemsView.newclassifier?.deviceUsed()}"
 
 
     }

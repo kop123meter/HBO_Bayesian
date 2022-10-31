@@ -753,7 +753,7 @@ else{
 
                     boolean noNullModelRunner = true;
                     for (int i = 0; i < mList.size(); i++) {
-                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null) {
+                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null && mList.get(i).getNewclassifier()==null) { // we have three different models now
                             noNullModelRunner = false;
                         }
                     }
@@ -919,23 +919,19 @@ else{
 
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
-
+//date, thr, tris, model, device, thread
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("thr_Real");
-            sbb.append(',');
-            sbb.append("thr_pred");
-            sbb.append(',');
-            sbb.append("trainedThr"); //sbb.append(',');  sbb.append("serv_req");
+            sbb.append("Throughput");
             sbb.append(',');
             sbb.append("Tris");
             sbb.append(',');
             sbb.append("Models");
             sbb.append(',');
-            sbb.append("des_Thr");
+            sbb.append("Device");
             sbb.append(',');
-            sbb.append("des_Q");
+            sbb.append("Thread");
             sbb.append('\n');
             writer.write(sbb.toString());
             System.out.println("done!");
@@ -1016,70 +1012,6 @@ else{
 
 
 
-/*
-        currentFolder = getExternalFilesDir(null).getAbsolutePath();
-        FILEPATH = currentFolder + File.separator + "NextTrisParameters.csv";
-        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
-
-            StringBuilder sbb = new StringBuilder();
-            sbb.append("Time");         sbb.append(',');
-            sbb.append("alphaD");
-            sbb.append(',');
-            sbb.append("alphaH");
-            sbb.append(',');
-            sbb.append("rohD");
-            sbb.append(',');
-            sbb.append("meanDkk");
-            sbb.append(',');
-            sbb.append("zeta");
-            sbb.append(',');
-            sbb.append("delta");
-            sbb.append(',');
-            sbb.append("alphaT");
-            sbb.append(',');
-            sbb.append("rohT");
-            sbb.append(',');
-            sbb.append("nomin");
-            sbb.append(',');
-            sbb.append("denom");
-            sbb.append(',');
-            sbb.append("totTris");
-            sbb.append(',');
-            sbb.append("nextTris");
-            sbb.append('\n');
-            writer.write(sbb.toString());
-            System.out.println("done!");
-
-        } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
-        }
-
-*/
-
-//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(currentFolder + File.separator + "Response_t.csv", false))) {
-//
-//            StringBuilder sbb2 = new StringBuilder();
-//            sbb2.append("time1");// sbb2.append(','); //sbb2.append("label");
-//            sbb2.append(',');
-//            sbb2.append("device"); // sbb2.append(','); sbb2.append( "accuracy" );
-//            sbb2.append(',');
-//            sbb2.append("duration");
-//            sbb2.append(',');
-//            sbb2.append("requests");
-//            sbb2.append(',');
-//            sbb2.append("model, iteration");
-//
-//            // String item2 = dateFormat.format(new Date()) + " "+label_accu+ " time " + duration + " ms" + " requests " + requests + " model " + model;
-//
-//            sbb2.append('\n');
-//            writer.write(sbb2.toString());
-//            System.out.println("done!");
-//        } catch (FileNotFoundException e) {
-//            System.out.println(e.getMessage());
-//        }
-
-//        int intfactMDE= (int)   MDESpinner.getSelectedItem();
-//        max_d_parameter= intfactMDE /10f;
 
 
         try {

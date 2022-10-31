@@ -47,7 +47,7 @@ class ObjectDetectorHelper(
 
     // For this example this needs to be a var so it can be reset on changes. If the ObjectDetector
     // will not change, a lazy val would be preferable.
-    public var objectDetector: ObjectDetector? = null
+     var objectDetector: ObjectDetector? = null
 
     init {
         setupObjectDetector()
@@ -88,7 +88,7 @@ class ObjectDetectorHelper(
     // thread that is using it. CPU and NNAPI delegates can be used with detectors
     // that are created on the main thread and used on a background thread, but
     // the GPU delegate needs to be used on the thread that initialized the detector
-    public fun setupObjectDetector() {
+     fun setupObjectDetector() {
         // Create the base options for the detector using specifies max results and score threshold
         val optionsBuilder =
             ObjectDetector.ObjectDetectorOptions.builder()
@@ -177,7 +177,7 @@ class ObjectDetectorHelper(
     fun debugPrint(results : List<Detection>) {
 
         var currentFolder: String? = context.getExternalFilesDir(null)!!.absolutePath
-        var FILEPATH = currentFolder + File.separator + "cmplxModel_" + fileseries + ".csv"
+        var FILEPATH = currentFolder + File.separator + "objDetectorModel_" + fileseries + ".csv"
 
         for ((i, obj) in results.withIndex()) {
 
