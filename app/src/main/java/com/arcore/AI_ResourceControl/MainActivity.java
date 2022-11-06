@@ -753,7 +753,9 @@ else{
 
                     boolean noNullModelRunner = true;
                     for (int i = 0; i < mList.size(); i++) {
-                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null && mList.get(i).getNewclassifier()==null) { // we have three different models now
+                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null && mList.get(i).getNewclassifier()==null
+                        && mList.get(i).getImgSegmentation()==null
+                        ) { // we have three different models now
                             noNullModelRunner = false;
                         }
                     }
@@ -2163,6 +2165,7 @@ else{
                 mList.get(i).getCollector().setNumOfTimesExecuted(0);
                 mList.get(i).getCollector().setTotalResponseTime(0);
                 mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+                mList.get(i).setThroughput(meanthr[i]);// update throughput of each model
             }
         }
 //        Log.d("rt", String.valueOf(meanResponseTimes[0]));
@@ -2752,6 +2755,8 @@ private float computeWidth(ArrayList<Float> point){
         YuvToRgbConverter converter = new YuvToRgbConverter(this);
         Image image = frame.acquireCameraImage();
         Bitmap bmp = Bitmap.createBitmap(image.getWidth(), image.getHeight(), Bitmap.Config.ARGB_8888);
+
+
         converter.yuvToRgb(image, bmp); /** line to be multithreaded*/
         image.close();
 

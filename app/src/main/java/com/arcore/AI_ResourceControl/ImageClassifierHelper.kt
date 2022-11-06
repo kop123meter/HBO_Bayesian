@@ -24,6 +24,7 @@ import android.view.Surface
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.core.vision.ImageProcessingOptions
 import org.tensorflow.lite.task.vision.classifier.Classifications
@@ -31,6 +32,8 @@ import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import java.io.File
 import java.io.FileOutputStream
 import java.io.PrintWriter
+import java.text.SimpleDateFormat
+import java.util.*
 
 class ImageClassifierHelper(
     var threshold: Float = 0.5f,
@@ -39,6 +42,7 @@ class ImageClassifierHelper(
     var currentDelegate: Int = 0,
     var currentModel: Int = 1,
     val context: Context,
+    var modelName: String,
     val fileseries: String ,
    // val imageClassifierListener: ClassifierListener?
 ) {
@@ -51,6 +55,9 @@ class ImageClassifierHelper(
     fun clearImageClassifier() {
         imageClassifier = null
     }
+
+
+
 
      fun setupImageClassifier() {
         val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
@@ -77,14 +84,15 @@ class ImageClassifierHelper(
 
         optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
 
-        val modelName =
-            when (currentModel) {
-                MODEL_MOBILENETV1 -> "mobilenetv1.tflite"
-                MODEL_EFFICIENTNETV0 -> "efficientnet-lite0.tflite"
-                MODEL_EFFICIENTNETV1 -> "efficientnet-lite1.tflite"
-                MODEL_EFFICIENTNETV2 -> "efficientnet-lite2.tflite"
-                else -> "mobilenetv1.tflite"
-            }
+//        val modelName =
+//            when (currentModel) {
+//                MODEL_MOBILENETV1 -> "mobilenetClassv1.tflite"
+//                MODEL_EFFICIENTNETV0 -> "efficientclass-lite0.tflite"
+//                MODEL_EFFICIENTNETV1 -> "efficientclass-lite1.tflite"
+//                MODEL_EFFICIENTNETV2 -> "efficientclass-lite2.tflite"
+//                Model_InceptionV1-> "inception_v1_224_quant.tflite"
+//                else -> "mobilenetClassv1.tflite"
+//            }
 
         try {
             imageClassifier =
@@ -150,15 +158,18 @@ class ImageClassifierHelper(
     }
 
     fun  modelUsed() :String {
-        val modelName =
+       // val modelName =
 
-            when (currentModel) {
-                MODEL_MOBILENETV1 -> "mobilenetv1.tflite"
-                MODEL_EFFICIENTNETV0 -> "efficientnet-lite0.tflite"
-                MODEL_EFFICIENTNETV1 -> "efficientnet-lite1.tflite"
-                MODEL_EFFICIENTNETV2 -> "efficientnet-lite2.tflite"
-                else -> "mobilenetv1.tflite"
-            }
+//            when (currentModel) {
+//                MODEL_MOBILENETV1 -> "mobilenetClassv1.tflite"
+//                MODEL_EFFICIENTNETV0 -> "efficientclass-lite0.tflite"
+//                MODEL_EFFICIENTNETV1 -> "efficientclass-lite1.tflite"
+//                MODEL_EFFICIENTNETV2 -> "efficientclass-lite2.tflite"
+//                Model_InceptionV1-> "inception_v1_224_quant.tflite"
+//                else -> "mobilenetClassv1.tflite"
+//            }
+
+        //return modelName
 
         return modelName
     }
@@ -176,11 +187,13 @@ class ImageClassifierHelper(
     }
 
 
-
+    private var categories: MutableList<Category?> = mutableListOf()
+    private var adapterSize: Int = 0
     fun debugPrint(results: MutableList<Classifications>) {
 
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS")
         var currentFolder: String? = context.getExternalFilesDir(null)!!.absolutePath
-        var FILEPATH = currentFolder + File.separator + "ClassificationModel_" + fileseries + ".csv"
+        var FILEPATH = currentFolder + File.separator + "NEW_Classification" + fileseries + ".csv"
 
         for ((i, obj) in results.withIndex()) {
 
@@ -194,10 +207,10 @@ class ImageClassifierHelper(
                 try {
                     PrintWriter(FileOutputStream(FILEPATH, true)).use { writer ->
                         val sbb = StringBuilder()
-                        sbb.append("$j: ${category.label}")
+                        sbb.append(dateFormat.format(Date())).append(",").append(deviceUsed()).append(",").append("$j: ${category.label}")
                         sbb.append(',')
                         sbb.append( "${confidence}%" )
-                        sbb.append(',')
+                        sbb.append('\n')
                         writer.write(sbb.toString())
 
                     }
@@ -205,19 +218,9 @@ class ImageClassifierHelper(
                     println(e.message)
                 }
 
-
-
-                Log.d(TAG, "    Confidence: ${confidence}%")
             }
 
-            try {
-                PrintWriter(FileOutputStream(FILEPATH, true)).use { writer ->
-                    writer.write("\n")
 
-                }
-            } catch (e: java.io.FileNotFoundException) {
-                println(e.message)
-            }
 
 
         }
@@ -240,6 +243,7 @@ class ImageClassifierHelper(
         const val MODEL_EFFICIENTNETV0 = 1
         const val MODEL_EFFICIENTNETV1 = 2
         const val MODEL_EFFICIENTNETV2 = 3
+        const val Model_InceptionV1=4
 
         private const val TAG = "ImageClassifierHelper"
     }

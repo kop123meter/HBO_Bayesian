@@ -28,9 +28,13 @@ import org.tensorflow.lite.gpu.GpuDelegate;
 import org.tensorflow.lite.nnapi.NnApiDelegate;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
@@ -83,6 +87,8 @@ public abstract class ImageClassifier {
 
   List<Double> rTime= new ArrayList<>();// holds data of all response time collected but it is refreshed every 500 ms
   double periodicMeanRtime;// holds responsetime every 500ms
+  String fileseries;
+  MainActivity instance;
 
   /** A ByteBuffer to hold image data, to be feed into Tensorflow Lite as inputs. */
   protected ByteBuffer imgData = null;
@@ -172,6 +178,47 @@ public abstract class ImageClassifier {
 void classifyFrame(Bitmap bitmap) {
   convertBitmapToByteBuffer(bitmap);
   runInference();
+   printToFile(); // added nil
+
+
+}
+
+
+void printToFile(){
+
+  SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+  String currentFolder = instance.getExternalFilesDir(null).getAbsolutePath();
+  String FILEPATH = currentFolder + File.separator + "Classification"+fileseries+".csv";
+
+  // added by nill
+  for (int i = 0; i < getNumLabels(); ++i) {
+    sortedLabels.add(
+            new AbstractMap.SimpleEntry<>(labelList.get(i), getNormalizedProbability(i)));
+    if (sortedLabels.size() > RESULTS_TO_SHOW) {
+      sortedLabels.poll();
+    }
+  }
+
+  final int size = sortedLabels.size();
+
+
+
+  try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+
+    StringBuilder sb = new StringBuilder();
+    sb.append(dateFormat.format(new Date())); sb.append(',').append(getDevice()).append(",");
+    for (int i = 0; i < size; i++) {
+      Map.Entry<String, Float> label = sortedLabels.poll();
+      sb.append(String.format("%s,%4.2f,", label.getKey(), label.getValue()));
+      sb.append('\n');
+
+    }
+    writer.write(sb.toString());
+    System.out.println("done!");
+  } catch (FileNotFoundException e) {
+    System.out.println(e.getMessage());
+  }
+
 
 }
 

@@ -1,5 +1,7 @@
 package com.arcore.AI_ResourceControl;
 
+import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
+
 /**
  * Object to hold classifier object for recyclerview content
  * */
@@ -8,9 +10,13 @@ class AiItemsViewModel {
 //
 //    }
 
-    val models = listOf("MN V1 1.0 F 224", "MN v2 1.0 Q 224", "MN v1 1.0 Q 224",
-//        "IN V1 Q 224", "MN v1 0.25 Q 128", "mnasnet" ,"Inception v4 Quant", "Inception v4 Float", "Mobilenet v2 Float",
-        "mobilenetv1", "efficientnet-lite0")
+    val models = listOf("mobilenet_v1_1.0_224", "MN v2 1.0 Q 224", "MN v1 1.0 Q 224",
+      // "inception_v1_224_quant",
+       "efficientdet-lite0",
+//        "MN v1 0.25 Q 128", "mnasnet" ,"Inception v4 Quant", "Inception v4 Float", "Mobilenet v2 Float",
+        "mobilenetDetv1", "efficientclass-lite0",
+        "inception_v1_224_quant", "mobilenetClassv1", "segmen_deeplabv3"
+        )
     val devices = listOf("CPU", "GPU", "NPU")
     var collector : BitmapCollector? = null
     var classifier: ImageClassifier? = null
@@ -19,8 +25,11 @@ class AiItemsViewModel {
     var currentNumThreads = 1
     var  objectDetector : ObjectDetectorHelper? = null // first add new AI here
    // var  segmentation : ObjectDetectorHelper? = null
-   var newclassifier: ImageClassifierHelper? = null
+    var newclassifier: ImageClassifierHelper? = null
+    var imgSegmentation: ImageSegmentationHelper?=null
+    var throughput: Double = 0.0
 
+    var gestureClas: GestureClassifierHelper?= null// "Gesture Classifier"
 }
 
 //steps:
@@ -36,7 +45,9 @@ class AiItemsViewModel {
 line 22 initiate
 3-2: run the models indiuidually
 
-4: in AiRecyclerviewAdapter: line itemsView.collector = BitmapCollector() add the AI model as the new argument
+4: in AiRecyclerviewAdapter:
+4-1 line itemsView.collector = BitmapCollector() add the AI model as the new argument
+4-2 line 152  // Disable the AI model while updating
 5-  in Activitymain check for noNullModelRunner if at least one model is not null
  6- line 126 of airecyvleviewadapter when we run updateActiveModel, add the model!=null for not running the update
 

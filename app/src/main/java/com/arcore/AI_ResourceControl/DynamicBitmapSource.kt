@@ -3,7 +3,6 @@ package com.arcore.AI_ResourceControl
 import android.graphics.Bitmap
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -29,6 +28,7 @@ class DynamicBitmapSource(val bitmapUpdaterApi : BitmapUpdaterApi) {
         run = true
         Log.d("CANCEL", "STARTING STREAM")
         runStream()
+
     }
 
     fun pauseStream() {

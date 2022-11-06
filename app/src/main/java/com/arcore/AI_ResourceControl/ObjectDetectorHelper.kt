@@ -39,6 +39,7 @@ class ObjectDetectorHelper(
     var currentDelegate: Int = 0,
     var currentModel: Int = 0,
     var context: Context,
+    var modelName: String,
 
     val fileseries: String ,
 
@@ -72,14 +73,14 @@ class ObjectDetectorHelper(
 
 
     fun  modelUsed() :String {
-        val modelName =
-            when (currentModel) {
-                MODEL_MOBILENETV1 -> "mobilenetv1.tflite"
-                MODEL_EFFICIENTDETV0 -> "efficientdet-lite0.tflite"
-                MODEL_EFFICIENTDETV1 -> "efficientdet-lite1.tflite"
-                MODEL_EFFICIENTDETV2 -> "efficientdet-lite2.tflite"
-                else -> "mobilenetv1.tflite"
-            }
+//        val modelName =
+//            when (currentModel) {
+//                MODEL_MOBILENETV1 -> "mobilenetDetv1.tflite"
+//                MODEL_EFFICIENTDETV0 -> "efficientdet-lite0.tflite"
+//                MODEL_EFFICIENTDETV1 -> "efficientdet-lite1.tflite"
+//                MODEL_EFFICIENTDETV2 -> "efficientdet-lite2.tflite"
+//                else -> "mobilenetDetv1.tflite"
+//            }
 
             return modelName
     }
@@ -117,14 +118,14 @@ class ObjectDetectorHelper(
 
         optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
 
-        val modelName =
-            when (currentModel) {
-                MODEL_MOBILENETV1 -> "mobilenetv1.tflite"
-                MODEL_EFFICIENTDETV0 -> "efficientdet-lite0.tflite"
-                MODEL_EFFICIENTDETV1 -> "efficientdet-lite1.tflite"
-                MODEL_EFFICIENTDETV2 -> "efficientdet-lite2.tflite"
-                else -> "mobilenetv1.tflite"
-            }
+//        val modelName =
+//            when (currentModel) {
+//                MODEL_MOBILENETV1 -> "mobilenetDetv1.tflite"
+//                MODEL_EFFICIENTDETV0 -> "efficientdet-lite0.tflite"
+//                MODEL_EFFICIENTDETV1 -> "efficientdet-lite1.tflite"
+//                MODEL_EFFICIENTDETV2 -> "efficientdet-lite2.tflite"
+//                else -> "mobilenetDetv1.tflite"
+//            }
 
         try {
             objectDetector =
@@ -182,11 +183,12 @@ class ObjectDetectorHelper(
         for ((i, obj) in results.withIndex()) {
 
             val box = obj.boundingBox
-
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS")
             try {
               PrintWriter(FileOutputStream(FILEPATH, true)).use { writer ->
                     val sbb = StringBuilder()
-                    sbb.append("${i}")
+                    sbb.append(dateFormat.format(Date())).append(",").append(deviceUsed()).append(",").append("${i}")
+
                     sbb.append(',')
                     sbb.append( "(${box.left}, ${box.top}) - (${box.right},${box.bottom})" )
                     sbb.append(',')

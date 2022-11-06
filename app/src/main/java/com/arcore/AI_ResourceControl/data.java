@@ -130,14 +130,14 @@ public class data implements Runnable {
 
 
 // this is thr calculated using the modeling
-            double predThr = (mInstance.rohT *  totTris) + (mInstance.rohD * pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-            predThr = (double) Math.round((double) predThr * 100) / 100;
+          //  double predThr = (mInstance.rohT *  totTris) + (mInstance.rohD * pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+           // predThr = (double) Math.round((double) predThr * 100) / 100;
 
 
 
 
 
-                    writeThr(meanThr, predThr, trainedThr);// for the urrent period
+                    writeThr(meanThr);// for the urrent period
 
 
 
@@ -172,24 +172,11 @@ public class data implements Runnable {
     }
 
 
-    public void writeThr(double realThr, double predThr, boolean trainedFlag){
+    public void writeThr(double realThr){
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
-
-//        StringBuilder sbTaskSave = new StringBuilder();
-//        for (AiItemsViewModel taskView : mInstance.mList) {
-//            sbTaskSave
-//                    //.append(taskView.getCurrentNumThreads())
-//                    .append(",")
-//                    .append(taskView.getModels().get(taskView.getCurrentModel()));
-//                    //.append("-");
-//            // .append(taskView.getDevices().get(taskView.getCurrentDevice()))
-//                    //.append("\n");
-//        }
-
-
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             StringBuilder sb = new StringBuilder();
@@ -201,7 +188,7 @@ public class data implements Runnable {
 
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-                        .append(",").append(taskView.getCurrentNumThreads())
+                        .append(",").append(taskView.getCurrentNumThreads()).append(",").append(taskView.getThroughput())
                         ;
             }
             //date, thr, tris, model, device, thread

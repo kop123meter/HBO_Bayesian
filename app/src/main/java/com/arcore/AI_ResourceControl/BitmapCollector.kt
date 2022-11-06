@@ -8,6 +8,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
 
 import java.io.File
 
@@ -27,8 +30,8 @@ class BitmapCollector(
     private val activity: Activity,
     var mInstance: MainActivity,
     var objectDetector: ObjectDetectorHelper?,
-    var newClassifier: ImageClassifierHelper?
-
+    var newClassifier: ImageClassifierHelper?,
+    var imgSegmentation: ImageSegmentationHelper?
 
 
 ): ViewModel() {
@@ -87,31 +90,33 @@ class BitmapCollector(
      * ImageClassifier requirements. Writes output to file.
      */
     private suspend fun collectStream() {
-        childDirectory.mkdirs()
-        val file = File(childDirectory,
-            index.toString() + '_' +
-                    classifier?.modelName + '_' +
-                    classifier?.device + '_'+
-                    classifier?.numThreads + "T_"+
-                    classifier?.time +
-                    ".csv")
+//        childDirectory.mkdirs()
+//        val file = File(childDirectory,
+//            index.toString() + '_' +
+//                    classifier?.modelName + '_' +
+//                    classifier?.device + '_'+
+//                    classifier?.numThreads + "T_"+
+//                    classifier?.time +
+//                    ".csv")
 
 
-
-        job = viewModelScope.launch(Dispatchers.IO) {
+/****** the problem was with the dispatcher--- it should be set to Default NOT IO */////////
+        job = viewModelScope.launch(Dispatchers.Default) {
             bitmapSource?.bitmapStream?.collect {
                 Log.d("CANCEL", "$index collected $it")
 
-              //  nill added to get the latest bitmap for inference
-                var  bitmap= bitmapSource?.bitmapUpdaterApi?.latestBitmap
+              //  nill added to get the latest bitmap for inference -> nut no needed now since we get
+              //  bitmap=  bitmapSource?.bitmapUpdaterApi?.latestBitmap
 
                 if( run) { // resize it for image classification
 
-                    if(classifier!= null)
+
+                    var  bitmap= it
+                    if(classifier!= null )
                     {
                         val bitmap2 = Bitmap.createScaledBitmap(
                             // it,
-                            bitmap,
+                            bitmap!!,
                             classifier!!.imageSizeX,
                             classifier.imageSizeY,
                             true
@@ -119,24 +124,41 @@ class BitmapCollector(
                         bitmap=bitmap2// resized value for classification
                     }
 
+                    if (newClassifier?.modelUsed()  =="inception_v1_224_quant.tflite" )
+                    {
+                        bitmap=Bitmap.createScaledBitmap(
+                            // it,
+                            bitmap!!,
+                           229,
+                           229,
+                            true
+                        ) //229
+                    }
+
+
+
                     start = System.nanoTime()/1000000
                     if(end!=0L) {
                         overhead = start-end
                     }
-//object detection version simple:
-                 //   val odetector  = ObjectDet(mInstance)
-                  //  odetector.runObjectDetection(bitmap)
 
 //object detection version complex: this is the main
                     if(objectDetector!= null)
-                        bitmap?.let { it1 -> objectDetector?.detect(it1, 0) }
-
+                        objectDetector!!.detect(bitmap!!,0)
 
                    else if(classifier!= null)
                         classifier.classifyFrame(bitmap)
 
+
                     else if (newClassifier!=null)
-                        bitmap?.let { it1 -> newClassifier?.classify(it1,0) }
+                         newClassifier?.classify(bitmap!!,0)
+
+
+                    else if (imgSegmentation!=null)
+                        imgSegmentation?.segment(bitmap!!,0)
+
+
+
 
                     end = System.nanoTime()/1000000
                     InferenceTime = end-start
@@ -152,13 +174,13 @@ class BitmapCollector(
     }
 
 
-    fun getThroughput(): Long {
-        return if(numOfTimesExecuted>0)  {
-            totalResponseTime/numOfTimesExecuted
-        } else {
-            0
-        }
-    }
+//    fun getThroughput(): Long {
+//        return if(numOfTimesExecuted>0)  {
+//            totalResponseTime/numOfTimesExecuted
+//        } else {
+//            0
+//        }
+//    }
 }
 
 
