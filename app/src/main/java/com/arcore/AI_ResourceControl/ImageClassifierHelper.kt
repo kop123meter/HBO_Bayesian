@@ -131,15 +131,12 @@ class ImageClassifierHelper(
         val results = imageClassifier?.classify(tensorImage, imageProcessingOptions)
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
 
-        if (results != null) {
-            debugPrint(results)
-        }
+//     nil created this commented to not consider it for inference time    if (results != null) {
+//            debugPrint(results)
+//        }
 
 
-//        imageClassifierListener?.onResults(
-//            results,
-//            inferenceTime
-//        )
+
     }
 
     // Receive the device rotation (Surface.x values range from 0->3) and return EXIF orientation
@@ -181,7 +178,7 @@ class ImageClassifierHelper(
             return "GPU"
 
         else if(currentDelegate==2)
-            return "NPU"
+            return "NNAPI"
 
         return "CPU"
     }

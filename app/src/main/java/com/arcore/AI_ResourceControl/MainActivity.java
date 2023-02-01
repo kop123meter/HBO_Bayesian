@@ -19,6 +19,7 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 
+import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.media.Image;
 import android.os.Handler;
@@ -84,6 +85,7 @@ import java.io.InputStream;
 
 import static java.lang.Math.abs;
 import static java.lang.Math.min;
+import static java.lang.Math.round;
 //import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper;
 
 /*TODO: constant update distance to file
@@ -151,23 +153,38 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     StringBuilder tasks = new StringBuilder();
 
 
+    //$$$$$$$$$$$$$$$$$$$ for MIRE-extended
+    ListMultimap<Integer, Double> modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
+    ListMultimap<Integer, Double> total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
 
+    ListMultimap<Integer, Double> coeff_modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
+    ListMultimap<Integer, Double> coeff_total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
+
+    List<ListMultimap<Double, Double>> thr_models= new ArrayList<>();// map from each model to throughput an Tris
+    List<Double> rohTL= new ArrayList<>();
+    List<Double> rohDL= new ArrayList<>();
+    List<Double> deltaL= new ArrayList<>();
+
+    List<Integer> thr_miss_counter=new ArrayList<>();
+    int thr_miss_counter1=0;
+    double last_tris=0;
+    //$$$$$$$$$$$$$$
     double des_Q= 0.7; //# this is avg desired Q
     double des_Thr = 35; // 0.65*throughput; in line 2063,
-    ListMultimap<Double, List<Double>> thParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
+    List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
+            //ArrayListMultimap.create();//  a map from tot tris to measured RE
+    ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
 
+  List<  ListMultimap<Double, Double>> trisMeanDisk =new ArrayList<>();
+          //ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
 
-  //  ListMultimap<Float, Boolean> trisDec = ArrayListMultimap.create();//  a map from tot tris to decimated flag -> if this tris comes from decimation
 
     ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();//  a map from tot tris to mean throughput
 
-  //  List<Double> totTrisList= new LinkedList<>();
+    ListMultimap<Integer, Double> modelMeanDisk = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
 
-    ListMultimap<Double, Double> trisMeanDisk = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
-    //Double[] meanDisk =  trisMeanDisk.values().toArray(new Double[0]);
+//     ListMultimap<Double, Double> trisMeanDisk = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
 
-    //ListMultimap<Double, Double> trisMeanDiskk = ArrayListMultimap.create();//  a map from tot tris to mean dis at next period
- //   Double[] meanDiskk =  trisMeanDiskk.values().toArray(new Double[0]);
 
     ListMultimap<Double, Double> trisRe = ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Double, List<Double>> reParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
@@ -205,7 +222,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     float bwidth= 600;
     boolean removePhase=false; // this is for the mixed adding and after that removing scnario
     boolean setDesTh=false;// used just for the first time when we run AI models and get the highest baseline throughput
-    List<Float> decTris= new ArrayList<>();// create a list of decimated
+    List<Double> decTris= new ArrayList<>();// create a list of decimated
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
@@ -218,7 +235,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     double thr_factor=0.6;
     double re_factor=0.9;
-    int thr_miss_counter=0;
+    //int thr_miss_counter=0;
     int re_miss_counter=0;
 
 
@@ -296,7 +313,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     float area_percentage=0.5f;
 
     // Conservative , or mean are other options
-    float total_tris=0;
+    double total_tris=0;
 
 
 
@@ -504,8 +521,8 @@ else{
             while( frame==null)
                 frame = fragment.getArSceneView().getArFrame();
            // if(frame!=null) {
-                dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
-                dist = (float) (Math.round((float) (dist * 100))) / 100;
+            dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
+            dist = (float) (Math.round((float) (dist * 100))) / 100;
          //   }
 
             return dist;
@@ -719,6 +736,10 @@ else{
                     adapter.setMList(mList);
                     recyclerView_aiSettings.setAdapter(adapter);
                 }
+
+
+
+
             }
         });
 
@@ -746,14 +767,32 @@ else{
                     /** Check for null classifiers.
                      *  This will not let you start the stream if any are found
                      */
+
+//                    double  rohT=-0.06 ;
+//                    double rohD=0.0001;
+//                    double delta=66.92;
+
+                   thr_models.clear();
+//                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
                     for (AiItemsViewModel taskView : mList) {
-                        tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));}
+                        tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
+                        thr_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
+                        thParamList.add( ArrayListMultimap.create());
+                        trisMeanDisk.add( ArrayListMultimap.create());
+                        rohDL.add(rohD);// the weight  for throughput modeling
+                        rohTL.add(rohT);
+                        deltaL.add(delta);
+                        thr_miss_counter.add(0);
+
+                    }
 
 
 
                     boolean noNullModelRunner = true;
                     for (int i = 0; i < mList.size(); i++) {
-                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null && mList.get(i).getNewclassifier()==null
+                        if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null
+                                && mList.get(i).getNewclassifier()==null
+                                && mList.get(i).getGestureClas()==null && mList.get(i).getSegm()==null
                         && mList.get(i).getImgSegmentation()==null
                         ) { // we have three different models now
                             noNullModelRunner = false;
@@ -905,7 +944,8 @@ else{
             sbb.append(',');
             sbb.append("objectCount,");
             sbb.append( "7m,PID,USER,PR,NI,VIRT,[RES],SHR,S,%CPU,%MEM,TIME,ARGS");
-
+            sbb.append(',');
+            sbb.append("cpu_freq,");
             sbb.append('\n');
             writer.write(sbb.toString());
 
@@ -925,15 +965,46 @@ else{
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("Throughput");
-            sbb.append(',');
+            sbb.append("Throughput_real");
+            sbb.append(',').append("Throughput_pred");
+            sbb.append(',').append("trained_flag").append(',');
+            sbb.append("rohT").append(',').append("rohD").append(',').append("delta").append(',');
+
             sbb.append("Tris");
             sbb.append(',');
-            sbb.append("Models");
+            sbb.append("Model1");
             sbb.append(',');
-            sbb.append("Device");
+            sbb.append("Device1");
             sbb.append(',');
-            sbb.append("Thread");
+            sbb.append("Thread1");
+            sbb.append(',');
+//            sbb.append("Task_Throughput1");
+//            sbb.append(',');
+            sbb.append("Inf1");
+            sbb.append(',');
+            sbb.append("Overhead1");
+
+            sbb.append(',').append("rohT").append(',').append("rohD").append(',').append("delta");
+//         old for coefficient
+//            sbb.append(',');sbb.append("r1");
+
+//            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Thread2").append(',').append("Task_Throughput2");
+//            sbb.append(',').append("Inf2").append(',').append("Overhead2").append(',').append("r2");
+//
+//            sbb.append(',').append("Model3").append(',').append("Device3").append(',').append("Thread3").append(',').append("Task_Throughput3");
+//            sbb.append(',').append("Inf3").append(',').append("Overhead3").append(',').append("r3");;
+//
+//            sbb.append(',').append("Model4").append(',').append("Device4").append(',').append("Thread4").append(',').append("Task_Throughput4");
+//            sbb.append(',').append("Inf4").append(',').append("Overhead4").append(',').append("r4");
+//
+//            sbb.append(',').append("Model5").append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
+//            sbb.append(',').append("Inf5").append(',').append("Overhead5").append(',').append("r5");
+//
+//            sbb.append(',').append("Model6").append(',').append("Device6").append(',').append("Thread6").append(',').append("Task_Throughput6");
+//            sbb.append(',').append("Inf6").append(',').append("Overhead6").append(',').append("r6");
+//
+//            sbb.append(',').append("Model7").append(',').append("Device7").append(',').append("Thread7").append(',').append("Task_Throughput7");
+//            sbb.append(',').append("Inf7").append(',').append("Overhead7").append(',').append("r7");
             sbb.append('\n');
             writer.write(sbb.toString());
             System.out.println("done!");
@@ -1467,9 +1538,33 @@ else{
             public void onClick(View view) {
 
 
+
+
+
+
+//                for (int i=0;i<mList.size();i++){
+//
+////                    modelMeanRsp.get(i).clear();
+////                    total_triangle.get(i).clear();
+//
+//                    coeff_total_triangle.put(i, (double) total_tris);
+//                    coeff_modelMeanRsp.put(i, 1000/mList.get(i).getThroughput());
+//
+//
+//                }
+
                     float original_tris=excel_tris.get(excelname.indexOf(currentModel));
                     renderArray.add(objectCount,new decimatedRenderable(modelSpinner.getSelectedItem().toString(),original_tris));
-                    addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount));
+
+
+
+
+//                try {
+//                    Thread.sleep(30);// to delay model addition
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+                addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount));
                    
 
 //nill temporary oct 24
@@ -1530,7 +1625,8 @@ else{
 
 
                                     //if (under_Perc == false) {
-                                        total_tris = total_tris - (ratioArray.get(i) * o_tris.get(i));// total =total -1*objtris
+                                    //(o_tris.get(i)/1000) is to have a better weights for throughput modeling
+                                        total_tris = total_tris - (ratioArray.get(i) * ((double)(o_tris.get(i))/1000)     );// total =total -1*objtris
                                        // ratioArray[i] = ratio[0] / 100f;
                                         ratioArray.set(i, ratio[0] / 100f);
                                         renderArray.get(i).decimatedModelRequest(ratio[0] / 100f, i, false);
@@ -1538,10 +1634,11 @@ else{
 
 
                                         // update total_tris
-                                        total_tris = total_tris + (ratioArray.get(i) * o_tris.get(i));// total = total + 0.8*objtris
+                                        total_tris = total_tris + (ratioArray.get(i) * ((double)(o_tris.get(i))/1000) );// total = total + 0.8*objtris
                                     //    trisDec.put(total_tris,true);
-                                    if (!decTris.contains(total_tris))
-                                        decTris.add(total_tris);
+                                    if (!decTris.contains(total_tris)) {
+                                        decTris.add(  total_tris);
+                                    }
 
                                         curTrisTime= SystemClock.uptimeMillis();
                                         // quality is registered
@@ -1616,8 +1713,8 @@ else{
 
 
 
-                        total_tris = total_tris - (ratioArray.get(i) * o_tris.get(i));// total =total -1*objtris
-                        orgTrisAllobj -= (ratioArray.get(i) * o_tris.get(i));
+                        total_tris = total_tris - (ratioArray.get(i) * ( ((double)o_tris.get(i))/1000));// total =total -1*objtris
+                        orgTrisAllobj -= (ratioArray.get(i) * (((double)o_tris.get(i))/1000));
                         objectCount -= 1;
                         TextView posText = (TextView) findViewById(R.id.objnum);
                         posText.setText("obj_num: " + objectCount);
@@ -1839,6 +1936,9 @@ else{
                                     float original_tris = excel_tris.get(excelname.indexOf(currentModel));
                                     renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
                                    // commented temp sep
+
+
+
                                      addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);//
 
 
@@ -2040,27 +2140,27 @@ else{
                             float decRatio;
 
                             if (under_Perc == false) {
-                                total_tris = total_tris - (ratioArray.get(i) * o_tris.get(i));// total =total -1*objtris
+                                total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))/1000) );// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 100f;
                                 ratioArray.set(i, seekBar.getProgress() / 100f);
                                 renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
 
 
                                 // update total_tris
-                                total_tris = total_tris + (ratioArray.get(i) * o_tris.get(i));// total = total + 0.8*objtris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/1000))  ;// total = total + 0.8*objtris
                           //      trisDec.put(total_tris,true);
                                 if (!decTris.contains(total_tris))
                                    decTris.add(total_tris);
                                 curTrisTime= SystemClock.uptimeMillis();
                                 // quality is registered
                             } else {
-                                total_tris = total_tris - (ratioArray.get(i)* o_tris.get(i));// total =total -1*objtris
+                                total_tris = total_tris - (ratioArray.get(i)*(((double)o_tris.get(i))/1000));// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 1000f;
                                 ratioArray.set(i, seekBar.getProgress() / 1000f);
                                 renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
 
                                 // update total_tris
-                                total_tris = total_tris + (ratioArray.get(i) * o_tris.get(i));// total = total + 0.8*objtris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/1000));// total = total + 0.8*objtris
                              //   trisDec.put(total_tris,true);
                                 if (!decTris.contains(total_tris))
                                     decTris.add(total_tris);
@@ -2131,7 +2231,26 @@ else{
 //                           }
 
                             if(odraAlg=="1")// either choose the baseline or odra algorithm
-                                 new data(MainActivity.this).run(); // this is to collect mean thr, total_tris. average dis
+
+                            {
+//                                new balancer(MainActivity.this).run();
+
+                                for(int i=0; i<mList.size(); i++){
+                                    //new data2(MainActivity.this, i).run();
+//
+//                                   new balancer(MainActivity.this,i).run(); // this is to collect mean thr, total_tris. average dis
+                                    new data2(MainActivity.this, i).run();
+
+
+                                    try {
+                                        Thread.sleep(30);
+                                    } catch (InterruptedException e) {
+                                        e.printStackTrace();
+                                    }
+                                }
+
+                            }
+
                             else  if(odraAlg=="2")
                                     new baseline_thr(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
                             else
@@ -2154,6 +2273,10 @@ else{
      double getThroughput(){
         Log.d("size", String.valueOf(mList.size()));
         double[] meanthr = new double[mList.size()];// up to the count of different AI models
+
+         double[] meanoverheadT = new double[mList.size()];
+         double[] meaninfT = new double[mList.size()];
+
         BitmapCollector tempCollector;
                 //=new BitmapCollector(MainActivity.this);
         for(int i=0; i<mList.size(); i++) {
@@ -2161,11 +2284,21 @@ else{
             tempCollector.setMInstance(MainActivity.this);
             int total = tempCollector.getNumOfTimesExecuted();
             if(total != 0) {
-                meanthr[i]=tempCollector.getNumOfTimesExecuted()*1000/tempCollector.getTotalResponseTime();
+                double n=tempCollector.getNumOfTimesExecuted();
+                double b=tempCollector.getTotalOverhead();
+                meanthr[i]= (double)Math.round(  n*1000 *100/(double)tempCollector.getTotalResponseTime())/100;
+
+                meanoverheadT[i]= (double) Math.round(b* 100/n ) / 100;
+                        //tempCollector.getNumOfTimesExecuted();
+                meaninfT[i]=(double)Math.round(tempCollector.getTotalInferenceTime()*100/n)/100;
                 mList.get(i).getCollector().setNumOfTimesExecuted(0);
                 mList.get(i).getCollector().setTotalResponseTime(0);
+                mList.get(i).getCollector().setTotalInferenceTime(0);
+                mList.get(i).getCollector().setTotalOverhead(0);
                 mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
                 mList.get(i).setThroughput(meanthr[i]);// update throughput of each model
+                mList.get(i).setInferenceT(meaninfT[i]);// mean inference time of each model
+                mList.get(i).setOverheadT(meanoverheadT[i]); // overhead of each  model
             }
         }
 //        Log.d("rt", String.valueOf(meanResponseTimes[0]));
@@ -2175,6 +2308,54 @@ else{
         return avg;
           //      (1/avg)*1000;
     }
+
+
+
+
+    double getThroughput(int aiIndx){// returns average thr of each model
+
+        double meanthr=0;// up to the count of different AI models
+
+        double meanoverheadT ;
+        double meaninfT ;
+
+        BitmapCollector tempCollector;
+        int i=aiIndx;
+//        for(int i=0; i<mList.size(); i++) {
+            tempCollector = mList.get(i).getCollector();
+            tempCollector.setMInstance(MainActivity.this);
+            int total = tempCollector.getNumOfTimesExecuted();
+            if(total != 0) {
+                double n=tempCollector.getNumOfTimesExecuted();
+                double b=tempCollector.getTotalOverhead();
+                meanthr= (double)Math.round(  n*1000 *100/(double)tempCollector.getTotalResponseTime())/100;
+
+                meanoverheadT= (double) Math.round(b* 100/n ) / 100;
+
+                meaninfT=(double)Math.round(tempCollector.getTotalInferenceTime()*100/n)/100;
+                mList.get(i).getCollector().setNumOfTimesExecuted(0);
+                mList.get(i).getCollector().setTotalResponseTime(0);
+                mList.get(i).getCollector().setTotalInferenceTime(0);
+                mList.get(i).getCollector().setTotalOverhead(0);
+                mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+                mList.get(i).setThroughput(meanthr);// update throughput of each model
+                mList.get(i).setInferenceT(meaninfT);// mean inference time of each model
+                mList.get(i).setOverheadT(meanoverheadT); // overhead of each  model
+            }
+
+
+       return meanthr;
+
+    }
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2751,6 +2932,10 @@ private float computeWidth(ArrayList<Float> point){
      * Converts arCore Frame to bitmap, passes to BitmapUpdaterApi
      * TODO: Move this function to background thread.  Only decoding/encoding to bitmap, not high complexity fxn
      * */
+
+
+
+
     private void passFrameToBitmapUpdaterApi(Frame frame) throws NotYetAvailableException {
         YuvToRgbConverter converter = new YuvToRgbConverter(this);
         Image image = frame.acquireCameraImage();
@@ -3079,13 +3264,13 @@ private float computeWidth(ArrayList<Float> point){
         if (closer.get(ind)) {
             qresult = adjustcloser(finalinp, prevquality.get(ind), a, b, c, d11, gamma, ind, indq);
 
-            GPU_usagemax = compute_GPU_eng( decision_p, total_tris);
+            GPU_usagemax = compute_GPU_eng( decision_p,(float) total_tris);
             q1 = q2 = 1.0f;
 
         } else {
 
             qresult = adjustfarther(finalinp, prevquality.get(ind), ind);
-            GPU_usagemax = compute_GPU_eng( decision_p, total_tris);
+            GPU_usagemax = compute_GPU_eng( decision_p,(float) total_tris);
             q1 = q2 = prevquality.get(ind);
         }
 
@@ -3094,7 +3279,7 @@ private float computeWidth(ArrayList<Float> point){
 
         float GPU_usagedec=0, GPU_usagedec2=0;
 
-        float current_tris=0;
+        double current_tris=0;
         if (qresult=="qprev forall")
            // : # for whole period p show i"' quality '''calculate gpu saving for qprev againsat q=1 eb= saving - dec = saving'''
         {
@@ -3104,14 +3289,14 @@ private float computeWidth(ArrayList<Float> point){
 
             //gpu gaused without this obj totally
              current_tris= total_tris - (  (1- quality) * excel_tris.get(indq));
-            GPU_usagedec = compute_GPU_eng( decision_p, current_tris);
+            GPU_usagedec = compute_GPU_eng( decision_p,(float) current_tris);
 
             q1 = quality;
             gpusaving.set(ind, GPU_usagemax - GPU_usagedec);
             eb1 = gpusaving.get(ind);
 
             current_tris= total_tris - (  (1- q2) * excel_tris.get(indq));
-            GPU_usagedec2 = compute_GPU_eng( decision_p, current_tris);
+            GPU_usagedec2 = compute_GPU_eng( decision_p, (float)current_tris);
             eb2 = GPU_usagemax - GPU_usagedec2; // in milli joule
         }
         else if (qresult=="iz") //: # for whole period p show i"' quality
@@ -3120,7 +3305,7 @@ private float computeWidth(ArrayList<Float> point){
             if (quality == 0)
               quality = 1;
             current_tris= total_tris - (   (1-quality) * excel_tris.get(indq));
-            GPU_usagedec = compute_GPU_eng(decision_p, current_tris);
+            GPU_usagedec = compute_GPU_eng(decision_p,(float) current_tris);
 
             gpusaving.set(ind, GPU_usagemax - GPU_usagedec);
             float dec_eng=0f;
@@ -3138,7 +3323,7 @@ private float computeWidth(ArrayList<Float> point){
             q1 = quality;
 
             current_tris= total_tris - (   (1-q2) * excel_tris.get(indq));
-            GPU_usagedec2 = compute_GPU_eng(decision_p, current_tris);
+            GPU_usagedec2 = compute_GPU_eng(decision_p, (float)current_tris);
             eb2 = GPU_usagemax - GPU_usagedec2;
 
         }
@@ -3146,7 +3331,7 @@ private float computeWidth(ArrayList<Float> point){
 
         else if (qresult=="cache forall") {
             current_tris= total_tris - (   (1-cacheArray.get(ind)) * excel_tris.get(indq));
-            GPU_usagedec = compute_GPU_eng( decision_p, current_tris);
+            GPU_usagedec = compute_GPU_eng( decision_p, (float)current_tris);
 
             quality = cacheArray.get(ind);
             if (quality == 0)
@@ -3166,7 +3351,7 @@ private float computeWidth(ArrayList<Float> point){
             q1 = 1;
             eb1 = 0;
             current_tris= total_tris - (  (1-q2) * excel_tris.get(indq));
-            GPU_usagedec2 = compute_GPU_eng( decision_p, current_tris);
+            GPU_usagedec2 = compute_GPU_eng( decision_p, (float)current_tris);
             eb2 = GPU_usagemax - GPU_usagedec2;
 
         }
@@ -3595,17 +3780,17 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
 
        int indq = excelname.indexOf(renderArray.get(objectCount).fileName);// search in excel file to find the name of current object and get access to the index of current object
-
-
         o_tris.add( (Integer) excel_tris.get(indq));
-        d1_prev.add(objectCount, 0f);
         // update total_tris
-        total_tris+= o_tris.get(objectCount);
-       // trisDec.put(total_tris,false);
+        total_tris+=   (  ((double)o_tris.get(objectCount) )/1000)   ;
+
+        d1_prev.add(objectCount, 0f);
+
+
 
         curTrisTime= SystemClock.uptimeMillis();
         //lastQuality.add(1f);// initialize
-        orgTrisAllobj+=o_tris.get(objectCount);
+        orgTrisAllobj+=( ((double)o_tris.get(objectCount))/1000);
 
         //  Camera2BasicFragment .getInstance().update( (double) total_tris);// run linear reg
 
@@ -3920,6 +4105,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 //    }
 
 
+    @SuppressLint("SuspiciousIndentation")
     private void getCpuPer() { //for single process
 
         String currentFolder = getExternalFilesDir(null).getAbsolutePath();
@@ -3942,8 +4128,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
             String s = null;
             while ((s = stdInput.readLine()) != null)
-
-            if(s.contains("com.arcore.Mix") ){
+                if(s.contains("com.arcore.Mix") ){
                     //|| s.contains("%MEM")){
 
                 try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
@@ -3967,20 +4152,6 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
                 break; // get out of the loop-> avoids infinite loop
 
-
-
-                /*
-                if (s.contains("com.arcore.Mix")) {
-                    String [] arr = s.split(" ");
-                    for (int i = 0; i < arr.length; i++) {
-                        if (arr[i].contains("%")) {
-                            s = arr[i].replace("%", "");
-                            cpuPer = Float.parseFloat(s);
-                            break;
-                        }
-                    }
-                    //System.out.println(s);
-                }*/
             }
 
 
@@ -4011,7 +4182,9 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
                         //    if(objectCount>=0) { // remove- ni april 21 temperory
                         Float mean_gpu = 0f;
+                        float gpu_clk=0f;
                         float dist = 0;
+                        float cpuFreq=0f;
                        // if (renderArray.size()>=2)
 
                         String filname=" ";
@@ -4044,6 +4217,29 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
                             if (current_gpu != null) {
                                 String[] separator = current_gpu.split("%");
                                 mean_gpu = mean_gpu + Float.parseFloat(separator[0]);
+                            }
+//                            cat /sys/devices/system/gpu/max_freq
+
+                            process2 = Runtime.getRuntime().exec("su -c cat /sys/class/kgsl/kgsl-3d0/gpuclk"); // this is for S10 phone
+                            stdInput = new BufferedReader(new
+                                    InputStreamReader(process2.getInputStream()));
+// Read the output from the command
+                            //System.out.println("Here is the standard output of the command:\n");
+                            current_gpu = stdInput.readLine();
+                            if (current_gpu != null) {
+                              ///  String[] separator = current_gpu.split("%");
+                                gpu_clk =  Float.parseFloat(current_gpu);
+                            }
+
+
+                            process2 = Runtime.getRuntime().exec("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"); // this is for S10 phone
+                            stdInput = new BufferedReader(new
+                                    InputStreamReader(process2.getInputStream()));
+// Read the output from the command
+                            //System.out.println("Here is the standard output of the command:\n");
+                            current_cpu = stdInput.readLine();
+                            if (current_cpu != null) {
+                                cpuFreq =Float.parseFloat(current_cpu);
                             }
 
 
@@ -4080,13 +4276,16 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
                             StringBuilder sb = new StringBuilder();
                             sb.append(dateFormat.format(new Date())); sb.append(',');
-                            sb.append(total_tris); sb.append(',');sb.append(mean_gpu);sb.append(',');
+                            sb.append(total_tris); sb.append(',');sb.append(mean_gpu);sb.append(',').append(gpu_clk);sb.append(',')  ;
                             sb.append(dist);
 
                             sb.append(',');  sb.append(filname);  sb.append(',');
                             sb.append(objectCount);
                             sb.append(',');
                             sb.append(current_cpu);
+                            sb.append(',');
+                            sb.append(cpuFreq);
+
                             sb.append('\n');
 
 

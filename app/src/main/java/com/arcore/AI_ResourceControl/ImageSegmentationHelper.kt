@@ -49,11 +49,11 @@ import java.util.*
  * 'sofa', 'train', 'tv'
  */
 class ImageSegmentationHelper(
-    var numThreads: Int = 2,
-    var currentDelegate: Int = 2,
+    var numThreads: Int = 1,
+    var currentDelegate: Int = 0,
     val context: Context,
     val fileseries: String ,
-
+    var modelName: String,
     //val imageSegmentationListener: SegmentationListener?
 ) {
     private var imageSegmenter: ImageSegmenter? = null
@@ -115,7 +115,7 @@ class ImageSegmentationHelper(
         }
     }
 
-    fun  modelUsed() :String {
+    fun  modelUsed() : String {
         return modelName
     }
     fun  deviceUsed() :String {
@@ -125,7 +125,7 @@ class ImageSegmentationHelper(
             return "GPU"
 
         else if(currentDelegate==2)
-            return "NPU"
+            return "NNAPI"
 
         return "CPU"
     }
@@ -154,19 +154,13 @@ class ImageSegmentationHelper(
 
         val segmentResult = imageSegmenter?.segment(tensorImage)
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
-       Log.d("inference_Time", " $inferenceTime" +"ms on "+ deviceUsed())
+    //   Log.d("inference_Time", " $inferenceTime" +"ms on "+ deviceUsed())
 
-//       if (segmentResult != null) {
+//   nil created this commented to not consider it for inference time    if (segmentResult != null) {
 //           debugPrint(segmentResult)
 //       }
 
 
-//        imageSegmentationListener?.onResults(
-//            segmentResult,
-//            inferenceTime,
-//            tensorImage.height,
-//            tensorImage.width
-//        )
     }
 
 
@@ -264,7 +258,9 @@ class ImageSegmentationHelper(
        // const val MODEL_DEEPLABV3 = "deeplabv3.tflite"
 
         //deeplabv3-mobilenetv2-ade20k_1_
-       const val modelName = "deeplabv3.tflite"
+     //   val modelName = null
+           //"munet_mnv3_wm10.tflite"
+           //"deeplabv3.tflite"
 
         private const val TAG = "Image Segmentation Helper"
     }

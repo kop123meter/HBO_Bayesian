@@ -178,7 +178,7 @@ public abstract class ImageClassifier {
 void classifyFrame(Bitmap bitmap) {
   convertBitmapToByteBuffer(bitmap);
   runInference();
-   printToFile(); // added nil
+  // nil created this commented to not consider it for inference time printToFile(); // added nil
 
 
 }

@@ -67,7 +67,9 @@ public class mLinearRegression {
          * @return the estimate of &beta;<sub><em>j</em></sub>
          */
         public double beta(int j) {
-            return beta.get(j, 0);
+//            beta.get(j, 0);
+            return (double) Math.round((double) beta.get(j, 0) * 100000) / 100000;
+
         }
 
         /**

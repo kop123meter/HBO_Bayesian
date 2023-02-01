@@ -84,6 +84,40 @@ class AiRecyclerviewAdapter(
         holder.textAiInfo.text = "Threads: ${itemsViewModel.classifier?.numThreads}\n" +
                 "Model: ${itemsViewModel.classifier?.modelName}\n" +
                 "Device: ${itemsViewModel.classifier?.device}"
+
+        holder.textAiInfo.text = "Segmentation\n"+
+                "Threads: ${itemsViewModel.segm?.numThreads}\n" +
+                "Model: ${itemsViewModel.segm?.modelPath}\n" +
+                "Device: ${itemsViewModel.segm?.device}\n"
+
+         holder.textAiInfo.text = "Object detection\n"+ "Threads: ${itemsViewModel.objectDetector?.numThreads}\n" +
+                    "Model: ${itemsViewModel.objectDetector?.modelUsed()}\n" +
+                    "Device: ${itemsViewModel.objectDetector?.deviceUsed()}"
+
+
+            holder.textAiInfo.text = "NEW Image classification\n"+ "Threads: ${itemsViewModel.newclassifier?.numThreads}\n" +
+                    "Model: ${itemsViewModel.newclassifier?.modelUsed()}\n" +
+                    "Device: ${itemsViewModel.newclassifier?.deviceUsed()}"
+
+            holder.textAiInfo.text = "Image Segmentation \n"+ "Threads: ${itemsViewModel.imgSegmentation?.numThreads}\n" +
+                    "Model: ${itemsViewModel.imgSegmentation?.modelUsed()}\n" +
+                    "Device: ${itemsViewModel.imgSegmentation?.deviceUsed()}"
+
+            holder.textAiInfo.text = "Gesture Classifier \n"+ "Threads: ${itemsViewModel.gestureClas?.numThreads}\n" +
+                    "Model: ${itemsViewModel.gestureClas?.modelUsed()}\n" +
+                    "Device: ${itemsViewModel.gestureClas?.deviceUsed()}"
+
+
+
+
+
+
+
+
+
+
+
+
     }
 
     /**
@@ -140,7 +174,8 @@ class AiRecyclerviewAdapter(
         if (modelIndex == itemsView.currentModel
             && deviceIndex == itemsView.currentDevice
             && numThreads == itemsView.currentNumThreads
-            && ( itemsView.classifier != null   || itemsView.newclassifier != null  || itemsView.objectDetector != null|| itemsView.imgSegmentation != null  )
+            && ( itemsView.classifier != null   || itemsView.newclassifier != null  || itemsView.objectDetector != null||
+                    itemsView.imgSegmentation != null|| itemsView.gestureClas != null  || itemsView.segm != null)
 
         ) {
             return
@@ -151,13 +186,21 @@ class AiRecyclerviewAdapter(
 
 
         // Disable classifier while updating  ... ? should I add this for detector and newClassifier? yes
+
+
         if (itemsView.classifier != null) {
             itemsView.classifier?.close()
             itemsView.classifier = null
         }
 
+
+        else if (itemsView.segm != null) {
+            itemsView.segm?.close()
+            itemsView.segm = null
+        }
+
         else if (itemsView.newclassifier != null) {
-//            itemsView.newclassifier?.close()
+//
             itemsView.newclassifier = null
         }
 
@@ -167,10 +210,13 @@ class AiRecyclerviewAdapter(
         }
 
         else if (itemsView.imgSegmentation != null) {
-//            itemsView.objectDetector?.close()
+//
             itemsView.imgSegmentation = null
         }
 
+        else if (itemsView.gestureClas != null) {
+            itemsView.gestureClas = null
+        }
 
         // Lookup names of parameters.
         val model: String = itemsView.models[itemsView.currentModel]
@@ -179,9 +225,24 @@ class AiRecyclerviewAdapter(
 
 
         // Try to load model.
+
         try {
             when(model) {
-                itemsView.models[0]->itemsView.classifier=ImageClassifierFloatMobileNet(activity)
+                itemsView.models[0]->itemsView.segm=ImageSegmentorFloatMobileUnet(activity)
+            }
+        } catch (e: IOException) {
+            Log.d(
+                "Custom Adapter",
+                "Failed to load",
+                e
+            )
+            itemsView.segm = null
+        }
+
+
+        try {
+            when(model) {
+
                 itemsView.models[1]->itemsView.classifier=ImageClassifierQuantizedMobileNetV2_1_0_224(activity)
                 itemsView.models[2]->itemsView.classifier=ImageClassifierQuantizedMobileNet(activity)
                // itemsView.models[3]->itemsView.classifier=ImageClassifier_Inception_V1_Quantized_224(activity)
@@ -190,7 +251,6 @@ class AiRecyclerviewAdapter(
 //                itemsView.models[6]->itemsView.classifier=ImageClassifier_Inception_V4_Quantized_299(activity)
 //                itemsView.models[7]->itemsView.classifier=ImageClassifier_Inception_v4_Float_299(activity)
 //                itemsView.models[8]->itemsView.classifier=ImageClassifier_MobileNet_V2_Float_224(activity)
-//                itemsView.models[3]->itemsView.objectDetector=ObjectDetectorHelper( context = mainActivity, fileseries = mainActivity.fileseries)
 
             }
         } catch (e: IOException) {
@@ -207,16 +267,12 @@ class AiRecyclerviewAdapter(
                  itemsView.models[4]-> {
                      itemsView.objectDetector = ObjectDetectorHelper(
                          context = mainActivity, fileseries = mainActivity.fileseries,modelName =itemsView.models[4]+".tflite"  )
-                    // itemsView.objectDetector!!.currentModel=0 // need to update the model too
-                    //itemsView.objectDetector?.clearObjectDetector()
                  }
 
 
                 itemsView.models[3]-> {
                     itemsView.objectDetector = ObjectDetectorHelper(
                         context = mainActivity, fileseries = mainActivity.fileseries,modelName =itemsView.models[3]+".tflite"  )
-                    // itemsView.objectDetector!!.currentModel=0 // need to update the model too
-                    //itemsView.objectDetector?.clearObjectDetector()
                 }
 
             }
@@ -258,11 +314,11 @@ class AiRecyclerviewAdapter(
             )
             itemsView.newclassifier = null
         }
-
+//***************** for object Segmentation
         try {
             when(model) {
                 itemsView.models[8]->
-                {itemsView.imgSegmentation=ImageSegmentationHelper( context = mainActivity,fileseries = mainActivity.fileseries )
+                {itemsView.imgSegmentation=ImageSegmentationHelper( context = mainActivity,fileseries = mainActivity.fileseries , modelName = itemsView.models[8]+".tflite")
                     itemsView.imgSegmentation?.clearImageSegmenter()
                 }
             }
@@ -276,15 +332,45 @@ class AiRecyclerviewAdapter(
         }
 
 
-//***************** for new object CLASSIFICATION
+//***************** for object Segmentation
+
+//***************** for Gesture Classification
+
+
+        try {
+            when(model) {
+                itemsView.models[9]->
+                {itemsView.gestureClas= GestureClassifierHelper( context = mainActivity,fileseries = mainActivity.fileseries )
+                    itemsView.gestureClas?.clearGestureClassifier()
+                }
+            }
+        } catch (e: IOException) {
+            Log.d(
+                "Custom Adapter",
+                "Failed to load",
+                e
+            )
+            itemsView.gestureClas = null
+        }
+
+        //***************** for Gesture Classification
+
+
 
         if (itemsView.classifier != null) {
             itemsView.classifier?.fileseries = mainActivity.fileseries
             itemsView.classifier?.instance = mainActivity
         }
 
+        if (itemsView.segm != null) {
+            itemsView.segm?.fileseries = mainActivity.fileseries
+            itemsView.segm?.instance = mainActivity
+        }
+
         when(device) {
-            itemsView.devices[0]-> { itemsView.classifier?.useCPU()
+            itemsView.devices[0]-> {
+                itemsView.segm?.useCPU()
+                itemsView.classifier?.useCPU()
                 itemsView.objectDetector?.currentDelegate = 0
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.objectDetector?.clearObjectDetector()
@@ -297,11 +383,17 @@ class AiRecyclerviewAdapter(
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.imgSegmentation?.clearImageSegmenter()
 
+                itemsView.gestureClas?.currentDelegate = 0
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                itemsView.gestureClas?.clearGestureClassifier()
 
 
 
             }
-            itemsView.devices[1]-> {itemsView.classifier?.useGpu()
+            itemsView.devices[1]-> {
+
+                itemsView.segm?.useGpu()
+                itemsView.classifier?.useGpu()
                 itemsView.objectDetector?.currentDelegate = 1
                 itemsView.objectDetector?.clearObjectDetector()
 
@@ -313,9 +405,14 @@ class AiRecyclerviewAdapter(
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.imgSegmentation?.clearImageSegmenter()
 
+                itemsView.gestureClas?.currentDelegate = 1
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                itemsView.gestureClas?.clearGestureClassifier()
 
             }
             itemsView.devices[2]-> {
+
+                itemsView.segm?.useNNAPI()
                 itemsView.classifier?.useNNAPI()
                 itemsView.objectDetector?.currentDelegate =2
                 itemsView.objectDetector?.clearObjectDetector()
@@ -328,13 +425,16 @@ class AiRecyclerviewAdapter(
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.imgSegmentation?.clearImageSegmenter()
 
-
+                itemsView.gestureClas?.currentDelegate = 2
+                // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                itemsView.gestureClas?.clearGestureClassifier()
 
             }
 
 
         }
 
+        itemsView.segm?.numThreads=  threads
         itemsView.classifier?.numThreads = threads
         itemsView.objectDetector?.numThreads= threads // object detector
         itemsView.objectDetector?.clearObjectDetector()
@@ -342,11 +442,12 @@ class AiRecyclerviewAdapter(
         itemsView.newclassifier?.clearImageClassifier()
         itemsView.imgSegmentation?.numThreads= threads // NEW object classification
         itemsView.imgSegmentation?.clearImageSegmenter()
-
+        itemsView.gestureClas?.numThreads= threads // NEW object classification
+        itemsView.gestureClas?.clearGestureClassifier()
 
 
         // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
-        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier, position, activity, mainActivity,itemsView.objectDetector,itemsView.newclassifier, itemsView.imgSegmentation)
+        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier,itemsView.segm ,position, activity, mainActivity,itemsView.objectDetector,itemsView.newclassifier, itemsView.imgSegmentation, itemsView.gestureClas)
         if (switchToggleStream.isChecked) {
             itemsView.collector!!.startCollect()
         }
@@ -361,6 +462,12 @@ class AiRecyclerviewAdapter(
                 "Model: ${itemsView.classifier?.modelName}\n" +
                 "Device: ${itemsView.classifier?.device}\n"
 
+       else if(itemsView.segm!=null)
+            holder.textAiInfo.text = "Segmentation\n"+
+                    "Threads: ${itemsView.segm?.numThreads}\n" +
+                    "Model: ${itemsView.segm?.modelPath}\n" +
+                    "Device: ${itemsView.segm?.device}\n"
+
       else if(itemsView.objectDetector!=null)
           holder.textAiInfo.text = "Object detection\n"+ "Threads: ${itemsView.objectDetector?.numThreads}\n" +
                   "Model: ${itemsView.objectDetector?.modelUsed()}\n" +
@@ -374,6 +481,12 @@ class AiRecyclerviewAdapter(
            holder.textAiInfo.text = "Image Segmentation \n"+ "Threads: ${itemsView.imgSegmentation?.numThreads}\n" +
                    "Model: ${itemsView.imgSegmentation?.modelUsed()}\n" +
                    "Device: ${itemsView.imgSegmentation?.deviceUsed()}"
+
+       else if(itemsView.gestureClas!=null)
+           holder.textAiInfo.text = "Gesture Classifier \n"+ "Threads: ${itemsView.gestureClas?.numThreads}\n" +
+                   "Model: ${itemsView.gestureClas?.modelUsed()}\n" +
+                   "Device: ${itemsView.gestureClas?.deviceUsed()}"
+
 
 
     }

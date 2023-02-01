@@ -20,13 +20,16 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
 import android.util.Log
+import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
+import org.tensorflow.lite.support.label.Category
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.classifier.Classifications
 import org.tensorflow.lite.task.vision.classifier.ImageClassifier
+import kotlin.math.min
 
 class GestureClassifierHelper(
     var threshold: Float = 0.5f,
@@ -34,7 +37,8 @@ class GestureClassifierHelper(
     var maxResults: Int = 3,
     var currentDelegate: Int = 0,
     val context: Context,
-    val gestureClassifierListener: ClassifierListener?
+    val fileseries: String ,
+//    val gestureClassifierListener: ClassifierListener?
 ) {
     private var gestureClassifier: ImageClassifier? = null
 
@@ -61,10 +65,11 @@ class GestureClassifierHelper(
                 if (CompatibilityList().isDelegateSupportedOnThisDevice) {
                     baseOptionsBuilder.useGpu()
                 } else {
-                    gestureClassifierListener?.onError(
-                        "GPU is not supported on " +
-                                "this device"
-                    )
+//                    gestureClassifierListener?.onError(
+//                        "GPU is not supported on " +
+//                                "this device"
+//                    )
+                    Log.d("","GPU is not supported on \" +\n" + "this device")
                 }
             }
             DELEGATE_NNAPI -> {
@@ -81,10 +86,10 @@ class GestureClassifierHelper(
                     optionsBuilder.build()
                 )
         } catch (e: IllegalStateException) {
-            gestureClassifierListener?.onError(
-                "Gesture classifier failed to initialize. See error logs for " +
-                        "details"
-            )
+//            gestureClassifierListener?.onError(
+//                "Gesture classifier failed to initialize. See error logs for " +
+//                        "details"
+//            )
             Log.e(TAG, "TFLite failed to load model with error: " + e.message)
         }
     }
@@ -111,7 +116,46 @@ class GestureClassifierHelper(
 
         val results = gestureClassifier?.classify(tensorImage)
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
-        gestureClassifierListener?.onResults(results, inferenceTime)
+       // Log.d("inference_Time", " $inferenceTime" +"ms on "+ deviceUsed())
+
+
+//    nil created this commented to not consider it for inference time     var categories: MutableList<Category?> = mutableListOf()
+//        categories = MutableList(2) { null }
+//        results?.let { it ->
+//            if (it.isNotEmpty()) {
+//                val sortedCategories = it[0].categories.sortedBy { it?.index }
+//                val min = min(sortedCategories.size, categories.size)
+//                for (i in 0 until min) {
+//                    categories[i] = sortedCategories[i]
+//                    Log.d("category"," ${categories.get(i)?.label}"+ ", score= ${categories.get(i)?.score}")
+//
+//                }
+//            }
+//        }
+
+
+
+
+
+
+
+//        gestureClassifierListener?.onResults(results, inferenceTime)
+    }
+
+
+    fun  modelUsed() :String {
+        return MODEL_PATH
+    }
+    fun  deviceUsed() :String {
+        if(currentDelegate==0)
+            return "CPU"
+        else  if(currentDelegate==1)
+            return "GPU"
+
+        else if(currentDelegate==2)
+            return "NNAPI"
+
+        return "CPU"
     }
 
     interface ClassifierListener {

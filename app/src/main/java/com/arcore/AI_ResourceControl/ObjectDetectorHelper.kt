@@ -66,7 +66,7 @@ class ObjectDetectorHelper(
             return "GPU"
 
         else if(currentDelegate==2)
-            return "NPU"
+            return "NNAPI"
 
         return "CPU"
     }
@@ -147,9 +147,7 @@ class ObjectDetectorHelper(
         // process
         var inferenceTime = SystemClock.uptimeMillis()
 
-        // Create preprocessor for the image.
-        // See https://www.tensorflow.org/lite/inference_with_metadata/
-        //            lite_support#imageprocessor_architecture
+
         val imageProcessor =
             ImageProcessor.Builder()
                 .add(Rot90Op(-imageRotation / 90))
@@ -159,18 +157,13 @@ class ObjectDetectorHelper(
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
 
         val results = objectDetector?.detect(tensorImage)
-        if (results != null) {
-            debugPrint(results)
-        }
+//    nil created this commented to not consider it for inference time     if (results != null) {
+//            debugPrint(results)
+//        }
 
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
 
-        // temp comment
-//        objectDetectorListener?.onResults(
-//            results,
-//            inferenceTime,
-//            tensorImage.height,
-//            tensorImage.width)
+
     }
 
 

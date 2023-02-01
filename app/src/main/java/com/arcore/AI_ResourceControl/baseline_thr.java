@@ -299,7 +299,7 @@ public class baseline_thr implements Runnable {
             for (int i = 0; i <  mInstance.objectCount; i++) {
 
                 //decimate all
-                mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * mInstance.o_tris.get(i));// total =total -1*objtris
+                mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)/1000));// total =total -1*objtris
                 mInstance.ratioArray.set(i, coarse_Ratios[index]);
                 TextView posText = (TextView)mInstance. findViewById(R.id.dec_req);
                 posText.setText("Request for " +mInstance. renderArray.get(i).fileName + " " + coarse_Ratios[index]);

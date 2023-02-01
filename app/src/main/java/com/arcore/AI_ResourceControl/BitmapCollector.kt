@@ -8,10 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
-
 import java.io.File
 
 
@@ -26,13 +23,14 @@ class BitmapCollector(
 
     private val bitmapSource: DynamicBitmapSource?,
     val classifier: ImageClassifier?,
+    val segm: ImageSegmentor?,
     var index: Int, // to ensure unique filename.
     private val activity: Activity,
     var mInstance: MainActivity,
     var objectDetector: ObjectDetectorHelper?,
     var newClassifier: ImageClassifierHelper?,
-    var imgSegmentation: ImageSegmentationHelper?
-
+    var imgSegmentation: ImageSegmentationHelper?,
+    var gestureClas: GestureClassifierHelper?
 
 ): ViewModel() {
 
@@ -42,6 +40,8 @@ class BitmapCollector(
     var InferenceTime: Long = 0
     var responseTime: Long = 0
     var totalResponseTime: Long = 0
+    var totalInferenceTime: Long = 0
+    var totalOverhead: Long = 0
     var numOfTimesExecuted = 0
   // first worked: var  objectDetectorHelper = ObjectDetectorHelper( context = mInstance, fileseries = mInstance.fileseries)
 
@@ -57,6 +57,8 @@ class BitmapCollector(
      * Resets response time collection data so changing model does not give erroneous first result
      */
     fun resetRtData() {
+        totalOverhead=0
+        totalInferenceTime=0
         totalResponseTime = 0
         numOfTimesExecuted = 0
         end = System.nanoTime()/1000000
@@ -124,18 +126,33 @@ class BitmapCollector(
                         bitmap=bitmap2// resized value for classification
                     }
 
-                    if (newClassifier?.modelUsed()  =="inception_v1_224_quant.tflite" )
+                    else if(segm!= null )
                     {
-                        bitmap=Bitmap.createScaledBitmap(
+                        val bitmap2 = Bitmap.createScaledBitmap(
                             // it,
                             bitmap!!,
-                           229,
-                           229,
+                            segm!!.imageSizeX,
+                            segm.imageSizeY,
                             true
-                        ) //229
+                        )
+                        bitmap=bitmap2// resized value for classification
                     }
 
 
+                    if (newClassifier?.modelUsed()  =="inception_v1_224_quant.tflite" )
+                    {
+                        bitmap=Bitmap.createScaledBitmap(bitmap!!, 229, 229, true) //229
+                    }
+
+//                    else if (imgSegmentation?.modelUsed()  =="deeplabv3.tflite" )
+//                    {
+//                        bitmap=Bitmap.createScaledBitmap(bitmap!!, 257, 257, true) //229
+//                    }
+// minist = 1024x1024, 640x480 for gesture
+//                    else if (gestureClas?.modelUsed()  =="model_metadata.tflite" )
+//                    {
+//                        bitmap=Bitmap.createScaledBitmap(bitmap!!, 224, 224, true) //229
+//                    }
 
                     start = System.nanoTime()/1000000
                     if(end!=0L) {
@@ -143,11 +160,20 @@ class BitmapCollector(
                     }
 
 //object detection version complex: this is the main
-                    if(objectDetector!= null)
+                   if(objectDetector!= null)
                         objectDetector!!.detect(bitmap!!,0)
 
                    else if(classifier!= null)
                         classifier.classifyFrame(bitmap)
+
+                   else if(segm!= null)
+                      { segm.segmentFrame(bitmap)
+                      bitmap!!.recycle()
+                      Log.d(
+                        "segmentation"
+                            , "    Frame Rate: " + 1000 / segm.duration
+                      )
+                      }
 
 
                     else if (newClassifier!=null)
@@ -157,14 +183,19 @@ class BitmapCollector(
                     else if (imgSegmentation!=null)
                         imgSegmentation?.segment(bitmap!!,0)
 
+                    else if (gestureClas!=null)
+                        gestureClas?.classify(bitmap!!,90)
 
 
 
                     end = System.nanoTime()/1000000
                     InferenceTime = end-start
+                    totalOverhead+=overhead
                     responseTime=overhead+InferenceTime
                     numOfTimesExecuted++
                     totalResponseTime+=responseTime
+
+                    totalInferenceTime+=InferenceTime
                     Log.d("times", "${overhead},${InferenceTime},${responseTime}")
                     outputText.append("${overhead},${InferenceTime},${responseTime}\n")
 //                    file.appendText(outputText.toString())
