@@ -160,20 +160,23 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     ListMultimap<Integer, Double> coeff_modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
     ListMultimap<Integer, Double> coeff_total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
 
-    List<ListMultimap<Double, Double>> thr_models= new ArrayList<>();// map from each model to throughput an Tris
+    List<ListMultimap<Double, Double>> rsp_models= new ArrayList<>();// map from each model to throughput an Tris
     List<Double> rohTL= new ArrayList<>();
     List<Double> rohDL= new ArrayList<>();
     List<Double> deltaL= new ArrayList<>();
 
-    List<Integer> thr_miss_counter=new ArrayList<>();
+    List<Integer> rsp_miss_counter=new ArrayList<>();
+
+
     int thr_miss_counter1=0;
     double last_tris=0;
     //$$$$$$$$$$$$$$
     double des_Q= 0.7; //# this is avg desired Q
     double des_Thr = 35; // 0.65*throughput; in line 2063,
-    List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
+    List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // to hold list of throughput
             //ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
+
 
   List<  ListMultimap<Double, Double>> trisMeanDisk =new ArrayList<>();
           //ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
@@ -235,7 +238,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     double thr_factor=0.6;
     double re_factor=0.9;
-    //int thr_miss_counter=0;
+    //int rsp_miss_counter=0;
     int re_miss_counter=0;
 
 
@@ -772,19 +775,20 @@ else{
 //                    double rohD=0.0001;
 //                    double delta=66.92;
 
-                   thr_models.clear();
+                   rsp_models.clear();
 //                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
                     for (AiItemsViewModel taskView : mList) {
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
-                        thr_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
-                        thParamList.add( ArrayListMultimap.create());
+                        rsp_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
+                        tParamList.add( ArrayListMultimap.create());
                         trisMeanDisk.add( ArrayListMultimap.create());
                         rohDL.add(rohD);// the weight  for throughput modeling
                         rohTL.add(rohT);
                         deltaL.add(delta);
-                        thr_miss_counter.add(0);
+                        rsp_miss_counter.add(0);
 
                     }
+
 
 
 
@@ -1815,7 +1819,7 @@ else{
                 reParamList.clear();
                 trisMeanDisk.clear();
                 trisMeanThr.clear();
-                thParamList.clear();
+                tParamList.clear();
                 trisRe.clear();
                 reParamList.clear();
                 // to start over data collection
@@ -1906,7 +1910,7 @@ else{
                                         reParamList.clear();
                                         trisMeanDisk.clear();
                                         trisMeanThr.clear();
-                                        thParamList.clear();
+                                        tParamList.clear();
                                         trisRe.clear();
                                         reParamList.clear();
                                         // to start over data collection

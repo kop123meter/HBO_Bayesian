@@ -1,6 +1,16 @@
 
 package com.arcore.AI_ResourceControl;
-/*This code has relation ship between AI inference time and triangle count*/
+/*This code has relation ship between AI inference time and triangle count
+* why just tris? because we wanna know the slope of each AI corresponds to tris, if we involve distance, weigth parameters become different per model per
+* slope oof tris-distance Plus it is difficult to use two weights per AI model compared to one Weight + Plus, the response time vs tris is accurate and has RMSE below 10%
+* Process:
+* line 116 gets current reponsetime per model
+* collects data per model per tris for binsize=10
+* periodically runs the prediction and tests if model error>10 -> Yes: retrains the model and then calculates miss-count
+* has THE POLICY TO REGULATE the DECIMATION bins if model gives us more than 5 times noise
+*At the end, calls writethr to write mean response time of measured and calculated per model in each line starting from the first model
+*
+* */
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -67,7 +77,7 @@ public class data2 implements Runnable {
         boolean accmodel = true;// this is to check if the trained model for thr is accurate
         //boolean accRe=true;// this is to check if the trained model for re is accurate
         boolean trainedTris = false;
-        boolean trainedThr = false;
+        boolean trainedrsp = false;
         boolean trainedRE = false;
         double maxTrisThreshold = mInstance.orgTrisAllobj;
         double minTrisThreshold = maxTrisThreshold * mInstance.coarse_Ratios[mInstance.coarse_Ratios.length - 1];
@@ -99,21 +109,18 @@ public class data2 implements Runnable {
                 pred_meanD = meanDk; // for the first objects
 
         }
-
-        //I got an error for regression since decimation occurs in UI thread and Modeling runs at the same time
+        //@@I got an error for regression since decimation occurs in UI thread and Modeling runs at the same time
         // solution is to start data collection after one period passes from algorithm
         // else{ // just collect data when algorithm was applied in the last period
 
         totTris = mInstance.total_tris;
-
-
         meanRsp = 1000/ mInstance.getThroughput(aiIndx);// after the objects are decimated
 
         if (!Double.isNaN(meanRsp)) {
 
             meanRsp = (double) Math.round(meanRsp * 100) / 100;
 
-            int variousTris = mInstance.thr_models.get(aiIndx).keySet().size();
+            int variousTris = mInstance.rsp_models.get(aiIndx).keySet().size();
 
 // this is thr calculated using the modeling
             double predRsp = (mInstance.rohTL.get(aiIndx) *  totTris)  + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
@@ -122,18 +129,17 @@ public class data2 implements Runnable {
 //            writeThr(meanThr, predThr, trainedThr);// for the urrent period
 
             int ind = -1;
-            if (variousTris < 3) { // one object on the screen
+            if (variousTris <= 2) { // one object on the screen : variousTris=1 is for zero and =2 is for zero and x tris
 
-                if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
-                    cleanOutArraysThr(totTris, pred_meanD, mInstance);// cleans out the closest data to the curr one
+                if (mInstance.rsp_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
+                    cleanOutArraysThr(totTris, pred_meanD, mInstance);//this cleans the closest data to the curr one for all below listmaps -> we could use just put function
 
                 }
 
-                mInstance.thr_models.get(aiIndx).put(totTris, meanRsp); //correct:  should have real throughput for the regression
-                // uses predicted cur distance for thr modeling
-                mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
+                mInstance.rsp_models.get(aiIndx).put(totTris, meanRsp); //correct:  should have real throughput for the regression
+                mInstance.tParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
 
-               mInstance.trisMeanDisk.get(aiIndx).put(totTris, pred_meanD); //correct:  should have predicted value removes from the head (older data) -> to then add to the tail
+               mInstance.trisMeanDisk.get(aiIndx).put(totTris, pred_meanD); //correct: since it should have predicted value removes from the head (older data) -> to then add to the tail
 
 
             }
@@ -148,43 +154,42 @@ public class data2 implements Runnable {
                     double mape = 0.0; // mean of absolute error
                     double fit = (mInstance.rohTL.get(aiIndx) * totTris) + mInstance.deltaL.get(aiIndx); // fit is predicted current throughput should be predicted distance (we have next 1 sec but ok since we don't move)  for current period
                     //double fit = mInstance.thSlope * totTris + mInstance.thIntercept;;
-                    mape = abs((meanRsp - fit) / meanRsp);// this is correct to calculate error coming from real throughput vs model
+                    mape = abs((meanRsp - fit) / meanRsp);// this is correct to calculate error coming from real response time vs model
 
-                    if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
+                    if (mInstance.rsp_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
                         cleanOutArraysThr(totTris, pred_meanD, mInstance);// cleans out the closest data to the curr one
                     }
 
+                    //data collection should be done regardless of model error
+                    mInstance.rsp_models.get(aiIndx).put(totTris, meanRsp); // corrrect: should have real throughput for regression and thr param should have predicted distance
+                    mInstance.tParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
+                    mInstance.trisMeanDisk.get(aiIndx).put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+
+
                     ///  nil   commented  sep 7
-                    if (mape > 0.1 && variousTris >= 2) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
-// 8 april
-                        mInstance.thr_models.get(aiIndx).put(totTris, meanRsp); // corrrect: should have real throughput for regression and thr param should have predicted distance
-                        mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
-                        mInstance.trisMeanDisk.get(aiIndx).put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+                    if (mape > 0.1 && variousTris >= 2) {//error is above 10% , we need to train the models. (we ignore tris=0? why?) then we need points with at least two diff tris in order to generate the line
 
-                        ListMultimap<Double, List<Double>> copythParamList = ArrayListMultimap.create(mInstance.thParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
-                        ListMultimap<Double, Double> copytrisMeanThr = ArrayListMultimap.create(mInstance.thr_models.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
+                        ListMultimap<Double, List<Double>> copythParamList = ArrayListMultimap.create(mInstance.tParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
+                        ListMultimap<Double, Double> copytrisMeanrsp = ArrayListMultimap.create(mInstance.rsp_models.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
 
-
-                        for (double curT : mInstance.thr_models.get(aiIndx).keySet()) {
-
-                            //   this is to calculate the mean of values in the bins
+                        for (double curT : mInstance.rsp_models.get(aiIndx).keySet()) {
+                            //   this is to calculate the mean of values in the bins and fill the un-full bins with it
                             if (mInstance.trisMeanDisk.get(aiIndx).get(curT).size() < binCap) {
                                 int index = mInstance.trisMeanDisk.get(aiIndx).get(curT).size();
-                                double mmeanTh = 0, mmeanDK = 0;
+                                double mmeanrsp = 0, mmeanDK = 0;
 
                                 for (int i = 0; i < index; i++) {
-                                    mmeanTh += mInstance.thr_models.get(aiIndx).get(curT).get(i);
+                                    mmeanrsp += mInstance.rsp_models.get(aiIndx).get(curT).get(i);
                                     mmeanDK += mInstance.trisMeanDisk.get(aiIndx).get(curT).get(i);
 
                                 }
-
-                                mmeanTh /= index;
+                                mmeanrsp /= index;
                                 mmeanDK /= index;
                                 //   mmeanDKk/=index;
 
                                 for (int j = index; j < binCap; j++) {
 
-                                    copytrisMeanThr.put(curT, mmeanTh);
+                                    copytrisMeanrsp.put(curT, mmeanrsp);
                                     copythParamList.put(curT, Arrays.asList(curT, 1.0)); // this is to calculate the mean of values in the bins so it's correct
 
                                 }
@@ -205,9 +210,9 @@ public class data2 implements Runnable {
                                 if (j > mInstance.decTris.size() - 1)
                                     j = 0;
                                 double currentT = mInstance.decTris.get(j);// one of the triangles from the list of decimated-exp
-                                List<Double> thrList = new LinkedList<>(copytrisMeanThr.get(currentT));// since copy list has full data
+                                List<Double> thrList = new LinkedList<>(copytrisMeanrsp.get(currentT));// since copy list has full data
                                 for (double th : thrList)// elements of re list
-                                    copytrisMeanThr.put(currentT, th);
+                                    copytrisMeanrsp.put(currentT, th);
 
                                 List<List<Double>> thpList = new LinkedList<>(copythParamList.get(currentT));// since copy list has full data
                                 for (List<Double> thpr : thpList)// throughput parameters
@@ -220,11 +225,12 @@ public class data2 implements Runnable {
                         // to copy the decimated data into throughout modeling
 
 
-                        double[] throughput = copytrisMeanThr.values().stream()
+                        double[] rtime = copytrisMeanrsp.values().stream()
                                 .mapToDouble(Double::doubleValue)
                                 .toArray();
 
-                        double[] y = Arrays.copyOfRange(throughput, 0, throughput.length); // should be real throughput
+
+                        double[] y = Arrays.copyOfRange(rtime, 0, rtime.length); // should be real throughput
                         double[][] thRegParameters = copythParamList.values().stream()
                                 .map(l -> l.stream().mapToDouble(Double::doubleValue).toArray())
                                 .toArray(double[][]::new);
@@ -238,12 +244,12 @@ public class data2 implements Runnable {
                             //mInstance.rohDL.set(aiIndx,regression.beta(1));
                             mInstance.deltaL .set(aiIndx, regression.beta(1));
                             //mInstance.thRmse = regression.rmse;
-                            trainedThr = true;
+                            trainedrsp = true;
 
                         }
                         thRegParameters=null; // free the storage
                         y=null;
-                        copytrisMeanThr.clear();
+                        copytrisMeanrsp.clear();
                         copythParamList.clear();
 
                         // end of modeling throughput
@@ -256,22 +262,20 @@ public class data2 implements Runnable {
                     predRsp = (double) Math.round((double) predRsp * 100) / 100;
 
 
-
-
-
-
                     mape = abs((meanRsp - predRsp) / meanRsp);
                     if (mape > 0.1) {
                         accmodel = false;// after training we check to see if the model is accurate to then cal next triangle
 
-                        if (variousTris >= 3){
+                        if (variousTris >= 3){//update miss counter for false noise detection of model test that occures while changing tris...
 
-                            int cur_count= mInstance.thr_miss_counter.get(aiIndx);
-                            mInstance.thr_miss_counter.set(aiIndx,cur_count+1 ) ;
+                            int cur_count= mInstance.rsp_miss_counter.get(aiIndx);
+                            mInstance.rsp_miss_counter.set(aiIndx,cur_count+1 ) ;
+
                         }
 
 
-                        if (mInstance.thr_miss_counter.get(aiIndx) > 5 && mInstance.decTris.size() != 0) { // this is to regulate the factor of considering decimated collected data in the bins
+
+                        if (mInstance.rsp_miss_counter.get(aiIndx) > 5 && mInstance.decTris.size() != 0) { // this is to regulate the factor of considering decimated collected data in the bins
                             if (meanRsp > predRsp) {
                                 mInstance.thr_factor -= 0.1;// reduce the effect of decimation to increase predicted throughput
                                 if (mInstance.thr_factor < 0)
@@ -282,7 +286,7 @@ public class data2 implements Runnable {
                         }
 
                     } else
-                        mInstance.thr_miss_counter.set(aiIndx,  0);// the model works fine so we don't need to re-adjust the throughput factor for decimation data collection
+                        mInstance.rsp_miss_counter.set(aiIndx,  0);// the model works fine so we don't need to re-adjust the throughput factor for decimation data collection
 
 
 
@@ -295,7 +299,7 @@ public class data2 implements Runnable {
 
                 //  writequality();
 
-                writeThr(meanRsp, predRsp, trainedThr);// for the urrent period
+                writeThr(meanRsp, predRsp, trainedrsp);// for the urrent period
 /*  double avgq = calculateMeanQuality();
                 double PRoAR = (double) Math.round((avgq / mInstance.des_Q) * 100) / 100;
                 double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// should be real
@@ -558,8 +562,8 @@ public class data2 implements Runnable {
                 {
                     mInstance.reParamList.clear();
                     mInstance.trisMeanDisk.clear();
-                    mInstance.thr_models.get(aiIndx).clear();
-                    mInstance.thParamList.clear();
+                    mInstance.rsp_models.get(aiIndx).clear();
+                    mInstance.tParamList.clear();
                     mInstance.trisRe.clear();
                     mInstance.reParamList.clear();
                     // to start over data collection
@@ -569,7 +573,7 @@ public class data2 implements Runnable {
                 }
 */
 
-            }// if we have objs on the screen, we start RE model & training
+            }// if we have objs on the screen, we start model training
 
 
 
@@ -632,8 +636,8 @@ public class data2 implements Runnable {
                     .toArray(); // this has the array of predicted distance
 
             index = findClosest(disArray, predDis);// the index of value(closest to current mean dis) needed to be deleted
-            mInstance.thr_models.get(aiIndx).get(totTris).remove(index); // has the real throughput
-            mInstance.thParamList.get(aiIndx).get(totTris).remove(index);
+            mInstance.rsp_models.get(aiIndx).get(totTris).remove(index); // has the real throughput
+            mInstance.tParamList.get(aiIndx).get(totTris).remove(index);
 
             mInstance.trisMeanDisk.get(aiIndx).get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
             // mInstance.trisMeanDiskk.get(totTris).remove(index);
