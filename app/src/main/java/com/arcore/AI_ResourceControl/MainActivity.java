@@ -127,7 +127,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Float>ratioArray = new ArrayList<Float>();
     List<Float>cacheArray = new ArrayList<Float>();
     List<Float>updatednetw = new ArrayList<Float>();
-
+    /*please note that this factor selection affects the alpha parameters for throughput model. so make sure to choose it correctly
+    * eg, for some AI models if normalized  tris goes from 0.2 to 85, and throughput of AI1 is 9, the alpha_d changes for, 0.002 to 3.4 for one model which is not good compared to other models that might have still alpha d bellow 0.1*/
+    double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
 
     int maxtime=6; // 20 means calculates data for next 10 sec ->>>should be even num
     // if 5, goes up to 2.5 s. if 10, goes up to 5s
@@ -165,6 +167,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Double> rohDL= new ArrayList<>();
     List<Double> deltaL= new ArrayList<>();
 
+    List<Double> baseline_AIthr= new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
+
     List<Integer> rsp_miss_counter=new ArrayList<>();
     List<Integer> thr_miss_counter=new ArrayList<>();
     List<ListMultimap<Double, Double>> thr_models= new ArrayList<>();// map from each model to throughput an Tris
@@ -178,6 +182,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // to hold list of response time
     List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
 
+    ListMultimap<Double, List<Double>> thParamList_Mir = ArrayListMultimap.create();
+
     //ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
 
@@ -190,7 +196,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     ListMultimap<Integer, Double> modelMeanDisk = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
 
-//     ListMultimap<Double, Double> trisMeanDisk = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
+    ListMultimap<Double, Double> trisMeanDisk_Mir = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
 
 
     ListMultimap<Double, Double> trisRe = ArrayListMultimap.create();//  a map from tot tris to measured RE
@@ -782,7 +788,7 @@ else{
                    rsp_models.clear();
                     thr_models.clear();
 //                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
-                    for (AiItemsViewModel taskView : mList) {
+                    for (AiItemsViewModel taskView : mList) { // up to the count of AI models we add values to lists below for parameters and slopes and baseline-throughput
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
                         rsp_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
                         thr_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
@@ -794,6 +800,7 @@ else{
                         deltaL.add(delta);
                         rsp_miss_counter.add(0);
                         thr_miss_counter.add(0);
+                        baseline_AIthr.add(0d);
                     }
 
 
@@ -1635,7 +1642,8 @@ else{
 
                                     //if (under_Perc == false) {
                                     //(o_tris.get(i)/1000) is to have a better weights for throughput modeling
-                                        total_tris = total_tris - (ratioArray.get(i) * ((double)(o_tris.get(i))/1000)     );// total =total -1*objtris
+
+                                        total_tris = total_tris - (ratioArray.get(i) * ((double)(o_tris.get(i))/tris_factor)     );// total =total -1*objtris
                                        // ratioArray[i] = ratio[0] / 100f;
                                         ratioArray.set(i, ratio[0] / 100f);
                                         renderArray.get(i).decimatedModelRequest(ratio[0] / 100f, i, false);
@@ -1643,7 +1651,7 @@ else{
 
 
                                         // update total_tris
-                                        total_tris = total_tris + (ratioArray.get(i) * ((double)(o_tris.get(i))/1000) );// total = total + 0.8*objtris
+                                        total_tris = total_tris + (ratioArray.get(i) * ((double)(o_tris.get(i))/tris_factor) );// total = total + 0.8*objtris
                                     //    trisDec.put(total_tris,true);
                                     if (!decTris.contains(total_tris)) {
                                         decTris.add(  total_tris);
@@ -1722,8 +1730,8 @@ else{
 
 
 
-                        total_tris = total_tris - (ratioArray.get(i) * ( ((double)o_tris.get(i))/1000));// total =total -1*objtris
-                        orgTrisAllobj -= (ratioArray.get(i) * (((double)o_tris.get(i))/1000));
+                        total_tris = total_tris - (ratioArray.get(i) * ( ((double)o_tris.get(i))/tris_factor));// total =total -1*objtris
+                        orgTrisAllobj -= (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor));
                         objectCount -= 1;
                         TextView posText = (TextView) findViewById(R.id.objnum);
                         posText.setText("obj_num: " + objectCount);
@@ -2150,27 +2158,27 @@ else{
                             float decRatio;
 
                             if (under_Perc == false) {
-                                total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))/1000) );// total =total -1*objtris
+                                total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor) );// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 100f;
                                 ratioArray.set(i, seekBar.getProgress() / 100f);
                                 renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
 
 
                                 // update total_tris
-                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/1000))  ;// total = total + 0.8*objtris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor))  ;// total = total + 0.8*objtris
                           //      trisDec.put(total_tris,true);
                                 if (!decTris.contains(total_tris))
                                    decTris.add(total_tris);
                                 curTrisTime= SystemClock.uptimeMillis();
                                 // quality is registered
                             } else {
-                                total_tris = total_tris - (ratioArray.get(i)*(((double)o_tris.get(i))/1000));// total =total -1*objtris
+                                total_tris = total_tris - (ratioArray.get(i)*(((double)o_tris.get(i))/tris_factor));// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 1000f;
                                 ratioArray.set(i, seekBar.getProgress() / 1000f);
                                 renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
 
                                 // update total_tris
-                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/1000));// total = total + 0.8*objtris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor));// total = total + 0.8*objtris
                              //   trisDec.put(total_tris,true);
                                 if (!decTris.contains(total_tris))
                                     decTris.add(total_tris);
@@ -2240,6 +2248,8 @@ else{
 //                               setDesTh=true;}
 //                           }
 
+                           // String alg="MIR";
+
                             if(odraAlg=="1")// either choose the baseline or odra algorithm
 
                             {
@@ -2248,9 +2258,10 @@ else{
                                 for(int i=0; i<mList.size(); i++){
 
 //
-//                                   new balancer(MainActivity.this,i).run(); // this is to collect mean thr, total_tris. average dis
-                                    new responseT_weight(MainActivity.this, i).run();
-
+                                   new balancer(MainActivity.this,i).run(); // XMIR implementation -> this is to collect mean thr, total_tris. average dis
+//                                    new responseT_weight(MainActivity.this, i).run(); // just considers responsetime modeling
+                                   // new Mir(MainActivity.this).run(); this is to run MIR
+//
 
                                     try {
                                         Thread.sleep(30);
@@ -2261,11 +2272,12 @@ else{
 
                             }
 
+                            /* was  for MIR
                             else  if(odraAlg=="2")
                                     new baseline_thr(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
                             else
                                 new baseline(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
-
+*/
                         }
 
                     }
@@ -3792,7 +3804,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
        int indq = excelname.indexOf(renderArray.get(objectCount).fileName);// search in excel file to find the name of current object and get access to the index of current object
         o_tris.add( (Integer) excel_tris.get(indq));
         // update total_tris
-        total_tris+=   (  ((double)o_tris.get(objectCount) )/1000)   ;
+        total_tris+=   (  ((double)o_tris.get(objectCount) )/tris_factor)   ;
 
         d1_prev.add(objectCount, 0f);
 
@@ -3800,7 +3812,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
         curTrisTime= SystemClock.uptimeMillis();
         //lastQuality.add(1f);// initialize
-        orgTrisAllobj+=( ((double)o_tris.get(objectCount))/1000);
+        orgTrisAllobj+=( ((double)o_tris.get(objectCount))/tris_factor);
 
         //  Camera2BasicFragment .getInstance().update( (double) total_tris);// run linear reg
 
