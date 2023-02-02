@@ -1,5 +1,13 @@
 
 package com.arcore.AI_ResourceControl;
+/**
+ * This include co-efficient function trial which failed
+ * correlation coefficient is not a good metric to infer on the AI model needed for the GPU.
+ * We have always change in Throughput of AI model by change in Tris for all models
+ * In correlational research, you investigate whether changes in one variable are associated with changes in other variables.
+ *the steepness or slope of the line isn’t related to the correlation coefficient value.
+ */
+
 
 import android.util.Log;
 import android.widget.TextView;

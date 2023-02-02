@@ -30,7 +30,7 @@ import static java.lang.Math.abs;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 
-public class data2 implements Runnable {
+public class responseT_weight implements Runnable {
 
     int binCap=10;
     private final MainActivity mInstance;
@@ -50,7 +50,7 @@ public class data2 implements Runnable {
     float tMin[] ;
     int aiIndx;
 
-    public data2(MainActivity mInstance,int ai_index) {
+    public responseT_weight(MainActivity mInstance,int ai_index) {
 
         this.mInstance = mInstance;
 
@@ -299,7 +299,7 @@ public class data2 implements Runnable {
 
                 //  writequality();
 
-                writeThr(meanRsp, predRsp, trainedrsp);// for the urrent period
+                writeRsp(meanRsp, predRsp, trainedrsp);// for the urrent period
 /*  double avgq = calculateMeanQuality();
                 double PRoAR = (double) Math.round((avgq / mInstance.des_Q) * 100) / 100;
                 double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// should be real
@@ -728,7 +728,7 @@ public class data2 implements Runnable {
         }
 
     }
-    public void writeThr(double realThr, double predThr, boolean trainedFlag){
+    public void writeRsp(double realrsp, double predrsp, boolean trainedFlag){
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
@@ -738,19 +738,24 @@ public class data2 implements Runnable {
 
         StringBuilder sb = new StringBuilder();
         sb.append(dateFormat.format(new Date())); sb.append(',');
-        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',');
-        sb.append(mInstance.rohTL.get(aiIndx)).append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
-
+        // this is just modeling information for current AI task
+        sb.append(realrsp);sb.append(',').append(predrsp);sb.append(',').append(trainedFlag);sb.append(',');
+        sb.append(mInstance.rohTL.get(aiIndx)).append(',').append(" ,").append(mInstance.deltaL.get(aiIndx));sb.append(',');
         sb.append(mInstance.total_tris);
 
-        int i=0;
+
+        // this is information of all AI tasks
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             for (AiItemsViewModel taskView :mInstance.mList) {
 
+//                int index=mInstance.mList.indexOf(taskView);
+
+//                .append(mInstance.rohTL.get(index)).append(',').append(" ,").append(mInstance.deltaL.get(index));sb.append(',')
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-                        .append(",").append(taskView.getCurrentNumThreads()).append(",").append(taskView.getThroughput())
-                        .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
+//                        .append(",").append(taskView.getCurrentNumThreads())
+                        .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT())
+                       ;
 
             }
 

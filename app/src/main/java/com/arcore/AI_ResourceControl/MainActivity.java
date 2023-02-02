@@ -166,6 +166,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Double> deltaL= new ArrayList<>();
 
     List<Integer> rsp_miss_counter=new ArrayList<>();
+    List<Integer> thr_miss_counter=new ArrayList<>();
+    List<ListMultimap<Double, Double>> thr_models= new ArrayList<>();// map from each model to throughput an Tris
 
 
     int thr_miss_counter1=0;
@@ -173,8 +175,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     //$$$$$$$$$$$$$$
     double des_Q= 0.7; //# this is avg desired Q
     double des_Thr = 35; // 0.65*throughput; in line 2063,
-    List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // to hold list of throughput
-            //ArrayListMultimap.create();//  a map from tot tris to measured RE
+    List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // to hold list of response time
+    List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
+
+    //ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
 
 
@@ -776,17 +780,20 @@ else{
 //                    double delta=66.92;
 
                    rsp_models.clear();
+                    thr_models.clear();
 //                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
                     for (AiItemsViewModel taskView : mList) {
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
                         rsp_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
+                        thr_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
+                        thParamList.add( ArrayListMultimap.create());
                         tParamList.add( ArrayListMultimap.create());
                         trisMeanDisk.add( ArrayListMultimap.create());
                         rohDL.add(rohD);// the weight  for throughput modeling
                         rohTL.add(rohT);
                         deltaL.add(delta);
                         rsp_miss_counter.add(0);
-
+                        thr_miss_counter.add(0);
                     }
 
 
@@ -979,28 +986,26 @@ else{
             sbb.append("Model1");
             sbb.append(',');
             sbb.append("Device1");
-            sbb.append(',');
-            sbb.append("Thread1");
-            sbb.append(',');
-//            sbb.append("Task_Throughput1");
 //            sbb.append(',');
+//            sbb.append("Thread1");
+            sbb.append(',');
             sbb.append("Inf1");
             sbb.append(',');
             sbb.append("Overhead1");
 
-            sbb.append(',').append("rohT").append(',').append("rohD").append(',').append("delta");
+         //   sbb.append(',').append("rohT").append(',').append("rohD").append(',').append("delta");
 //         old for coefficient
 //            sbb.append(',');sbb.append("r1");
 
-//            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Thread2").append(',').append("Task_Throughput2");
-//            sbb.append(',').append("Inf2").append(',').append("Overhead2").append(',').append("r2");
-//
-//            sbb.append(',').append("Model3").append(',').append("Device3").append(',').append("Thread3").append(',').append("Task_Throughput3");
-//            sbb.append(',').append("Inf3").append(',').append("Overhead3").append(',').append("r3");;
-//
-//            sbb.append(',').append("Model4").append(',').append("Device4").append(',').append("Thread4").append(',').append("Task_Throughput4");
-//            sbb.append(',').append("Inf4").append(',').append("Overhead4").append(',').append("r4");
-//
+            sbb.append(',').append("Model2").append(',').append("Device2");
+            sbb.append(',').append("Inf2").append(',').append("Overhead2");
+
+            sbb.append(',').append("Model3").append(',').append("Device3");
+            sbb.append(',').append("Inf3").append(',').append("Overhead3");
+
+            sbb.append(',').append("Model4").append(',').append("Device4");
+            sbb.append(',').append("Inf4").append(',').append("Overhead4");
+
 //            sbb.append(',').append("Model5").append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
 //            sbb.append(',').append("Inf5").append(',').append("Overhead5").append(',').append("r5");
 //
@@ -1820,6 +1825,7 @@ else{
                 trisMeanDisk.clear();
                 trisMeanThr.clear();
                 tParamList.clear();
+                thParamList.clear();
                 trisRe.clear();
                 reParamList.clear();
                 // to start over data collection
@@ -2240,10 +2246,10 @@ else{
 //                                new balancer(MainActivity.this).run();
 
                                 for(int i=0; i<mList.size(); i++){
-                                    //new data2(MainActivity.this, i).run();
+
 //
 //                                   new balancer(MainActivity.this,i).run(); // this is to collect mean thr, total_tris. average dis
-                                    new data2(MainActivity.this, i).run();
+                                    new responseT_weight(MainActivity.this, i).run();
 
 
                                     try {
