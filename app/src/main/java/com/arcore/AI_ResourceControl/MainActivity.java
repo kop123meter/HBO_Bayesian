@@ -166,8 +166,12 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Double> rohTL= new ArrayList<>();
     List<Double> rohDL= new ArrayList<>();
     List<Double> deltaL= new ArrayList<>();
+    List<Boolean> hAI_acc= new ArrayList<>();// the accuracy of AI throughput model
+
 
     List<Double> baseline_AIthr= new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
+    List<Double> weights= new ArrayList<>();// this is a list of normalized weights
+
 
     List<Integer> rsp_miss_counter=new ArrayList<>();
     List<Integer> thr_miss_counter=new ArrayList<>();
@@ -188,9 +192,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
 
 
-  List<  ListMultimap<Double, Double>> trisMeanDisk =new ArrayList<>();
-          //ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
+  //List<  ListMultimap<Double, Double>> trisMeanDisk =new ArrayList<>();
 
+          ListMultimap<Double, Double> trisMeanDisk = ArrayListMultimap.create();// for all fixed AI tasks we have the same distance from objects
 
     ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();//  a map from tot tris to mean throughput
 
@@ -210,7 +214,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double rohD=0.0001;
     double delta=66.92;
     double thRmse;
-
+    double des_weight=0.7;
     //for RE modeling and algorithm
 
     int orgTrisAllobj=0;
@@ -731,8 +735,8 @@ else{
         Button buttonPushAiTask = (Button) findViewById(R.id.button_pushAiTask);
         Button buttonPopAiTask = (Button) findViewById(R.id.button_popAiTask);
         TextView textNumOfAiTasks = (TextView) findViewById(R.id.text_numOfAiTasks);
-        TextView textThroughput = (TextView) findViewById(R.id.textView_throughput);
-        TextView textGpuUtilization = (TextView) findViewById(R.id.textView_gpuUtilization);
+      //  TextView textThroughput = (TextView) findViewById(R.id.textView_throughput);
+       // TextView textGpuUtilization = (TextView) findViewById(R.id.textView_gpuUtilization);
 
         buttonPushAiTask.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
@@ -787,6 +791,7 @@ else{
 
                    rsp_models.clear();
                     thr_models.clear();
+                //    trisMeanDisk=( ArrayListMultimap.create());
 //                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
                     for (AiItemsViewModel taskView : mList) { // up to the count of AI models we add values to lists below for parameters and slopes and baseline-throughput
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
@@ -794,13 +799,15 @@ else{
                         thr_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
                         thParamList.add( ArrayListMultimap.create());
                         tParamList.add( ArrayListMultimap.create());
-                        trisMeanDisk.add( ArrayListMultimap.create());
+
                         rohDL.add(rohD);// the weight  for throughput modeling
                         rohTL.add(rohT);
                         deltaL.add(delta);
                         rsp_miss_counter.add(0);
                         thr_miss_counter.add(0);
                         baseline_AIthr.add(0d);
+                        weights.add(0d);
+                        hAI_acc.add(false);
                     }
 
 
@@ -982,11 +989,12 @@ else{
 //date, thr, tris, model, device, thread
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
-            sbb.append(',');
+            sbb.append(',').append("AI#,");
             sbb.append("Throughput_real");
             sbb.append(',').append("Throughput_pred");
             sbb.append(',').append("trained_flag").append(',');
             sbb.append("rohT").append(',').append("rohD").append(',').append("delta").append(',');
+            sbb.append("desiredH").append(',').append("desiredQ").append(',');
 
             sbb.append("Tris");
             sbb.append(',');
@@ -1030,51 +1038,51 @@ else{
         }
 
 
-//
-//        currentFolder = getExternalFilesDir(null).getAbsolutePath();
-//        FILEPATH = currentFolder + File.separator + "RE"+ fileseries+".csv";
-//
-//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
-//
-//            StringBuilder sbb = new StringBuilder();
-//            sbb.append("time");
-//            sbb.append(',');
-//            sbb.append("re_Real");
-//            sbb.append(',');
-//            sbb.append("re_pred");
-//            sbb.append(',');
-//            sbb.append("trainedRe");
-//            sbb.append(',');
-//            sbb.append("curTris");
-//            sbb.append(',');
-//            sbb.append("nextTris");
-//            sbb.append(',');
-//            sbb.append("Algorithm_Tris");
-//            sbb.append(',');
-//            sbb.append("Recalculated Tris");
-//            sbb.append(',');
-//            sbb.append("pAR");
-//            sbb.append(',');
-//            sbb.append("pAI");
-//            sbb.append(',');
-//            sbb.append("TwoModels_Accuracy");
-//            sbb.append(',');
-//            sbb.append("tot_tris");
-//            sbb.append(',');
-//            sbb.append("Average_Quality");
-//            sbb.append(',');
-//            sbb.append("Algorithm_Duration");
-//            sbb.append('\n');
-//            writer.write(sbb.toString());
-//            System.out.println("done!");
-//
-//        } catch (FileNotFoundException e) {
-//            System.out.println(e.getMessage());
-//        }
-//
-//
-//
-//
+
+        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+        FILEPATH = currentFolder + File.separator + "RE"+ fileseries+".csv";
+
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("time");
+            sbb.append(',');
+            sbb.append("re_Real");
+            sbb.append(',');
+            sbb.append("re_pred");
+            sbb.append(',');
+            sbb.append("trainedRe");
+            sbb.append(',');
+            sbb.append("curTris");
+            sbb.append(',');
+            sbb.append("nextTris");
+            sbb.append(',');
+            sbb.append("Algorithm_Tris");
+            sbb.append(',');
+            sbb.append("Recalculated Tris");
+            sbb.append(',');
+            sbb.append("pAR");
+            sbb.append(',');
+            sbb.append("pAI");
+            sbb.append(',');
+            sbb.append("TwoModels_Accuracy");
+            sbb.append(',');
+            sbb.append("tot_tris");
+            sbb.append(',');
+            sbb.append("Average_Quality");
+            sbb.append(',');
+            sbb.append("Algorithm_Duration");
+            sbb.append('\n');
+            writer.write(sbb.toString());
+            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
+
+
+
 //        currentFolder = getExternalFilesDir(null).getAbsolutePath();
 //        FILEPATH = currentFolder + File.separator + "Quality"+ fileseries+".csv";
 //
@@ -1276,8 +1284,8 @@ else{
         thSelectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         thSpinner.setAdapter(thSelectAdapter);
 
-
-        thSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() { // this is for cancled experiment- no longer needed
+/*
+        thSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() { // this is for canceled experiment- no longer needed
             @Override
             public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
                 // your code here
@@ -1292,7 +1300,7 @@ else{
             public void onNothingSelected(AdapterView<?> parentView) {
                 // your code here
             }
-        });
+        });*/
 
 
 
@@ -2241,34 +2249,30 @@ else{
 
                         {
                           // for exp4_baseline comparisons we fix the desired throughput
-//                           if(!setDesTh){
-//                               double throughput= getThroughput();
-//                               if(throughput <80 && throughput>10)
-//                               { des_Thr=   (double) (Math.round((double) ( 0.72*throughput* 1000))) / 1000;
-//                               setDesTh=true;}
-//                           }
+                           if(!setDesTh){
+                               double throughput= getThroughput();
+                               if(throughput <2000 && throughput>10)
+                               { des_Thr=   (double) (Math.round((double) ( des_weight*throughput* 1000))) / 1000;
+                               setDesTh=true;}
+                           }
 
                            // String alg="MIR";
 
                             if(odraAlg=="1")// either choose the baseline or odra algorithm
 
                             {
-//                                new balancer(MainActivity.this).run();
-
+                                new balancer(MainActivity.this).run();
+/*
                                 for(int i=0; i<mList.size(); i++){
-
-//
                                    new balancer(MainActivity.this,i).run(); // XMIR implementation -> this is to collect mean thr, total_tris. average dis
 //                                    new responseT_weight(MainActivity.this, i).run(); // just considers responsetime modeling
                                    // new Mir(MainActivity.this).run(); this is to run MIR
-//
-
                                     try {
-                                        Thread.sleep(30);
+                                        Thread.sleep(1);//30
                                     } catch (InterruptedException e) {
                                         e.printStackTrace();
                                     }
-                                }
+                                }*/
 
                             }
 

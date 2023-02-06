@@ -130,20 +130,15 @@ public class Mir implements Runnable {
               //  mInstance.nextTris = totTris;
 
             int variousTris = mInstance.trisMeanThr.keySet().size();
-
-
-
-
-
+            
 // this is thr calculated using the modeling
-            double predThr = (mInstance.rohT *  totTris) + (mInstance.rohD * pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-            predThr = (double) Math.round((double) predThr * 100) / 100;
-
-
+//            double predThr = (mInstance.rohT *  totTris) + (mInstance.rohD * pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+//            predThr = (double) Math.round((double) predThr * 100) / 100;
+            double predThr = 0;
 // nill added 8 april
-            int ind = -1;
-            if (variousTris < 3) { // one object on the screen
-
+//            int ind = -1;
+           // if (variousTris < 3) { // one object on the screen
+            if (variousTris < 2) {
                 if (mInstance.trisMeanThr.get(totTris).size() == binCap) { // we keep inf of last 10 points
 
                      cleanOutArraysThr(totTris, pred_meanD, mInstance);// cleans out the closest data to the curr one
@@ -161,11 +156,9 @@ public class Mir implements Runnable {
                 else
                     mInstance.totTrisList.add(totTris);
                 */
-
                 //mInstance.trisMeanDisk_Mir.put(totTris, meanDk); //removes from the head (older data) -> to then add to the tail
                 mInstance.trisMeanDisk_Mir.put(totTris, pred_meanD); //correct:  should have predicted value removes from the head (older data) -> to then add to the tail
                // mInstance.trisMeanDiskk.put(totTris, meanDkk);
-
 
             }
 
@@ -808,35 +801,38 @@ public class Mir implements Runnable {
         }
 
     }
+
+
+
     public void writeThr(double realThr, double predThr, boolean trainedFlag){
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
 
-//        StringBuilder sbTaskSave = new StringBuilder();
-//        for (AiItemsViewModel taskView : mInstance.mList) {
-//            sbTaskSave
-//                    //.append(taskView.getCurrentNumThreads())
-//                    .append(",")
-//                    .append(taskView.getModels().get(taskView.getCurrentModel()));
-//                    //.append("-");
-//            // .append(taskView.getDevices().get(taskView.getCurrentDevice()))
-//                    //.append("\n");
-//        }
 
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(dateFormat.format(new Date())); sb.append(',');
+        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',');
+        sb.append(" , , ,");// for weights
+       // sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append(mInstance.rohDL.get(aiIndx));sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
+        sb.append(mInstance.des_Thr);
+        sb.append(','); sb.append(mInstance.des_Q).append(',');
+        sb.append(mInstance.total_tris);
 
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(dateFormat.format(new Date())); sb.append(',');
-            sb.append(realThr);sb.append(',');
-            sb.append(predThr);
-            sb.append(',');  sb.append(trainedFlag);
-            sb.append(','); sb.append(mInstance.total_tris);
-            sb.append(mInstance.tasks.toString());
-            sb.append(','); sb.append(mInstance.des_Thr);
-            sb.append(','); sb.append(mInstance.des_Q);
+            for (AiItemsViewModel taskView :mInstance.mList) {
+
+                sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+                        .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+//                    .append(",").append(taskView.getCurrentNumThreads()).append(",").append(taskView.getThroughput())
+                        .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
+
+            }
+
+
             sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");
@@ -844,6 +840,45 @@ public class Mir implements Runnable {
             System.out.println(e.getMessage());
         }
     }
+
+
+
+//    public void writeThr(double realThr, double predThr, boolean trainedFlag){
+//
+//        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+//        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+//        String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
+//
+////        StringBuilder sbTaskSave = new StringBuilder();
+////        for (AiItemsViewModel taskView : mInstance.mList) {
+////            sbTaskSave
+////                    //.append(taskView.getCurrentNumThreads())
+////                    .append(",")
+////                    .append(taskView.getModels().get(taskView.getCurrentModel()));
+////                    //.append("-");
+////            // .append(taskView.getDevices().get(taskView.getCurrentDevice()))
+////                    //.append("\n");
+////        }
+//
+//
+//
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+//            StringBuilder sb = new StringBuilder();
+//            sb.append(dateFormat.format(new Date())); sb.append(',');
+//            sb.append(realThr);sb.append(',');
+//            sb.append(predThr);
+//            sb.append(',');  sb.append(trainedFlag);
+//            sb.append(','); sb.append(mInstance.total_tris);
+//            sb.append(mInstance.tasks.toString());
+//            sb.append(','); sb.append(mInstance.des_Thr);
+//            sb.append(','); sb.append(mInstance.des_Q);
+//            sb.append('\n');
+//            writer.write(sb.toString());
+//            System.out.println("done!");
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
+//    }
 /*
     public void writeNextTris(double alphaD, double alphaH,double rohD, double meanDkk,double zeta,double delta,
                               double  alphaT,double rohT,double nomin,double denom, double totTris, double nextTris){
