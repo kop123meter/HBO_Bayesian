@@ -1,27 +1,38 @@
-/**********This was for MIR data collection. noy used for XMIR*/
+///temp deactivate
+/**
+ * This is to test if we can use weight from linear regression of model specific : thr and dis-vs tris
+ * unfortunately it gives non-meaningful two slopes for tris and distance that can not be used to compare how each model is affected by GPU
+ * hence, we use responseT_weigth class
+ */
+/*This is equal to balancer, but just has throughput vs tris model for each AI modeling and uses rohT as the estimated wi */
 
 package com.arcore.AI_ResourceControl;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-
+/*This code has relation ship between AI throughput and distance and triangle count*/
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.abs;
+import static java.lang.Math.pow;
+import static java.lang.Math.sqrt;
 
-public class Mir implements Runnable {
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
+
+public class balancer1 implements Runnable {
 
     int binCap=5;
     private final MainActivity mInstance;
@@ -39,8 +50,10 @@ public class Mir implements Runnable {
     int sleepTime=60;
     //float candidate_obj[] = new float[total_obj];
     float tMin[] ;
+    // int aiIndx;
 
-    public Mir(MainActivity mInstance) {
+
+    public balancer1(MainActivity mInstance) {
 
         this.mInstance = mInstance;
 
@@ -48,7 +61,8 @@ public class Mir implements Runnable {
         sensitivity = new float[objC];
         tris_share = new float[objC];
         objquality= new float[objC];// 1- degradation-error
-
+        // aiIndx=ai_index;
+        //model_index;
 
         //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
         fProfit= new float[objC][coarse_Ratios.length];
@@ -63,7 +77,7 @@ public class Mir implements Runnable {
     @Override
     public void run() {
 
-        boolean accmodel = true;// this is to check if the trained model for thr is accurate
+        boolean acc2model = true;// all AI throughput trained models and RE are accurate
         //boolean accRe=true;// this is to check if the trained model for re is accurate
         boolean trainedTris = false;
         boolean trainedThr = false;
@@ -75,16 +89,16 @@ public class Mir implements Runnable {
         double meanDkk = 0; // mean of d in the next period-> you need to cal the average of predicted d for all the objects
         double pred_meanD = mInstance.pred_meanD_cur; // for next 1 sc
 
-        ///1000;
 
-        //int count=0;
+
+
+
+
         for (int i = 0; i < mInstance.objectCount; i++) {
             double cur_dis=(double) mInstance.renderArray.get(i).return_distance();
-           // if(cur_dis!=0) {
-                meanDk += cur_dis;
-                meanDkk += mInstance.predicted_distances.get(i).get(1); // 0: next 1 sec, 1: next 2s :  // gets the first time, next 2s-- 3s of every object, ie. d1 of every obj
-              //  count+=1;
-           // }
+            meanDk += cur_dis;
+            meanDkk += mInstance.predicted_distances.get(i).get(1); // 0: next 1 sec, 1: next 2s :  // gets the first time, next 2s-- 3s of every object, ie. d1 of every obj
+
         }
 
         int objc= mInstance.objectCount;
@@ -101,121 +115,128 @@ public class Mir implements Runnable {
             if (pred_meanD == 0)
                 pred_meanD = meanDk; // for the first objects
 
-            //totTris = mInstance.total_tris; // hold tris before running the algorithm
         }
 
 
 
         //I got an error for regression since decimation occurs in UI thread and Modeling runs at the same time
         // solution is to start data collection after one period passes from algorithm
- // else{ // just collect data when algorithm was applied in the last period
+        // else{ // just collect data when algorithm was applied in the last period
 
         totTris = mInstance.total_tris;
 
+        double sum_currentWt= 0; // this is to calculate est_weights for AI models
+        double sum_baseWt= 0;
+        double sum_rohT_wi=0;
+        double sum_rohD_wi=0;
+        double sum_delta_wi=0;
+
+// Train the H model for each AI task from line 127 to
 
 
-
-        meanThr = mInstance.getThroughput();// after the objects are decimated
-
-        if (meanThr < 100 && meanThr > 1) {
-
-            meanThr = (double) Math.round(meanThr * 100) / 100;
-
-           // TextView posText2 = (TextView) mInstance.findViewById(R.id.thr);
-           // posText2.setText("Throughput: " + meanThr);
+        int variousTris = mInstance.trisMeanDisk.keySet().size();
 
 
+        // add crrent distance one time
+        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 
-         //   if (mInstance.nextTris == 0)
-              //  mInstance.nextTris = totTris;
 
-            int variousTris = mInstance.trisMeanThr.keySet().size();
-            
+            int Ai_count= mInstance.mList.size();
+        for (int aiIndx=0; aiIndx<Ai_count;aiIndx++) {
+
+            double predThr=0;
+            boolean ai_accuracy=true; // the accuracy of specific model
+
+            meanThr = mInstance.getThroughput(aiIndx);// after the objects are decimated
+
+            if (meanThr < 120 && meanThr > 1) {
+
+                meanThr = (double) Math.round(meanThr * 100) / 100;
+
+                //  int variousTris = mInstance.thr_models.get(aiIndx).keySet().size();
+
+                if (variousTris == 1) {// this is to update the baseline throughput per models
+                    // we have no triangle count on screen
+
+                    if (mInstance.baseline_AIthr.get(aiIndx) == 0)
+                        mInstance.baseline_AIthr.set(aiIndx, meanThr);
+                    else {
+                        double curr_baseline = mInstance.baseline_AIthr.get(aiIndx);
+                        mInstance.baseline_AIthr.set(aiIndx, (meanThr + curr_baseline) / 2);
+                    }
+                }
+
+
 // this is thr calculated using the modeling
-//            double predThr = (mInstance.rohT *  totTris) + (mInstance.rohD * pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-//            predThr = (double) Math.round((double) predThr * 100) / 100;
-            double predThr = 0;
-// nill added 8 april
-//            int ind = -1;
-           // if (variousTris < 3) { // one object on the screen
-            if (variousTris < 2) {
-                if (mInstance.trisMeanThr.get(totTris).size() == binCap) { // we keep inf of last 10 points
+                predThr = (mInstance.rohTL.get(aiIndx) * totTris)  + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+                predThr = (double) Math.round((double) predThr * 100) / 100;
 
-                     cleanOutArraysThr(totTris, pred_meanD, mInstance);// cleans out the closest data to the curr one
+//            writeThr(meanThr, predThr, trainedThr);// for the urrent period
+
+                int ind = -1;
+                if (variousTris < 2) { // one object on the screen
+
+                    if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
+                        cleanOutArraysThr(totTris, pred_meanD, mInstance,aiIndx);// cleans out the closest data to the curr one
+
+                    }
+
+                    mInstance.thr_models.get(aiIndx).put(totTris, meanThr); //correct:  should have real throughput for the regression
+                    // uses predicted cur distance for thr modeling
+                    mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
+
+                    //temp to test : added to check thr model just with tris
+                    mInstance.tParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
+
+
+//                     if(aiIndx==0) // this prevents a crash since we don't add to tris-meankK everytime, just for one time
+//                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //should be called one-time per decision period not per AI task since it is the distance of all AI tasks
 
                 }
 
-                mInstance.trisMeanThr.put(totTris, meanThr); //correct:  should have real throughput for the regression
-                // uses predicted cur distance for thr modeling
-                mInstance.thParamList_Mir.put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
 
-              /*
-                if (mInstance.totTrisList.size() != 0 && ind != -1){
-                    int startTris = mInstance.totTrisList.indexOf(totTris);
-                    mInstance.totTrisList.set(ind + startTris, totTris);}
-                else
-                    mInstance.totTrisList.add(totTris);
-                */
-                //mInstance.trisMeanDisk_Mir.put(totTris, meanDk); //removes from the head (older data) -> to then add to the tail
-                mInstance.trisMeanDisk_Mir.put(totTris, pred_meanD); //correct:  should have predicted value removes from the head (older data) -> to then add to the tail
-               // mInstance.trisMeanDiskk.put(totTris, meanDkk);
-
-            }
-
-
-            if (mInstance.objectCount != 0) {//to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
-
-              //  int size = mInstance.trisMeanThr.size();// total points regardless of points with similar tris
                 // starting throughput model
                 if (variousTris >= 2) {// at least two points to start modeling
 
-
 // checks error of the model after new added model
                     double mape = 0.0; // mean of absolute error
-                    double fit = (mInstance.rohT * totTris) + (mInstance.rohD * pred_meanD )+ mInstance.delta; // fit is predicted current throughput should be predicted distance (we have next 1 sec but ok since we don't move)  for current period
-                    //double fit = mInstance.thSlope * totTris + mInstance.thIntercept;;
-                    mape = Math.abs((meanThr - fit) / meanThr);// this is correct to calculate error coming from real throughput vs model
+                    double fit = (mInstance.rohTL.get(aiIndx) * totTris) + mInstance.deltaL.get(aiIndx); // fit is predicted current throughput should be predicted distance (we have next 1 sec but ok since we don't move)  for current period
 
-                 //   ind = -1;
-                    if (mInstance.trisMeanThr.get(totTris).size() == binCap) { // we keep inf of last 10 points
-                         cleanOutArraysThr(totTris, pred_meanD, mInstance);// cleans out the closest data to the curr one
+                    mape = abs((meanThr - fit) / meanThr);// this is correct to calculate error coming from real throughput vs model
 
+                    // should have data collection any way
+                    if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
+                        cleanOutArraysThr(totTris, pred_meanD, mInstance,aiIndx);// cleans out the closest data to the curr one
                     }
-                    mInstance.trisMeanThr.put(totTris, meanThr); // corrrect: should have real throughput for regression and thr param should have predicted distance
-                    mInstance.thParamList_Mir.put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
-                    mInstance.trisMeanDisk_Mir.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+                    mInstance.thr_models.get(aiIndx).put(totTris, meanThr); // corrrect: should have real throughput for regression and thr param should have predicted distance
+                    mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
+                    //temp to test
+                    mInstance.tParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
+
+//                    if(aiIndx==0)// add crrent distance one time
+//                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 
 
-                    ///  nil   commented  sep 7
+                    ///  nil  to train model
                     if (mape > 0.1 && variousTris >= 2) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
-// 8 april
 
-                        // if (variousTris >= 2) {
-                        // first delete if the bin is full -> look for the index which has the distance very close to the current distance
-                        // int tListSize = mInstance.totTrisList.size();
+                        ListMultimap<Double, List<Double>> copythParamList = ArrayListMultimap.create(mInstance.thParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
+                        // temp to test
+                        copythParamList = ArrayListMultimap.create(mInstance.tParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
 
+                        ListMultimap<Double, Double> copytrisMeanThr = ArrayListMultimap.create(mInstance.thr_models.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
 
+                        // to fill un-filled bins with mean data and have fair data training
+                        for (double curT : mInstance.thr_models.get(aiIndx).keySet()) {
 
-                       //   mInstance.trisMeanDiskk.put(totTris, meanDkk);
-
-
-                        // if( mape >= 0.1 ){
-
-                        ListMultimap<Double, List<Double>> copythParamList = ArrayListMultimap.create(mInstance.thParamList_Mir);// take a copy to then fill it for training up to capacity of 10
-                        ListMultimap<Double, Double> copytrisMeanThr = ArrayListMultimap.create(mInstance.trisMeanThr);// take a copy to then fill it for training up to capacity of 10
-
-
-                        for (double curT : mInstance.trisMeanThr.keySet()) {
-
-                          //   this is to calculate the mean of values in the bins
-
-                            if (mInstance.trisMeanDisk_Mir.get(curT).size() < binCap) {
-                                int index = mInstance.trisMeanDisk_Mir.get(curT).size();
+                            //   this is to calculate the mean of values in the bins
+                            if (mInstance.trisMeanDisk.get(curT).size() < binCap) {
+                                int index = mInstance.trisMeanDisk.get(curT).size();
                                 double mmeanTh = 0, mmeanDK = 0;
 
                                 for (int i = 0; i < index; i++) {
-                                    mmeanTh += mInstance.trisMeanThr.get(curT).get(i);
-                                    mmeanDK += mInstance.trisMeanDisk_Mir.get(curT).get(i);
+                                    mmeanTh += mInstance.thr_models.get(aiIndx).get(curT).get(i);
+                                    mmeanDK += mInstance.trisMeanDisk.get(curT).get(i);
 
                                 }
 
@@ -226,17 +247,21 @@ public class Mir implements Runnable {
                                 for (int j = index; j < binCap; j++) {
 
                                     copytrisMeanThr.put(curT, mmeanTh);
-                                    copythParamList.put(curT, Arrays.asList(curT, mmeanDK, 1.0)); // this is to calculate the mean of values in the bins so it's correct
+
+                                    //@@@ uncomment next line temp to test
+                                    copythParamList.put(curT, Arrays.asList(curT, 1.0)); // this is to calculate the mean of values in the bins so it's correct
+
+                                    //@@@ commented temp to test
+//                                    copythParamList.put(curT, Arrays.asList(curT, mmeanDK, 1.0)); // this is to calculate the mean of values in the bins so it's correct
 
                                 }
                             }// if <10
                         }
 
 
-        //     @@@@ here we check if we have any record for the
-        //  decimated objects, if yes, we need to check the ratio of decimated itration over added scenarios, we define a rate of 40% to make sure that we have
-           //at least the record for decimated object equal to 40% of the added scenarios
-
+                        //     @@@@ here we check if we have any record for the
+                        //  decimated objects, if yes, we need to check the ratio of decimated iteration over added scenarios, we define a rate of 40% to make sure that we have
+                        //at least the record for decimated object equal to 40% of the added scenarios
 
                         int decCount = mInstance.decTris.size();// #iterations of decimated objects
                         if (decCount != 0) // means that we have at least one record of decimated objects
@@ -271,46 +296,53 @@ public class Mir implements Runnable {
                                 .map(l -> l.stream().mapToDouble(Double::doubleValue).toArray())
                                 .toArray(double[][]::new);
 
-
-
                         // should have predicted distance
 
                         mLinearRegression regression = new mLinearRegression(thRegParameters, y);
                         if (!Double.isNaN(regression.beta(0))) {
 
-                            mInstance.rohT = regression.beta(0);
-                            mInstance.rohD = regression.beta(1);
-                            mInstance.delta = regression.beta(2);
-                            mInstance.thRmse = regression.rmse;
+
+                            //added temp to test
+                            mInstance.rohTL.set(aiIndx, regression.beta(0));
+                            mInstance.deltaL.set(aiIndx, regression.beta(1)  );
+                            // commented temp to test
+                        /*     mInstance.rohTL.set(aiIndx, (double) Math.round( (double)regression.beta(0)*100  )/100     );
+                           mInstance.rohDL.set(aiIndx,  (double) Math.round( (double)regression.beta(1) *100 )/100 );
+                            mInstance.deltaL.set(aiIndx, (double) Math.round( (double) regression.beta(2)*100)/100  );*/
+
                             trainedThr = true;
 
-
                         }
-                        thRegParameters=null; // free the storage
-                        y=null;
+                        thRegParameters = null; // free the storage
+                        y = null;
                         copytrisMeanThr.clear();
                         copythParamList.clear();
 
-
-
-                        //         }// end of modeling throughput
+                        // end of modeling throughput
 
                     }// end of i tris>2
-                  //  nil   commented  sep 7   *
 
 
-//                  get the right throughput after remodeling
-                    predThr = (mInstance.rohT * totTris )+ (mInstance.rohD * pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+//                  specific AI throughput after remodeling
+                    predThr = (mInstance.rohTL.get(aiIndx) * totTris) +  mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
                     predThr = (double) Math.round((double) predThr * 100) / 100;
 
-                    mape = Math.abs((meanThr - predThr) / meanThr);
+
+                    mape = abs((meanThr - predThr) / meanThr);
                     if (mape > 0.1) {
-                        accmodel = false;// after training we check to see if the model is accurate to then cal next triangle
 
-                        if (variousTris >= 3)
-                            mInstance.thr_miss_counter1+= 1;
+                        ai_accuracy=false;
+                        //mInstance.est_weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
+                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
+                        mInstance.hAI_acc.set(aiIndx, false);
 
-                        if (mInstance.thr_miss_counter1 > 5 &&  mInstance.decTris.size() != 0) { // this is to regulate the factor of considering decimated collected data in the bins
+                        if (variousTris >= 3) {
+                            int cur_count = mInstance.thr_miss_counter.get(aiIndx);
+                            mInstance.thr_miss_counter.set(aiIndx, cur_count + 1);
+                        }
+
+
+                        if (mInstance.thr_miss_counter.get(aiIndx) > 5 && mInstance.decTris.size() != 0) { // this is to regulate the factor of considering decimated collected data in the bins
                             if (meanThr > predThr) {
                                 mInstance.thr_factor -= 0.1;// reduce the effect of decimation to increase predicted throughput
                                 if (mInstance.thr_factor < 0)
@@ -320,31 +352,114 @@ public class Mir implements Runnable {
 
                         }
 
-                    } else
-                        mInstance.thr_miss_counter1 = 0;// the model works fine so we don't need to re-adjust the throughput factor for decimation data collection
+                    } else {
+                        mInstance.hAI_acc.set(aiIndx, true);
+                        mInstance.thr_miss_counter.set(aiIndx, 0);// the model works fine so we don't need to re-adjust the throughput factor for decimation data collection
+                        // we st the estimated weights if trained models are accurate
 
-                    writeThr(meanThr, predThr, trainedThr);// for the urrent period
+                    }
+                    // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
+                    mInstance.est_weights.set(aiIndx,  mInstance.rohTL.get(aiIndx) );// this has not-normalized est_weights
+                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));// set the measured Wi = measured current throughput over baseline
+                    //@@ we need to have measured weights based on the level of affected throughput so we use 1- hI/hBase
+
+                } //Specific AI  throughput model
+            }
+            else
+                mInstance.hAI_acc.set(aiIndx,false); // since the model is not trained
+
+            if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
+                acc2model=false;
+
+            writeThr(meanThr, predThr, trainedThr,aiIndx,ai_accuracy);// It has predicted and real throughput of task AI[index]
+
+        }// for all AI models we train throughput
+        /*   Specific AI throughput is tested and now works
+         * so far, all model's est_weights are calculated  */
+
+        if(variousTris>=2) { // at least two objects on the screen
+            //double max_w = Collections.max(mInstance.est_weights);// max of estimated weight list
+            double max_w = Collections.max(  mInstance.est_weights, new Comparator<Double>() { // returns max of absolute value of weights
+                @Override
+                public int compare(Double x, Double y) {
+                    return Math.abs(x) < Math.abs(y) ? -1 : 1;
+                }
+
+            });
+
+            double max_msr_w = Collections.max(mInstance.msr_weights); // normalize measured weights
+            for (int i = 0; i < Ai_count; i++) {
+
+                mInstance.est_weights.set(i, mInstance.est_weights.get(i) / max_w);// this has Normalized est_weights
+                //@@@@@@@@@@this is a wrong wi-> correct this after weights are tested, since for PAI we need measured weights not estimated
+                double wi = mInstance.est_weights.get(i);
+                double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
+                sum_currentWt += (wi * thr); //sum(Normalized msrd(Wi) * Hi)
+                sum_baseWt += (wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+
+                sum_rohT_wi += (wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
+                sum_rohD_wi += (wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)
+                sum_delta_wi += (wi * mInstance.deltaL.get(i));//sigma(delta_i * wi)
+
+                mInstance.msr_weights.set(i, mInstance.msr_weights.get(i) / max_msr_w);
+
+                writeWeights(mInstance.hAI_acc.get(i),i);// write specific  weight after normalization
+            }
+        }
+        /*************************   calculate Normalized weighted P_AI*/
+        // to normalize, we need to find the maximum weight and normalize all models over that. and then we calculate sum(Wi * Hi)
+
+        if( acc2model){ // we start to train RE and calculate next tris if H_i models are accurate
 
 
-                } //  throughput model
+            //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
+            mInstance.des_Thr= sum_baseWt/Ai_count;
 
+            double measured_Weighted_thr=sum_currentWt/Ai_count;// this is average weighted throughput of current period
+
+            /********************  calculated weighted P_AI*/
+
+            /*
+             * ******************* calculate average AI throughput from weighted model ->
+             *  roh'T= sigma(rohT_i * wi)/N
+             * roh'D= sigma(rohD_i * wi)/N
+             * delta'= sigma(delta_i * wi)/N
+             * */
+
+            mInstance.rohT= sum_rohT_wi/Ai_count;
+            mInstance.rohD=sum_rohD_wi/Ai_count;
+            mInstance.delta=sum_delta_wi/Ai_count;
+
+            double predWeighted_thr = (mInstance.rohT * totTris) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+            predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
+
+
+            /* ******************* calculate average AI throughput from weighted model   ***********/
+
+
+            if (mInstance.objectCount == 0) {
+            } else {//to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
+
+                /* so far we train each task's throughput model individually, but RE should be trained generally using measured RE value of
+                 PAI that comes from sum(Wi * AI_thr)/0.7*(sum(Wi * base_Hi) and PAR as usual
+                 */
 
                 //******************  RE modeling *************
-                // double sum = 0;
+                /// need to add a condition for running this periodically to make sure XMIR est_weights are stable but not for MIR maybe
+
+                //    writequality();
+
+
                 double avgq = calculateMeanQuality();
-                writequality();
-
-
-
                 double PRoAR = (double) Math.round((avgq / mInstance.des_Q) * 100) / 100;
-                double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// should be real
+
+                double PRoAI = (double) Math.round((sum_currentWt / sum_baseWt) * 100) / 100;// /n for nominator and denominator is removed
+                //double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// for MIR
+
+
                 double reMsrd = PRoAR / PRoAI;
                 reMsrd = (double) Math.round(reMsrd * 100) / 100;
 
-                // double predThr=  mInstance.thSlope * totTris + mInstance.thIntercept;
-                // predThr = mInstance.rohT * totTris + mInstance.rohD * pred_meanD + mInstance.delta; // uses the modeling
-
-                //predThr = (double) Math.round((double) predThr * 100) / 100;// uses predicted thr in current period to model it based on current measured RE
                 int reModSize = mInstance.trisRe.size(); // has real mean-throughput
 
                 if (reModSize < 4)// april 8{
@@ -353,7 +468,7 @@ public class Mir implements Runnable {
                     cleanOutArraysRE(totTris, pred_meanD, mInstance);// check to remove extra value in the RE parameters list , substitue the newer one
                     mInstance.trisRe.put(totTris, reMsrd);//correct:  has real re should have real throughout
                     // use predicted current dis and predicted current throughput in the modeling
-                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predThr, 1.0)); // the two pred are coming from prev period (that were predicted for current period)
+                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predWeighted_thr, 1.0)); // the two pred are coming from prev period (that were predicted for current period)
                 }
 
 
@@ -361,23 +476,22 @@ public class Mir implements Runnable {
 //@@ niloo please add test the trained data and check rmse, if it is above 20% , then retrain
 
                     double mape = 0.0;      //  sum of square error
-                    double fit =( mInstance.alphaT *totTris) + (mInstance.alphaD * pred_meanD) + (mInstance.alphaH * predThr )+ mInstance.zeta;// uses predicted modeling  for current period
+                    double fit = (mInstance.alphaT * totTris) + (mInstance.alphaD * pred_meanD) + (mInstance.alphaH * predWeighted_thr) + mInstance.zeta;// uses predicted modeling  for current period
                     mape = Math.abs((reMsrd - fit) / reMsrd);
+
 
                     cleanOutArraysRE(totTris, pred_meanD, mInstance);
                     mInstance.trisRe.put(totTris, reMsrd); // april 8
-                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predThr, 1.0));
+                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predWeighted_thr, 1.0));
 
-                  //  /*nill commented  sep 7
-
-                    if (mape > 0.10 && variousTris >= 2) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
+                    if (mape > 0.10 && variousTris >= 3) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
 
 
                         ListMultimap<Double, List<Double>> copyreParamList = ArrayListMultimap.create(mInstance.reParamList);// take a copy to then fill it for training up to capacity of 10
                         ListMultimap<Double, Double> copytrisRe = ArrayListMultimap.create(mInstance.trisRe);// take a copy to then fill it for training up to capacity of 10
 
 
-                       // This is to calculate mean of bins for distance, throughput ,...
+                        // This is to calculate mean of bins for distance, throughput ,...
                         for (double curT : mInstance.trisRe.keySet()) {
 
                             if (curT != 0 && mInstance.trisRe.get(curT).size() < binCap) {
@@ -404,12 +518,12 @@ public class Mir implements Runnable {
                         }// for all the current data
 
 
-
-
                         // for REEE
-             //             @@@@ here we check if we have any record for the
-        //  decimated objects, if yes, we need to check the ratio of decimated iteration over added scenarios, we define a rate of 40% to make sure that we have
-        //   at least the record for decimated object equal to 40% of the added scenarios
+
+
+                        //             @@@@ here we check if we have any record for the
+                        //  decimated objects, if yes, we need to check the ratio of decimated iteration over added scenarios, we define a rate of 40% to make sure that we have
+                        //   at least the record for decimated object equal to 40% of the added scenarios
                         // int added=mInstance.trisDec.size();
 
                         //  add the decimated data for throughput modeling too
@@ -441,46 +555,41 @@ public class Mir implements Runnable {
                         }
                         // to copy the decimated data into re modeling
 
-
                         double[] RE = copytrisRe.values().stream()
                                 .mapToDouble(Double::doubleValue)
                                 .toArray();
-
 
 
                         double[][] reRegParameters = copyreParamList.values().stream()
                                 .map(l -> l.stream().mapToDouble(Double::doubleValue).toArray())
                                 .toArray(double[][]::new);
 
-
-
-
                         if (variousTris >= 3) {
                             mLinearRegression regression = new mLinearRegression(reRegParameters, RE);
                             if (!Double.isNaN(regression.beta(0))) {
-                                mInstance.alphaT = regression.beta(0);
-                                mInstance.alphaD = regression.beta(1);
-                                mInstance.alphaH = regression.beta(2);
-                                mInstance.zeta = regression.beta(3);
+                                mInstance.alphaT =   (double) Math.round((double) regression.beta(0) * 100) / 100;
+                                mInstance.alphaD = (double) Math.round((double) regression.beta(1) * 100) / 100;
+                                mInstance.alphaH = (double) Math.round((double) regression.beta(2) * 100) / 100;
+                                mInstance.zeta = (double) Math.round((double) regression.beta(3) * 100) / 100;
                                 trainedRE = true;
-
                             }
 
 
                         }
 
-                        reRegParameters=null;
-                        RE=null;
+                        reRegParameters = null;
+                        RE = null;
 
                         copytrisRe.clear();
                         copyreParamList.clear();
 
                     }
+//                    }
 
-           //   nil   commented  sep 7
+                    //   nil   commented  sep 7
 
                     // current period
-                    double predRE = mInstance.alphaT *totTris + mInstance.alphaD * pred_meanD + mInstance.alphaH * predThr + mInstance.zeta; // for almost current period
+                    double predRE = mInstance.alphaT * totTris + mInstance.alphaD * pred_meanD + mInstance.alphaH * predWeighted_thr + mInstance.zeta; // for almost current period
 
 
 // nill added temp
@@ -488,7 +597,7 @@ public class Mir implements Runnable {
 
                     mape = Math.abs((reMsrd - predRE) / reMsrd);// log this
                     if (mape > 0.1) {
-                        accmodel = false;// after training we check to see if the model is accurate to then cal next triangle
+                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
                         if (variousTris >= 3) // this is to regulate throughput factor for decimated values
                             mInstance.re_miss_counter += 1;
 
@@ -520,36 +629,12 @@ public class Mir implements Runnable {
 
                     else
                         mInstance.lastConscCounter = 0;
-// now we calculate next period tris here :)
 
-//                    if (accmodel==true)
-//                       mInstance.acc_counter++;
-//                   else
-//                        mInstance.acc_counter=0;
-
-                    //@@@@ this is to rebalance quality for user percieved quality-> we need to rebalance quality of the decimated objects
-                   /* nil commented since it changed re by mistake
-                    if( mInstance.trisChanged==true
-                            //mInstance.prevtotTris!=totTris
-                            && mInstance.lastConscCounter<4 )// means that there is
-                    // achange in new triangle count && RE is within the balanced threshold
-                    {
-                        mInstance.trisChanged=false; // turn the flag off
-
-                        // Temp cmt for motivation experiment
-
-                       try {
-                            algNxtTris=  odraAlg((float) totTris);
-
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-
-                    }*/
 
                     long time1 = 0;
                     long time2 = 0;
-                    if (accmodel && mInstance.lastConscCounter > 4) // the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
+                    /* temp deactivate
+                    if (acc2model && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
                     {
 
                         time1 = System.nanoTime() / 1000000; //starting first loop
@@ -573,102 +658,78 @@ public class Mir implements Runnable {
                                 nextTris = mInstance.orgTrisAllobj;
 
 
-
-                            nextTris =  Math.round(nextTris * 100) / 100;
+                            nextTris = Math.round(nextTris * 100) / 100;
                             trainedTris = true;
 
+                            try {
 
 
-                         //   if (mInstance.trainedTris == true) {
-                                try {
+                                odraAlg((float) nextTris);
+                                time2 = System.nanoTime() / 1000000;
+                                // long t2 = System.nanoTime() / 1000000;
+                                mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC - 1));
+                                // mInstance.t_loop2 = t2 - t1;
+                                mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
+
+                                if (nextTris != totTris && !mInstance.decTris.contains(mInstance.total_tris)) // if next tris is lower than total tris we have decimation
+                                    mInstance.decTris.add(mInstance.total_tris);// add new total triangle count in the decimated list
 
 
-
-                                    odraAlg((float) nextTris);
-                                    time2= System.nanoTime()/1000000;
-                                   // long t2 = System.nanoTime() / 1000000;
-                                    mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC-1) );
-                                   // mInstance.t_loop2 = t2 - t1;
-                                    mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
-
-                                    if (nextTris != totTris && !mInstance.decTris.contains(mInstance.total_tris) ) // if next tris is lower than total tris we have decimation
-                                        mInstance.decTris.add(mInstance.total_tris);// add new total triangle count in the decimated list
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
 
 
-                                } catch (InterruptedException e) {
-                                    e.printStackTrace();
-                                }
-
-
-                                algNxtTris = mInstance.total_tris;
-
-
-
-
-
-
+                            algNxtTris = mInstance.total_tris;
 
                         }
 
 
-                    }//if
-                    writeRE(reMsrd, predRE, trainedRE, totTris, nextTris,algNxtTris, trainedTris, PRoAR, PRoAI, accmodel, mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
+                    }  *///if
+                    writeRE(reMsrd, predRE, trainedRE, totTris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, acc2model, mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
 
 
+                }           //  RE modeling and next tris
+
+            }// if all AI throughput models are accurate, we train RE and calculate next tris
 
 
+            if( mInstance.trisChanged==true)
+            {  mInstance.cleanedbin=false;
+                mInstance.trisChanged=false;
 
-                }            //  RE modeling and next tris
+            }
 
-
-                if( mInstance.trisChanged==true)
-                {  mInstance.cleanedbin=false;
-                    mInstance.trisChanged=false;
-
-                }
-
-
+/*
 // heap clean-> memory efficiency
                 if((variousTris % 8==0) && variousTris>2&& mInstance.cleanedbin==false )// every 5x times we check to clear the bins provided that the model is accurate
                 {
                     mInstance.reParamList.clear();
-                    mInstance.trisMeanDisk_Mir.clear();
-                    mInstance.trisMeanThr.clear();
-                    mInstance.thParamList_Mir.clear();
+                    mInstance.trisMeanDisk.get(aiIndx).clear();
+                    mInstance.thr_models.get(aiIndx).clear();
+                    mInstance.thParamList.get(aiIndx).clear();
+
                     mInstance.trisRe.clear();
                     mInstance.reParamList.clear();
                     // to start over data collection
 
                     mInstance.decTris.clear();
                     mInstance.cleanedbin= true;
-                }
+                }*/
 
 
-            }// if we have objs on the screen, we start RE model & training
-
-
-
-        }   // if Nan
-
-       // else
-           // Log.d("Mean Throughput is", "not accepted");
+        }// if we have objs on the screen, we start RE model & training
 
 
 
+        // }   // if Nan
+
+        // else
+        // Log.d("Mean Throughput is", "not accepted");
 
 
         mInstance.pred_meanD_cur = meanDkk; // the predicted current_mean_distance for next period is saved here
-        mInstance.prevtotTris = totTris;
-       // if(mInstance.trainedTris==false) // we do this if we don't want to run the odra algoritm. this will be done while alg is running otherwise, we won't able to access mainactivity instance in the algorithm
-           // mInstance=null;  // to force it for garbage collection and avoid heap storage limitation
-       // else // we have our algorithm running
-      //  mInstance.trainedTris = false;
-
-
-
-
-
-
+        // mInstance.prevtotTris = totTris;
 
 
 
@@ -678,17 +739,17 @@ public class Mir implements Runnable {
     public void cleanOutArraysRE(double totTris, double predDis, MainActivity mInstance){
 
         int index;
-        if ( mInstance.trisMeanDisk_Mir.get(totTris).size() == binCap)
+        if ( mInstance.trisMeanDisk.get(totTris).size() == binCap)
         { // we keep inf of last 10 points
-            double []disArray= mInstance.trisMeanDisk_Mir.get(totTris).stream()
+            double []disArray= mInstance.trisMeanDisk.get(totTris).stream()
                     .mapToDouble(Double::doubleValue)
                     .toArray();
             index= findClosest(disArray , predDis);// the index of value needed to be deleted
             // since we add if objcount != zero to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
-           if(index<mInstance.trisRe.get(totTris).size() &&  index<mInstance.reParamList.get(totTris).size())
+            if(index<mInstance.trisRe.get(totTris).size() &&  index<mInstance.reParamList.get(totTris).size())
             {
                 mInstance.trisRe.get(totTris).remove(index);
-            mInstance.reParamList.get(totTris).remove(index);
+                mInstance.reParamList.get(totTris).remove(index);
             }
         }
 
@@ -698,7 +759,30 @@ public class Mir implements Runnable {
 
 
 
-    public int cleanOutArraysThr(double totTris, double predDis, MainActivity mInstance){
+    public int cleanOutArraysThr(double totTris, double predDis, MainActivity mInstance, int aiIndx){// if tris0meandisk is full, it means
+        // the array of other AI tasks is full too, so we update the lists
+
+        int index=-1;
+        if ( mInstance.trisMeanDisk.get(totTris).size() == binCap) {
+            double[] disArray = mInstance.trisMeanDisk.get(totTris).stream()
+                    .mapToDouble(Double::doubleValue)
+                    .toArray(); // this has the array of predicted distance
+
+            index = findClosest(disArray, predDis);// the index of value(closest to current mean dis) needed to be deleted
+            mInstance.thr_models.get(aiIndx).get(totTris).remove(index); // has the real throughput
+            mInstance.thParamList.get(aiIndx).get(totTris).remove(index);
+            // temp to test
+            mInstance.tParamList.get(aiIndx).get(totTris).remove(index);
+
+            mInstance.trisMeanDisk.get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
+            // mInstance.trisMeanDiskk.get(totTris).remove(index);
+        }
+
+        return  index;
+    }
+
+
+    public int cleanOutArraysThr_weighted(double totTris, double predDis, MainActivity mInstance){
 
         int index=-1;
         if ( mInstance.trisMeanDisk_Mir.get(totTris).size() == binCap) {
@@ -718,6 +802,7 @@ public class Mir implements Runnable {
 
         return  index;
     }
+
 
 
     public static int findClosest(double[] arr, double target) { // find the closest index of arr to value distance= target to then substitue that with the newer one
@@ -744,41 +829,38 @@ public class Mir implements Runnable {
         String FILEPATH = currentFolder + File.separator + "Quality"+mInstance. fileseries+".csv";
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-           for (int i=0; i<objC-1; i++) {
-               float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
+            for (int i=0; i<objC-1; i++) {
+                float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
+                float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
 //               if (mInstance.renderArray.get(i).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                   r1 = 0.6f; // jsut for scenario3 objects are decimated
 //               else if(mInstance.renderArray.get(i).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 //                   r1=0.3f;
 
 
-               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
-               int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
-               // excel file has all information for the degredation model
-               float gamma = mInstance.excel_gamma.get(indq);
-               float a = mInstance.excel_alpha.get(indq);
-               float b = mInstance.excel_betta.get(indq);
-               float c = mInstance.excel_c.get(indq);
-               float d_k = mInstance.renderArray.get(i).return_distance();// current distance
+                float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
+                int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
+                // excel file has all information for the degredation model
+                float gamma = mInstance.excel_gamma.get(indq);
+                float a = mInstance.excel_alpha.get(indq);
+                float b = mInstance.excel_betta.get(indq);
+                float c = mInstance.excel_c.get(indq);
+                float d_k = mInstance.renderArray.get(i).return_distance();// current distance
 
-               float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
-               float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
-
-
+                float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
+                float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
 
 
+                float max_nrmd = mInstance.excel_maxd.get(indq);
+                tmper1 = tmper1 / max_nrmd; // normalized
+                tmper2= tmper2 /max_nrmd;
 
-               float max_nrmd = mInstance.excel_maxd.get(indq);
-               tmper1 = tmper1 / max_nrmd; // normalized
-               tmper2= tmper2 /max_nrmd;
+                if (tmper2 < 0)
+                    tmper2 = 0;
 
-               if (tmper2 < 0)
-                   tmper2 = 0;
-
-               //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
-               sensitivity[i] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));
-               tmper1 = (float) (Math.round((float) (tmper1 * 1000))) / 1000;
+                //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
+                sensitivity[i] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));
+                tmper1 = (float) (Math.round((float) (tmper1 * 1000))) / 1000;
 
                 StringBuilder sb = new StringBuilder();
                 sb.append(dateFormat.format(new Date()));
@@ -790,7 +872,7 @@ public class Mir implements Runnable {
                 sb.append(r1);
                 sb.append(',');
                 sb.append(1-tmper1);
-              //  sb.append(mInstance.tasks.toString());
+                //  sb.append(mInstance.tasks.toString());
 
                 sb.append('\n');
                 writer.write(sb.toString());
@@ -801,38 +883,33 @@ public class Mir implements Runnable {
         }
 
     }
-
-
-
-    public void writeThr(double realThr, double predThr, boolean trainedFlag){
+    public void writeThr(double realThr, double predThr, boolean trainedFlag,int aiIndx,boolean ai_acc){ // AI throughput information for each task individually and response time for all models
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
 
-
-
         StringBuilder sb = new StringBuilder();
-        sb.append(dateFormat.format(new Date())); sb.append(',');
-        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',');
-        sb.append(" , , ,");// for weights
-       // sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append(mInstance.rohDL.get(aiIndx));sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
+        sb.append(dateFormat.format(new Date())); sb.append(',').append((aiIndx)).append(",");
+        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',').append(ai_acc).append(",");
+        sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append("");sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
         sb.append(mInstance.des_Thr);
         sb.append(','); sb.append(mInstance.des_Q).append(',');
         sb.append(mInstance.total_tris);
 
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-            for (AiItemsViewModel taskView :mInstance.mList) {
 
+
+            for (int i=0;i<mInstance.mList.size();i++)
+            {
+                AiItemsViewModel taskView=mInstance.mList.get(i);
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-//                    .append(",").append(taskView.getCurrentNumThreads()).append(",").append(taskView.getThroughput())
                         .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
 
+
             }
-
-
             sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");
@@ -842,74 +919,24 @@ public class Mir implements Runnable {
     }
 
 
-
-//    public void writeThr(double realThr, double predThr, boolean trainedFlag){
-//
-//        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
-//        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
-//        String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
-//
-////        StringBuilder sbTaskSave = new StringBuilder();
-////        for (AiItemsViewModel taskView : mInstance.mList) {
-////            sbTaskSave
-////                    //.append(taskView.getCurrentNumThreads())
-////                    .append(",")
-////                    .append(taskView.getModels().get(taskView.getCurrentModel()));
-////                    //.append("-");
-////            // .append(taskView.getDevices().get(taskView.getCurrentDevice()))
-////                    //.append("\n");
-////        }
-//
-//
-//
-//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-//            StringBuilder sb = new StringBuilder();
-//            sb.append(dateFormat.format(new Date())); sb.append(',');
-//            sb.append(realThr);sb.append(',');
-//            sb.append(predThr);
-//            sb.append(',');  sb.append(trainedFlag);
-//            sb.append(','); sb.append(mInstance.total_tris);
-//            sb.append(mInstance.tasks.toString());
-//            sb.append(','); sb.append(mInstance.des_Thr);
-//            sb.append(','); sb.append(mInstance.des_Q);
-//            sb.append('\n');
-//            writer.write(sb.toString());
-//            System.out.println("done!");
-//        } catch (FileNotFoundException e) {
-//            System.out.println(e.getMessage());
-//        }
-//    }
-/*
-    public void writeNextTris(double alphaD, double alphaH,double rohD, double meanDkk,double zeta,double delta,
-                              double  alphaT,double rohT,double nomin,double denom, double totTris, double nextTris){
+    public void writeWeights( boolean ai_acc,int ai_indx){ // AI throughput information for each task individually and response time for all models
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
-        String FILEPATH = currentFolder + File.separator + "NextTrisParameters.csv";
-
+        String FILEPATH = currentFolder + File.separator + "Weights"+mInstance. fileseries+".csv";
+        StringBuilder sb = new StringBuilder();
+        sb.append(dateFormat.format(new Date())); sb.append(',').append(ai_acc);
+        AiItemsViewModel taskView=mInstance.mList.get(ai_indx);
+        sb .append(",").append(taskView.getModels().get(taskView.getCurrentModel())).append(",").append(  mInstance.msr_weights.get(ai_indx))
+                .append(",").append(mInstance.est_weights.get(ai_indx));
+        sb.append('\n');
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(dateFormat.format(new Date())); sb.append(',');
-            sb.append(alphaD);sb.append(',');
-            sb.append(alphaH);
-            sb.append(',');  sb.append(rohD);
-            sb.append(',');  sb.append(meanDkk);
-            sb.append(',');  sb.append(zeta);
-            sb.append(',');  sb.append(delta);
-            sb.append(',');  sb.append(alphaT);
-            sb.append(',');  sb.append(rohT);
-            sb.append(',');  sb.append(nomin);
-            sb.append(',');  sb.append(denom);
-            sb.append(',');  sb.append(totTris);
-            sb.append(',');  sb.append(nextTris);
-            sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
         }
     }
-*/
 
     // public void writeRE(double realRe, double predRe, boolean trainedFlag,double totT, double nextT, boolean trainedT, double pAR, double pAI){
     public void writeRE(double realRe, double predRe, boolean trainedFlag, double totT, double nextT, double algTris, boolean trainedT,
@@ -1006,26 +1033,7 @@ public class Mir implements Runnable {
 
             float curtris = mInstance.renderArray.get(ind).orig_tris * mInstance.ratioArray.get(ind);
 
-          /* I calculate this in quality function
-           float r1 = mInstance.ratioArray.get(ind); // current object decimation ratio
-            float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
 
-            int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(ind).fileName);// search in excel file to find the name of current object and get access to the index of current object
-            // excel file has all information for the degredation model
-            float gamma = mInstance.excel_gamma.get(indq);
-            float a = mInstance.excel_alpha.get(indq);
-            float b = mInstance.excel_betta.get(indq);
-            float c = mInstance.excel_c.get(indq);
-            float d_k = mInstance.renderArray.get(ind).return_distance();// current distance
-
-            float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
-            float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
-
-            if (tmper2 < 0)
-                tmper2 = 0;
-
-            //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
-            sensitivity[ind] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));*/
             tris_share[ind] = (curtris / tUP);
             candidate_obj.put(ind, sensitivity[ind] / tris_share[ind]);
 
@@ -1096,9 +1104,9 @@ public class Mir implements Runnable {
 
 
         for (int i : sortedcandidate_obj.keySet())
-            //if ( mInstance.renderArray.size()>i &&  mInstance.renderArray.get(i)!=null)
+        //if ( mInstance.renderArray.size()>i &&  mInstance.renderArray.get(i)!=null)
 
-            {// to avoid null pointer error
+        {// to avoid null pointer error
 
             mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)/mInstance.tris_factor));// total =total -1*objtris
             mInstance.ratioArray.set(i, coarse_Ratios[j]);
@@ -1107,7 +1115,7 @@ public class Mir implements Runnable {
             mInstance.runOnUiThread(() -> mInstance.renderArray.get(i).decimatedModelRequest(mInstance.ratioArray.get(i), i, false));
 
             mInstance.total_tris = mInstance.total_tris + (mInstance.ratioArray.get(i) *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
-           // mInstance.trisDec.put(mInstance.total_tris,true);
+            // mInstance.trisDec.put(mInstance.total_tris,true);
 
             j = track_obj[i][j];
             Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
@@ -1116,7 +1124,7 @@ public class Mir implements Runnable {
         }
 
 
-        return (float)mInstance.total_tris; // this returns the total algorithm triangle count
+        return (float) mInstance.total_tris; // this returns the total algorithm triangle count
 
 
 

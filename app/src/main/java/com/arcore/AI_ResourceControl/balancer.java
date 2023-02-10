@@ -1,4 +1,4 @@
- ///temp deactivate
+ ///
  /**
   * This is to test if we can use weight from linear regression of model specific : thr and dis-vs tris
   * unfortunately it gives non-meaningful two slopes for tris and distance that can not be used to compare how each model is affected by GPU
@@ -75,7 +75,7 @@ public class balancer implements Runnable {
     @Override
     public void run() {
 
-        boolean acc2model = true;// this is to check if the trained models of all thr and RE is accurate
+        boolean acc2model = true;// all AI throughput trained models and RE are accurate
         //boolean accRe=true;// this is to check if the trained model for re is accurate
         boolean trainedTris = false;
         boolean trainedThr = false;
@@ -123,7 +123,7 @@ public class balancer implements Runnable {
 
         totTris = mInstance.total_tris;
 
-        double sum_currentWt= 0; // this is to calculate weights for AI models
+        double sum_currentWt= 0; // this is to calculate est_weights for AI models
         double sum_baseWt= 0;
         double sum_rohT_wi=0;
         double sum_rohD_wi=0;
@@ -135,12 +135,17 @@ public class balancer implements Runnable {
         int variousTris = mInstance.trisMeanDisk.keySet().size();
 
 
+        mInstance.trisMeanDisk.put(totTris, pred_meanD); //one-time correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+
         int Ai_count= mInstance.mList.size();
         for (int aiIndx=0; aiIndx<Ai_count;aiIndx++) {
 
+            double predThr=0;
+            boolean ai_accuracy=true; // the accuracy of specific model
+
             meanThr = mInstance.getThroughput(aiIndx);// after the objects are decimated
 
-            if (meanThr < 200 && meanThr > 1) {
+            if (meanThr < 120 && meanThr > 1) {
 
                 meanThr = (double) Math.round(meanThr * 100) / 100;
 
@@ -159,13 +164,13 @@ public class balancer implements Runnable {
 
 
 // this is thr calculated using the modeling
-                double predThr = (mInstance.rohTL.get(aiIndx) * totTris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+                predThr = (mInstance.rohTL.get(aiIndx) * totTris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
                 predThr = (double) Math.round((double) predThr * 100) / 100;
 
 //            writeThr(meanThr, predThr, trainedThr);// for the urrent period
 
                 int ind = -1;
-                if (variousTris < 3) { // one object on the screen
+                if (variousTris < 2) { // one object on the screen
 
                     if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
                         cleanOutArraysThr(totTris, pred_meanD, mInstance,aiIndx);// cleans out the closest data to the curr one
@@ -176,9 +181,10 @@ public class balancer implements Runnable {
                     // uses predicted cur distance for thr modeling
                     mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
 
+
                     //mInstance.trisMeanDisk.get(aiIndx).put(totTris, pred_meanD); //correct:  should have predicted value removes from the head (older data) -> to then add to the tail
-                  if(aiIndx==0) // this prevents a crash since we don't add to tris-meankK everytime, just for one time
-                     mInstance.trisMeanDisk.put(totTris, pred_meanD); //should be called one-time per decision period not per AI task since it is the distance of all AI tasks
+//                  if(aiIndx==0) // this prevents a crash since we don't add to tris-meankK everytime, just for one time
+//                     mInstance.trisMeanDisk.put(totTris, pred_meanD); //should be called one-time per decision period not per AI task since it is the distance of all AI tasks
 
                 }
 
@@ -199,8 +205,8 @@ public class balancer implements Runnable {
                     mInstance.thr_models.get(aiIndx).put(totTris, meanThr); // corrrect: should have real throughput for regression and thr param should have predicted distance
                     mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
 
-                    if(aiIndx==0)
-                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+//                    if(aiIndx==0)
+//                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 
 
                     ///  nil  to train model
@@ -279,9 +285,9 @@ public class balancer implements Runnable {
                         mLinearRegression regression = new mLinearRegression(thRegParameters, y);
                         if (!Double.isNaN(regression.beta(0))) {
 
-                            mInstance.rohTL.set(aiIndx, regression.beta(0));
-                            mInstance.rohDL.set(aiIndx, regression.beta(1));
-                            mInstance.deltaL.set(aiIndx, regression.beta(2));
+                            mInstance.rohTL.set(aiIndx, (double) Math.round( (double)regression.beta(0)*100  )/100     );
+                            mInstance.rohDL.set(aiIndx,  (double) Math.round( (double)regression.beta(1) *100 )/100 );
+                            mInstance.deltaL.set(aiIndx, (double) Math.round( (double) regression.beta(2)*100)/100  );
                             //mInstance.thRmse = regression.rmse;
                             trainedThr = true;
 
@@ -304,8 +310,9 @@ public class balancer implements Runnable {
                     mape = abs((meanThr - predThr) / meanThr);
                     if (mape > 0.1) {
 
-                        mInstance.weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
-                        //acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
+                        ai_accuracy=false;
+                        //mInstance.est_weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
+                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
                         mInstance.hAI_acc.set(aiIndx, false);
 
                         if (variousTris >= 3) {
@@ -325,50 +332,58 @@ public class balancer implements Runnable {
                         }
 
                     } else {
+                        mInstance.hAI_acc.set(aiIndx, true);
                         mInstance.thr_miss_counter.set(aiIndx, 0);// the model works fine so we don't need to re-adjust the throughput factor for decimation data collection
-                        // we st the weights if trained models are accurate
-                        mInstance.weights.set(aiIndx, sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2)) );// this has not-normalized weights
+                        // we st the estimated weights if trained models are accurate
 
                     }
-                    writeThr(meanThr, predThr, trainedThr,aiIndx);// It has predicted and real throughput of task AI[index]
-
-
+                    // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
+                    mInstance.est_weights.set(aiIndx, sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2)) );// this has not-normalized est_weights
+                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));// set the measured Wi = measured current throughput over baseline
 
 
                 } //Specific AI  throughput model
             }
-
+            else
+                mInstance.hAI_acc.set(aiIndx,false); // since the model is not trained
 
             if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
                 acc2model=false;
 
+            writeThr(meanThr, predThr, trainedThr,aiIndx,ai_accuracy);// It has predicted and real throughput of task AI[index]
 
         }// for all AI models we train throughput
         /*   Specific AI throughput is tested and now works
-        * so far, all model's weights are calculated  */
+        * so far, all model's est_weights are calculated  */
 
+        if(variousTris>=2) { // at least two objects on the screen
+            double max_w = Collections.max(mInstance.est_weights);// max of estimated weight list
+            double max_msr_w = Collections.max(mInstance.msr_weights); // normalize measured weights
+            for (int i = 0; i < Ai_count; i++) {
 
+                mInstance.est_weights.set(i, mInstance.est_weights.get(i) / max_w);// this has Normalized est_weights
+                //@@@@@@@@@@ correct this after weights are tested, since for PAI we need measured weights not estimated
+                double wi = mInstance.est_weights.get(i);
+                double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
+                sum_currentWt += (wi * thr); //sum(Normalized msrd(Wi) * Hi)
+                sum_baseWt += (wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
 
+                sum_rohT_wi += (wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
+                sum_rohD_wi += (wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)
+                sum_delta_wi += (wi * mInstance.deltaL.get(i));//sigma(delta_i * wi)
+
+                mInstance.msr_weights.set(i, mInstance.msr_weights.get(i) / max_msr_w);
+
+                writeWeights(mInstance.hAI_acc.get(i),i);// write specific  weight after normalization
+            }
+        }
         /*************************   calculate Normalized weighted P_AI*/
         // to normalize, we need to find the maximum weight and normalize all models over that. and then we calculate sum(Wi * Hi)
 
         if( acc2model){ // we start to train RE and calculate next tris if H_i models are accurate
 
-        double max_w=Collections.max(mInstance.weights);
-        for (int i=0; i<Ai_count;i++)
-        {
 
-            mInstance.weights.set(i, mInstance.weights.get(i)/max_w  );// this has Normalized weights
-            double wi= mInstance.weights.get(i);
-            sum_currentWt+= wi* mInstance.getThroughput(i); //sum(Normalized Wi * Hi)
-            sum_baseWt+= wi *mInstance.baseline_AIthr.get(i);//sum(Normalized Wi * Hbase)
-
-            sum_rohT_wi+= wi *mInstance.rohTL.get(i);// sigma(rohT_i * wi)
-            sum_rohD_wi+= wi *mInstance.rohDL.get(i);//sigma(rohD_i * wi)
-            sum_delta_wi+= wi *mInstance.deltaL.get(i);//sigma(delta_i * wi)
-
-        }
-        sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
+        //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
         mInstance.des_Thr= sum_baseWt/Ai_count;
 
         double measured_Weighted_thr=sum_currentWt/Ai_count;// this is average weighted throughput of current period
@@ -393,16 +408,15 @@ public class balancer implements Runnable {
         /* ******************* calculate average AI throughput from weighted model   ***********/
 
 
-
-
-            if (mInstance.objectCount != 0) {//to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
+            if (mInstance.objectCount == 0) {
+            } else {//to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
 
                 /* so far we train each task's throughput model individually, but RE should be trained generally using measured RE value of
                  PAI that comes from sum(Wi * AI_thr)/0.7*(sum(Wi * base_Hi) and PAR as usual
                  */
 
                 //******************  RE modeling *************
-                /// need to add a condition for running this periodically to make sure XMIR weights are stable but not for MIR maybe
+                /// need to add a condition for running this periodically to make sure XMIR est_weights are stable but not for MIR maybe
 
                 //    writequality();
 
@@ -437,13 +451,12 @@ public class balancer implements Runnable {
                     mape = Math.abs((reMsrd - fit) / reMsrd);
 
 
-                    //  /*nill commented  sep 7
+                    cleanOutArraysRE(totTris, pred_meanD, mInstance);
+                    mInstance.trisRe.put(totTris, reMsrd); // april 8
+                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predWeighted_thr, 1.0));
 
-                    if (mape > 0.10 && variousTris >= 2) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
+                    if (mape > 0.10 && variousTris >= 3) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
 
-                        cleanOutArraysRE(totTris, pred_meanD, mInstance);
-                        mInstance.trisRe.put(totTris, reMsrd); // april 8
-                        mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predWeighted_thr, 1.0));
 
                         ListMultimap<Double, List<Double>> copyreParamList = ArrayListMultimap.create(mInstance.reParamList);// take a copy to then fill it for training up to capacity of 10
                         ListMultimap<Double, Double> copytrisRe = ArrayListMultimap.create(mInstance.trisRe);// take a copy to then fill it for training up to capacity of 10
@@ -525,10 +538,10 @@ public class balancer implements Runnable {
                         if (variousTris >= 3) {
                             mLinearRegression regression = new mLinearRegression(reRegParameters, RE);
                             if (!Double.isNaN(regression.beta(0))) {
-                                mInstance.alphaT = regression.beta(0);
-                                mInstance.alphaD = regression.beta(1);
-                                mInstance.alphaH = regression.beta(2);
-                                mInstance.zeta = regression.beta(3);
+                                mInstance.alphaT =   (double) Math.round((double) regression.beta(0) * 100) / 100;
+                                mInstance.alphaD = (double) Math.round((double) regression.beta(1) * 100) / 100;
+                                mInstance.alphaH = (double) Math.round((double) regression.beta(2) * 100) / 100;
+                                mInstance.zeta = (double) Math.round((double) regression.beta(3) * 100) / 100;
                                 trainedRE = true;
                             }
 
@@ -591,6 +604,7 @@ public class balancer implements Runnable {
 
                     long time1 = 0;
                     long time2 = 0;
+                    /* temp deactivate
                     if (acc2model && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
                     {
 
@@ -642,7 +656,7 @@ public class balancer implements Runnable {
                         }
 
 
-                    }//if
+                    }  *///if
                     writeRE(reMsrd, predRE, trainedRE, totTris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, acc2model, mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
 
 
@@ -651,7 +665,7 @@ public class balancer implements Runnable {
             }// if all AI throughput models are accurate, we train RE and calculate next tris
 
 
-                if( mInstance.trisChanged==true)
+            if( mInstance.trisChanged==true)
                 {  mInstance.cleanedbin=false;
                     mInstance.trisChanged=false;
 
@@ -838,7 +852,7 @@ public class balancer implements Runnable {
         }
 
     }
-    public void writeThr(double realThr, double predThr, boolean trainedFlag,int aiIndx){ // AI throughput information for each task individually and response time for all models
+    public void writeThr(double realThr, double predThr, boolean trainedFlag,int aiIndx,boolean ai_acc){ // AI throughput information for each task individually and response time for all models
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
@@ -846,23 +860,26 @@ public class balancer implements Runnable {
 
         StringBuilder sb = new StringBuilder();
         sb.append(dateFormat.format(new Date())); sb.append(',').append((aiIndx)).append(",");
-        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',');
+        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',').append(ai_acc).append(",");
         sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append(mInstance.rohDL.get(aiIndx));sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
         sb.append(mInstance.des_Thr);
         sb.append(','); sb.append(mInstance.des_Q).append(',');
         sb.append(mInstance.total_tris);
 
-        int i=0;
-        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-        for (AiItemsViewModel taskView :mInstance.mList) {
 
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+
+
+        for (int i=0;i<mInstance.mList.size();i++)
+        {
+            AiItemsViewModel taskView=mInstance.mList.get(i);
             sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                     .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
                     .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
+                  //  .append(",").append(mInstance.msr_weights.get(i)).append(",").append(mInstance.est_weights.get(i)); // this is not normalized yet
+
 
         }
-
-
             sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");
@@ -871,6 +888,25 @@ public class balancer implements Runnable {
         }
     }
 
+
+    public void writeWeights( boolean ai_acc,int ai_indx){ // AI throughput information for each task individually and response time for all models
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "Weights"+mInstance. fileseries+".csv";
+        StringBuilder sb = new StringBuilder();
+        sb.append(dateFormat.format(new Date())); sb.append(',').append(ai_acc);
+        AiItemsViewModel taskView=mInstance.mList.get(ai_indx);
+        sb .append(",").append(taskView.getModels().get(taskView.getCurrentModel())).append(",").append(  mInstance.msr_weights.get(ai_indx))
+                .append(",").append(mInstance.est_weights.get(ai_indx));
+        sb.append('\n');
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+            writer.write(sb.toString());
+            System.out.println("done!");
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+    }
 
     // public void writeRE(double realRe, double predRe, boolean trainedFlag,double totT, double nextT, boolean trainedT, double pAR, double pAI){
     public void writeRE(double realRe, double predRe, boolean trainedFlag, double totT, double nextT, double algTris, boolean trainedT,

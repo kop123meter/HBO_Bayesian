@@ -129,7 +129,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Float>updatednetw = new ArrayList<Float>();
     /*please note that this factor selection affects the alpha parameters for throughput model. so make sure to choose it correctly
     * eg, for some AI models if normalized  tris goes from 0.2 to 85, and throughput of AI1 is 9, the alpha_d changes for, 0.002 to 3.4 for one model which is not good compared to other models that might have still alpha d bellow 0.1*/
-    double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
+   // double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
+    double tris_factor=1000; // to normalize tris and have a better parameters for throughput model
 
     int maxtime=6; // 20 means calculates data for next 10 sec ->>>should be even num
     // if 5, goes up to 2.5 s. if 10, goes up to 5s
@@ -170,7 +171,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
     List<Double> baseline_AIthr= new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
-    List<Double> weights= new ArrayList<>();// this is a list of normalized weights
+    List<Double> est_weights= new ArrayList<>();// this is a list of normalized  estimated weights
+    List<Double> msr_weights= new ArrayList<>();// this is a list of normalized measured weights
+
 
 
     List<Integer> rsp_miss_counter=new ArrayList<>();
@@ -214,7 +217,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double rohD=0.0001;
     double delta=66.92;
     double thRmse;
-    double des_weight=0.7;
+    double des_weight=0.3;
     //for RE modeling and algorithm
 
     int orgTrisAllobj=0;
@@ -806,8 +809,9 @@ else{
                         rsp_miss_counter.add(0);
                         thr_miss_counter.add(0);
                         baseline_AIthr.add(0d);
-                        weights.add(0d);
-                        hAI_acc.add(false);
+                        est_weights.add(0d);
+                        msr_weights.add(0d);
+                        hAI_acc.add(true);
                     }
 
 
@@ -992,7 +996,7 @@ else{
             sbb.append(',').append("AI#,");
             sbb.append("Throughput_real");
             sbb.append(',').append("Throughput_pred");
-            sbb.append(',').append("trained_flag").append(',');
+            sbb.append(',').append("trained_flag,").append("Thr_accuracy,");
             sbb.append("rohT").append(',').append("rohD").append(',').append("delta").append(',');
             sbb.append("desiredH").append(',').append("desiredQ").append(',');
 
@@ -1007,19 +1011,22 @@ else{
             sbb.append("Inf1");
             sbb.append(',');
             sbb.append("Overhead1");
-
+          //  sbb.append(',').append("Msr_W1").append(',').append("Est-W1");
          //   sbb.append(',').append("rohT").append(',').append("rohD").append(',').append("delta");
 //         old for coefficient
 //            sbb.append(',');sbb.append("r1");
 
             sbb.append(',').append("Model2").append(',').append("Device2");
             sbb.append(',').append("Inf2").append(',').append("Overhead2");
+          //  sbb.append(',').append("Msr_W2").append(',').append("Est-W2");
 
             sbb.append(',').append("Model3").append(',').append("Device3");
             sbb.append(',').append("Inf3").append(',').append("Overhead3");
+          //  sbb.append(',').append("Msr_W3").append(',').append("Est-W3");
 
             sbb.append(',').append("Model4").append(',').append("Device4");
             sbb.append(',').append("Inf4").append(',').append("Overhead4");
+           // sbb.append(',').append("Msr_W4").append(',').append("Est-W4");
 
 //            sbb.append(',').append("Model5").append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
 //            sbb.append(',').append("Inf5").append(',').append("Overhead5").append(',').append("r5");
@@ -1081,7 +1088,21 @@ else{
         }
 
 
+        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+        FILEPATH = currentFolder + File.separator + "Weights"+ fileseries+".csv";
 
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("AI_name,").append("Thr_accuracy,").append("Msr_W,").append("Est-W,");
+
+            sbb.append('\n');
+            writer.write(sbb.toString());
+            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
 
 //        currentFolder = getExternalFilesDir(null).getAbsolutePath();
 //        FILEPATH = currentFolder + File.separator + "Quality"+ fileseries+".csv";
@@ -1649,7 +1670,7 @@ else{
 
 
                                     //if (under_Perc == false) {
-                                    //(o_tris.get(i)/1000) is to have a better weights for throughput modeling
+                                    //(o_tris.get(i)/1000) is to have a better est_weights for throughput modeling
 
                                         total_tris = total_tris - (ratioArray.get(i) * ((double)(o_tris.get(i))/tris_factor)     );// total =total -1*objtris
                                        // ratioArray[i] = ratio[0] / 100f;
@@ -2256,23 +2277,11 @@ else{
                                setDesTh=true;}
                            }
 
-                           // String alg="MIR";
-
                             if(odraAlg=="1")// either choose the baseline or odra algorithm
 
                             {
-                                new balancer(MainActivity.this).run();
-/*
-                                for(int i=0; i<mList.size(); i++){
-                                   new balancer(MainActivity.this,i).run(); // XMIR implementation -> this is to collect mean thr, total_tris. average dis
-//                                    new responseT_weight(MainActivity.this, i).run(); // just considers responsetime modeling
-                                   // new Mir(MainActivity.this).run(); this is to run MIR
-                                    try {
-                                        Thread.sleep(1);//30
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                    }
-                                }*/
+                                new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
+                                //new balancer1(MainActivity.this).run(); // this has just throughput model to tris and uses rohT slope as estimated weight
 
                             }
 
@@ -4246,16 +4255,16 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
                             }
 //                            cat /sys/devices/system/gpu/max_freq
 
-                            process2 = Runtime.getRuntime().exec("su -c cat /sys/class/kgsl/kgsl-3d0/gpuclk"); // this is for S10 phone
-                            stdInput = new BufferedReader(new
-                                    InputStreamReader(process2.getInputStream()));
-// Read the output from the command
-                            //System.out.println("Here is the standard output of the command:\n");
-                            current_gpu = stdInput.readLine();
-                            if (current_gpu != null) {
-                              ///  String[] separator = current_gpu.split("%");
-                                gpu_clk =  Float.parseFloat(current_gpu);
-                            }
+//                            process2 = Runtime.getRuntime().exec("su -c cat /sys/class/kgsl/kgsl-3d0/gpuclk"); // this is for S10 phone
+//                            stdInput = new BufferedReader(new
+//                                    InputStreamReader(process2.getInputStream()));
+//// Read the output from the command
+//                            //System.out.println("Here is the standard output of the command:\n");
+//                            current_gpu = stdInput.readLine();
+//                            if (current_gpu != null) {
+//                              ///  String[] separator = current_gpu.split("%");
+//                                gpu_clk =  Float.parseFloat(current_gpu);
+//                            }
 
 
                             process2 = Runtime.getRuntime().exec("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"); // this is for S10 phone
