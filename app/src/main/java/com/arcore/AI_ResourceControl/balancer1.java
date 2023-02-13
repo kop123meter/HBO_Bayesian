@@ -1,11 +1,9 @@
 ///temp deactivate
 /**
- * This is to test if we can use weight from linear regression of model specific : thr and dis-vs tris
- * unfortunately it gives non-meaningful two slopes for tris and distance that can not be used to compare how each model is affected by GPU
- * hence, we use responseT_weigth class
+
  */
 /*This is equal to balancer, but just has throughput vs tris model for each AI modeling and uses rohT as the estimated wi */
-
+//throughput model to tris and uses rohT slope as estimated weight
 package com.arcore.AI_ResourceControl;
 /*This code has relation ship between AI throughput and distance and triangle count*/
 import java.io.File;

@@ -1,8 +1,7 @@
  ///
  /**
   * This is to test if we can use weight from linear regression of model specific : thr and dis-vs tris
-  * unfortunately it gives non-meaningful two slopes for tris and distance that can not be used to compare how each model is affected by GPU
-  * hence, we use responseT_weigth class
+
   */
 
 
@@ -15,6 +14,7 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -86,7 +86,7 @@ public class balancer implements Runnable {
         double meanDk = 0; // mean current dis
         double meanDkk = 0; // mean of d in the next period-> you need to cal the average of predicted d for all the objects
         double pred_meanD = mInstance.pred_meanD_cur; // for next 1 sc
-
+        boolean fault_thr=false;
 
 
 
@@ -141,11 +141,15 @@ public class balancer implements Runnable {
         for (int aiIndx=0; aiIndx<Ai_count;aiIndx++) {
 
             double predThr=0;
-            boolean ai_accuracy=true; // the accuracy of specific model
+
 
             meanThr = mInstance.getThroughput(aiIndx);// after the objects are decimated
 
-            if (meanThr < 120 && meanThr > 1) {
+            while(meanThr > 120 || meanThr <1) // we wanna get a correct value
+                meanThr = mInstance.getThroughput(aiIndx);// after the objects are decimated
+            //if (meanThr < 120 && meanThr > 1)
+
+            {
 
                 meanThr = (double) Math.round(meanThr * 100) / 100;
 
@@ -161,6 +165,8 @@ public class balancer implements Runnable {
                         mInstance.baseline_AIthr.set(aiIndx, (meanThr + curr_baseline) / 2);
                     }
                 }
+
+
 
 
 // this is thr calculated using the modeling
@@ -205,8 +211,8 @@ public class balancer implements Runnable {
                     mInstance.thr_models.get(aiIndx).put(totTris, meanThr); // corrrect: should have real throughput for regression and thr param should have predicted distance
                     mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
 
-//                    if(aiIndx==0)
-//                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+                    if(mape>0.1)
+                        mInstance.hAI_acc.set(aiIndx,false);
 
 
                     ///  nil  to train model
@@ -310,7 +316,7 @@ public class balancer implements Runnable {
                     mape = abs((meanThr - predThr) / meanThr);
                     if (mape > 0.1) {
 
-                        ai_accuracy=false;
+
                         //mInstance.est_weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
                         acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
                         mInstance.hAI_acc.set(aiIndx, false);
@@ -338,41 +344,66 @@ public class balancer implements Runnable {
 
                     }
                     // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
-                    mInstance.est_weights.set(aiIndx, sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2)) );// this has not-normalized est_weights
-                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));// set the measured Wi = measured current throughput over baseline
+                    mInstance.est_weights.set(aiIndx, sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2)) );// not normalized-> new(SQRT( (rohT^2+rohD^2)) -> this has not-normalized est_weights
+                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));//not normalized-> set the measured Wi = measured current throughput over baseline
+
+                     /*   I comment this, it doesn't work
+                      if(variousTris>=3){// we need a new accurate estimated weight based on  new(SQRT( (rohT^2+rohD^2))/old(SQRT( (rohT^2+rohD^2)) to see the change in magnitude value
+                        if(variousTris==3)// after we have the first trained model per AI -> update baseline estimated weight to the recent value but is not normalized
+                            mInstance.baseline_est_weights.set(aiIndx, mInstance.est_weights.get(aiIndx) );// updates baseline (at least two objects on screen)
+
+                   else if(variousTris>3)// if we use =3, we'll have the result of est/est_baseline equal to zero
+                        mInstance.est_weights.set(aiIndx, 1- (mInstance.est_weights.get(aiIndx)/  mInstance.baseline_est_weights.get(aiIndx)) );//from 2nd object added, we'll have new estimated weights as the
+//                 This is a new idea compared to past formula of l2 normal, I wanted to search the change in normal2,but results in NAN, why? since for new tris slopes may not change, hence, it'd result in Zero and then Nan         function of change in bew weight compared to baseline estimated weight// this is not-normalized est_weights
+
+                    } */
 
 
                 } //Specific AI  throughput model
+
+                if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
+                    acc2model=false;
+
+                writeThr(meanThr, predThr, trainedThr,aiIndx,mInstance.hAI_acc.get(aiIndx));// It has predicted and real throughput of task AI[index]
+
             }
-            else
-                mInstance.hAI_acc.set(aiIndx,false); // since the model is not trained
-
-            if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
-                acc2model=false;
-
-            writeThr(meanThr, predThr, trainedThr,aiIndx,ai_accuracy);// It has predicted and real throughput of task AI[index]
+            //else
+              //  fault_thr=true; // the measured throughput could be zero or a very large num--> faulty data
 
         }// for all AI models we train throughput
         /*   Specific AI throughput is tested and now works
         * so far, all model's est_weights are calculated  */
 
-        if(variousTris>=2) { // at least two objects on the screen
-            double max_w = Collections.max(mInstance.est_weights);// max of estimated weight list
-            double max_msr_w = Collections.max(mInstance.msr_weights); // normalize measured weights
-            for (int i = 0; i < Ai_count; i++) {
+        if(variousTris>=3) { // at least two objects on the screen
+          //  double max_w = Collections.max(mInstance.est_weights);// max of new estimated weight list
+           // double max_msr_w = Collections.max(mInstance.msr_weights); // normalize measured weights
+
+            double max_w = Collections.max(  mInstance.est_weights, new Comparator<Double>() { // returns max of absolute value of weights
+                        @Override
+                        public int compare(Double x, Double y) {
+                            return Math.abs(x) < Math.abs(y) ? -1 : 1;
+                        }});
+
+          double max_msr_w = Collections.max(  mInstance.msr_weights, new Comparator<Double>() { // returns max of absolute value of weights
+                            @Override
+                            public int compare(Double x, Double y) {
+                                return Math.abs(x) < Math.abs(y) ? -1 : 1;
+                            }});
+
+         for (int i = 0; i < Ai_count; i++) {
 
                 mInstance.est_weights.set(i, mInstance.est_weights.get(i) / max_w);// this has Normalized est_weights
-                //@@@@@@@@@@ correct this after weights are tested, since for PAI we need measured weights not estimated
-                double wi = mInstance.est_weights.get(i);
-                double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
-                sum_currentWt += (wi * thr); //sum(Normalized msrd(Wi) * Hi)
-                sum_baseWt += (wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
-
-                sum_rohT_wi += (wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
-                sum_rohD_wi += (wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)
-                sum_delta_wi += (wi * mInstance.deltaL.get(i));//sigma(delta_i * wi)
-
                 mInstance.msr_weights.set(i, mInstance.msr_weights.get(i) / max_msr_w);
+                //@@@@@@@@@@ correct this after weights are tested, since for PAI we need measured weights not estimated
+                double ms_wi = mInstance.msr_weights.get(i); // equal to normalized (cur_thr/baseline)
+                double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
+                sum_currentWt += (ms_wi * thr); //sum(Normalized msrd(Wi) * Hi)
+                sum_baseWt += (ms_wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+
+                double est_wi=mInstance.est_weights.get(i);// equal to normalized (sqrt(rohT^2 + rohD^2))
+                sum_rohT_wi += ( est_wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
+                sum_rohD_wi += (est_wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)
+                sum_delta_wi += (est_wi * mInstance.deltaL.get(i));//sigma(delta_i * wi)
 
                 writeWeights(mInstance.hAI_acc.get(i),i);// write specific  weight after normalization
             }
@@ -386,13 +417,13 @@ public class balancer implements Runnable {
         //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
         mInstance.des_Thr= sum_baseWt/Ai_count;
 
-        double measured_Weighted_thr=sum_currentWt/Ai_count;// this is average weighted throughput of current period
+        double msrd_Weighted_thr=sum_currentWt/Ai_count;// this is average weighted throughput of current period
 
         /********************  calculated weighted P_AI*/
 
 /*
 * ******************* calculate average AI throughput from weighted model ->
-*  roh'T= sigma(rohT_i * wi)/N
+*  roh'T= sigma(rohT_i * w^i)/N
 * roh'D= sigma(rohD_i * wi)/N
 * delta'= sigma(delta_i * wi)/N
  * */
@@ -403,6 +434,10 @@ public class balancer implements Runnable {
 
         double predWeighted_thr = (mInstance.rohT * totTris) + (mInstance.rohD* pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
         predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
+            double w_mape = 0.0;      //  sum of square error
+            w_mape = Math.abs((msrd_Weighted_thr - predWeighted_thr) / msrd_Weighted_thr);
+
+            write_weightedH(msrd_Weighted_thr,predWeighted_thr,w_mape);
 
 
         /* ******************* calculate average AI throughput from weighted model   ***********/
@@ -535,7 +570,7 @@ public class balancer implements Runnable {
                                 .map(l -> l.stream().mapToDouble(Double::doubleValue).toArray())
                                 .toArray(double[][]::new);
 
-                        if (variousTris >= 3) {
+                        if (variousTris >= 4) {
                             mLinearRegression regression = new mLinearRegression(reRegParameters, RE);
                             if (!Double.isNaN(regression.beta(0))) {
                                 mInstance.alphaT =   (double) Math.round((double) regression.beta(0) * 100) / 100;
@@ -907,6 +942,25 @@ public class balancer implements Runnable {
             System.out.println(e.getMessage());
         }
     }
+
+
+    public void write_weightedH( double msr, double pre, double wMape){ // AI throughput information for each task individually and response time for all models
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "Weighted_throughput"+mInstance. fileseries+".csv";
+        StringBuilder sb = new StringBuilder();
+        sb.append(dateFormat.format(new Date())); sb.append(',').append(msr+","+pre+","+wMape);
+
+        sb.append('\n');
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+            writer.write(sb.toString());
+            System.out.println("done!");
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
 
     // public void writeRE(double realRe, double predRe, boolean trainedFlag,double totT, double nextT, boolean trainedT, double pAR, double pAI){
     public void writeRE(double realRe, double predRe, boolean trainedFlag, double totT, double nextT, double algTris, boolean trainedT,

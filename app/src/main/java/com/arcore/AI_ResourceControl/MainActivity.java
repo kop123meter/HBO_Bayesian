@@ -174,7 +174,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Double> est_weights= new ArrayList<>();// this is a list of normalized  estimated weights
     List<Double> msr_weights= new ArrayList<>();// this is a list of normalized measured weights
 
-
+    List<Double> baseline_est_weights= new ArrayList<>();// the accuracy of AI throughput model
 
     List<Integer> rsp_miss_counter=new ArrayList<>();
     List<Integer> thr_miss_counter=new ArrayList<>();
@@ -810,8 +810,9 @@ else{
                         thr_miss_counter.add(0);
                         baseline_AIthr.add(0d);
                         est_weights.add(0d);
+                        baseline_est_weights.add(0d);
                         msr_weights.add(0d);
-                        hAI_acc.add(true);
+                        hAI_acc.add(false);
                     }
 
 
@@ -1094,7 +1095,7 @@ else{
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
 
             StringBuilder sbb = new StringBuilder();
-            sbb.append("AI_name,").append("Thr_accuracy,").append("Msr_W,").append("Est-W,");
+            sbb.append("time,Thr_accuracy,AI_name,").append("Msr_W,").append("Est_W,");
 
             sbb.append('\n');
             writer.write(sbb.toString());
