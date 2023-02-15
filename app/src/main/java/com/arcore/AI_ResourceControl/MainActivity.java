@@ -1105,6 +1105,26 @@ else{
             System.out.println(e.getMessage());
         }
 
+
+        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+        FILEPATH = currentFolder + File.separator + "Weighted_throughput"+ fileseries+".csv";
+
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("time,msr_thr,pred_thr,").append("percentage_error,").append("All_AI_accuracy,");
+
+            sbb.append('\n');
+            writer.write(sbb.toString());
+            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
+
+
+
 //        currentFolder = getExternalFilesDir(null).getAbsolutePath();
 //        FILEPATH = currentFolder + File.separator + "Quality"+ fileseries+".csv";
 //
@@ -1883,7 +1903,7 @@ else{
 
 
 
-        Button autoPlacementButton = (Button) findViewById(R.id.autoPlacement);
+        Button autoPlacementButton = (Button) findViewById(R.id.autoPlacement);// load button
         autoPlacementButton.setOnClickListener(view -> {
             runOnUiThread(clearButton::callOnClick);
             mList.clear();

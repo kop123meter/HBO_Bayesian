@@ -75,8 +75,8 @@ public class balancer implements Runnable {
     @Override
     public void run() {
 
-        boolean acc2model = true;// all AI throughput trained models and RE are accurate
-        //boolean accRe=true;// this is to check if the trained model for re is accurate
+        boolean accmodel = true;// all AI throughput trained models and RE are accurate
+        boolean accRe=true;// this is to check if the trained model for re is accurate
         boolean trainedTris = false;
         boolean trainedThr = false;
         boolean trainedRE = false;
@@ -104,8 +104,8 @@ public class balancer implements Runnable {
             meanDk /= objc;
             meanDkk /= objc;
 
-            meanDk = (double) (Math.round((double) (100 * meanDk))) / 100;
-            meanDkk = (double) (Math.round((double) (100 * meanDkk))) / 100;
+            meanDk = (double) Math.round((double) 100 * meanDk) / 100;
+            meanDkk = (double) Math.round((double) 100 * meanDkk) / 100;
 
 
             if (meanDkk == 0)
@@ -151,7 +151,7 @@ public class balancer implements Runnable {
 
             {
 
-                meanThr = (double) Math.round(meanThr * 100) / 100;
+                meanThr = (double) Math.round( (double)  meanThr * 100) / 100;
 
               //  int variousTris = mInstance.thr_models.get(aiIndx).keySet().size();
 
@@ -318,7 +318,7 @@ public class balancer implements Runnable {
 
 
                         //mInstance.est_weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
-                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
+                      //  accmodel = false;// after training we check to see if the model is accurate to then cal next triangle
                         mInstance.hAI_acc.set(aiIndx, false);
 
                         if (variousTris >= 3) {
@@ -345,24 +345,19 @@ public class balancer implements Runnable {
                     }
                     // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
                     mInstance.est_weights.set(aiIndx, sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2)) );// not normalized-> new(SQRT( (rohT^2+rohD^2)) -> this has not-normalized est_weights
-                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));//not normalized-> set the measured Wi = measured current throughput over baseline
 
-                     /*   I comment this, it doesn't work
-                      if(variousTris>=3){// we need a new accurate estimated weight based on  new(SQRT( (rohT^2+rohD^2))/old(SQRT( (rohT^2+rohD^2)) to see the change in magnitude value
-                        if(variousTris==3)// after we have the first trained model per AI -> update baseline estimated weight to the recent value but is not normalized
-                            mInstance.baseline_est_weights.set(aiIndx, mInstance.est_weights.get(aiIndx) );// updates baseline (at least two objects on screen)
+                    double ai_sensitivity=   Math.sqrt(  Math.pow (((meanThr-mInstance.baseline_AIthr.get(aiIndx))/totTris),2)  +
+                            Math.pow   ( ((meanThr-mInstance.baseline_AIthr.get(aiIndx))/meanDk ),2 ) ) ; // AI throughput sensitivity over change in tris and distance
+                    mInstance.msr_weights.set(aiIndx,ai_sensitivity);
+                    // old: mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));//not normalized-> set the measured Wi = measured current throughput over baseline
 
-                   else if(variousTris>3)// if we use =3, we'll have the result of est/est_baseline equal to zero
-                        mInstance.est_weights.set(aiIndx, 1- (mInstance.est_weights.get(aiIndx)/  mInstance.baseline_est_weights.get(aiIndx)) );//from 2nd object added, we'll have new estimated weights as the
-//                 This is a new idea compared to past formula of l2 normal, I wanted to search the change in normal2,but results in NAN, why? since for new tris slopes may not change, hence, it'd result in Zero and then Nan         function of change in bew weight compared to baseline estimated weight// this is not-normalized est_weights
 
-                    } */
 
 
                 } //Specific AI  throughput model
 
                 if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
-                    acc2model=false;
+                    accmodel=false;
 
                 writeThr(meanThr, predThr, trainedThr,aiIndx,mInstance.hAI_acc.get(aiIndx));// It has predicted and real throughput of task AI[index]
 
@@ -373,6 +368,9 @@ public class balancer implements Runnable {
         }// for all AI models we train throughput
         /*   Specific AI throughput is tested and now works
         * so far, all model's est_weights are calculated  */
+
+
+        double predWeighted_thr=0;
 
         if(variousTris>=3) { // at least two objects on the screen
           //  double max_w = Collections.max(mInstance.est_weights);// max of new estimated weight list
@@ -392,8 +390,12 @@ public class balancer implements Runnable {
 
          for (int i = 0; i < Ai_count; i++) {
 
-                mInstance.est_weights.set(i, mInstance.est_weights.get(i) / max_w);// this has Normalized est_weights
-                mInstance.msr_weights.set(i, mInstance.msr_weights.get(i) / max_msr_w);
+                double nrm_estW=  (double) Math.round((double) (mInstance.est_weights.get(i) / max_w) * 100) / 100;
+                mInstance.est_weights.set(i, nrm_estW);// this has Normalized est_weights
+
+                double nrm_msrW=  (double) Math.round((double) (mInstance.msr_weights.get(i) / max_msr_w) * 100) / 100;
+                mInstance.msr_weights.set(i, nrm_msrW);
+
                 //@@@@@@@@@@ correct this after weights are tested, since for PAI we need measured weights not estimated
                 double ms_wi = mInstance.msr_weights.get(i); // equal to normalized (cur_thr/baseline)
                 double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
@@ -407,37 +409,46 @@ public class balancer implements Runnable {
 
                 writeWeights(mInstance.hAI_acc.get(i),i);// write specific  weight after normalization
             }
+
+            // check even if AI models are not accurate, the measured weighted_H and estimated Weighted_H are close?
+            double msrd_Weighted_thr = sum_currentWt/Ai_count;// this is average weighted throughput of current period
+            msrd_Weighted_thr = (double) Math.round((double) msrd_Weighted_thr * 100) / 100;
+
+            mInstance.rohT= sum_rohT_wi/Ai_count;
+            mInstance.rohD=sum_rohD_wi/Ai_count;
+            mInstance.delta=sum_delta_wi/Ai_count;
+
+            predWeighted_thr = (mInstance.rohT * totTris) + (mInstance.rohD* pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+            predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
+
+            double w_mape = Math.abs((msrd_Weighted_thr - predWeighted_thr) / msrd_Weighted_thr);
+            w_mape=(double) Math.round((double)w_mape*100)/100 ;
+
+            write_weightedH(msrd_Weighted_thr,predWeighted_thr,w_mape*100, accmodel);
+
         }
         /*************************   calculate Normalized weighted P_AI*/
         // to normalize, we need to find the maximum weight and normalize all models over that. and then we calculate sum(Wi * Hi)
 
-        if( acc2model){ // we start to train RE and calculate next tris if H_i models are accurate
+
+
+
+        if( accmodel){ // we start to train RE and calculate next tris if H_i models are accurate
 
 
         //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
         mInstance.des_Thr= sum_baseWt/Ai_count;
 
-        double msrd_Weighted_thr=sum_currentWt/Ai_count;// this is average weighted throughput of current period
-
         /********************  calculated weighted P_AI*/
 
-/*
+
+
+            /*
 * ******************* calculate average AI throughput from weighted model ->
 *  roh'T= sigma(rohT_i * w^i)/N
 * roh'D= sigma(rohD_i * wi)/N
 * delta'= sigma(delta_i * wi)/N
  * */
-
-        mInstance.rohT= sum_rohT_wi/Ai_count;
-        mInstance.rohD=sum_rohD_wi/Ai_count;
-        mInstance.delta=sum_delta_wi/Ai_count;
-
-        double predWeighted_thr = (mInstance.rohT * totTris) + (mInstance.rohD* pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-        predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
-            double w_mape = 0.0;      //  sum of square error
-            w_mape = Math.abs((msrd_Weighted_thr - predWeighted_thr) / msrd_Weighted_thr);
-
-            write_weightedH(msrd_Weighted_thr,predWeighted_thr,w_mape);
 
 
         /* ******************* calculate average AI throughput from weighted model   ***********/
@@ -457,14 +468,14 @@ public class balancer implements Runnable {
 
 
                 double avgq = calculateMeanQuality();
-                double PRoAR = (double) Math.round((avgq / mInstance.des_Q) * 100) / 100;
+                double PRoAR = (double) Math.round( (double)  (avgq / mInstance.des_Q) * 100) / 100;
 
-                double PRoAI = (double) Math.round((sum_currentWt / sum_baseWt) * 100) / 100;// /n for nominator and denominator is removed
+                double PRoAI = (double) Math.round((double) (sum_currentWt / sum_baseWt) * 100) / 100;// /n for nominator and denominator is removed
                 //double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// for MIR
 
 
                 double reMsrd = PRoAR / PRoAI;
-                reMsrd = (double) Math.round(reMsrd * 100) / 100;
+                reMsrd = (double) Math.round((double) reMsrd * 100) / 100;
 
                 int reModSize = mInstance.trisRe.size(); // has real mean-throughput
 
@@ -597,13 +608,11 @@ public class balancer implements Runnable {
                     // current period
                     double predRE = mInstance.alphaT * totTris + mInstance.alphaD * pred_meanD + mInstance.alphaH * predWeighted_thr + mInstance.zeta; // for almost current period
 
-
 // nill added temp
-
 
                     mape = Math.abs((reMsrd - predRE) / reMsrd);// log this
                     if (mape > 0.1) {
-                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
+                        accRe = false;// after training we check to see if the model is accurate to then cal next triangle
                         if (variousTris >= 3) // this is to regulate throughput factor for decimated values
                             mInstance.re_miss_counter += 1;
 
@@ -640,7 +649,7 @@ public class balancer implements Runnable {
                     long time1 = 0;
                     long time2 = 0;
                     /* temp deactivate
-                    if (acc2model && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
+                    if (accRE && accmodel && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
                     {
 
                         time1 = System.nanoTime() / 1000000; //starting first loop
@@ -692,7 +701,7 @@ public class balancer implements Runnable {
 
 
                     }  *///if
-                    writeRE(reMsrd, predRE, trainedRE, totTris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, acc2model, mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
+                    writeRE(reMsrd, predRE, trainedRE, totTris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, (accmodel&accRe), mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
 
 
                 }           //  RE modeling and next tris
@@ -864,7 +873,7 @@ public class balancer implements Runnable {
 
                //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
                sensitivity[i] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));
-               tmper1 = (float) (Math.round((float) (tmper1 * 1000))) / 1000;
+               tmper1 = (float) Math.round((float) (tmper1 * 1000)) / 1000;
 
                 StringBuilder sb = new StringBuilder();
                 sb.append(dateFormat.format(new Date()));
@@ -944,13 +953,13 @@ public class balancer implements Runnable {
     }
 
 
-    public void write_weightedH( double msr, double pre, double wMape){ // AI throughput information for each task individually and response time for all models
+    public void write_weightedH( double msr, double pre, double wMape,boolean acc_model){ // AI throughput information for each task individually and response time for all models
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Weighted_throughput"+mInstance. fileseries+".csv";
         StringBuilder sb = new StringBuilder();
-        sb.append(dateFormat.format(new Date())); sb.append(',').append(msr+","+pre+","+wMape);
+        sb.append(dateFormat.format(new Date())); sb.append(',').append(msr+","+pre+","+wMape+","+acc_model);
 
         sb.append('\n');
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
@@ -1014,7 +1023,7 @@ public class balancer implements Runnable {
 //            else if(mInstance.renderArray.get(ind).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 //                curQ=0.3f;
 
-            float deg_error = (float) (Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000))) / 1000;
+            float deg_error = (float) Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000)) / 1000;
             float max_nrmd = mInstance.excel_maxd.get(i);
 
             float cur_degerror = deg_error / max_nrmd;
