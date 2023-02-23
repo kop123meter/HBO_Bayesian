@@ -345,15 +345,15 @@ public class Mir implements Runnable {
                 // predThr = mInstance.rohT * totTris + mInstance.rohD * pred_meanD + mInstance.delta; // uses the modeling
 
                 //predThr = (double) Math.round((double) predThr * 100) / 100;// uses predicted thr in current period to model it based on current measured RE
-                int reModSize = mInstance.trisRe.size(); // has real mean-throughput
+                int reModSize = mInstance.trisReMir.size(); // has real mean-throughput
 
                 if (reModSize < 4)// april 8{
                 {
 
                     cleanOutArraysRE(totTris, pred_meanD, mInstance);// check to remove extra value in the RE parameters list , substitue the newer one
-                    mInstance.trisRe.put(totTris, reMsrd);//correct:  has real re should have real throughout
+                    mInstance.trisReMir.put(totTris, reMsrd);//correct:  has real re should have real throughout
                     // use predicted current dis and predicted current throughput in the modeling
-                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predThr, 1.0)); // the two pred are coming from prev period (that were predicted for current period)
+                    mInstance.reParamListMir.put(totTris, Arrays.asList(totTris, pred_meanD, predThr, 1.0)); // the two pred are coming from prev period (that were predicted for current period)
                 }
 
 
@@ -365,28 +365,28 @@ public class Mir implements Runnable {
                     mape = Math.abs((reMsrd - fit) / reMsrd);
 
                     cleanOutArraysRE(totTris, pred_meanD, mInstance);
-                    mInstance.trisRe.put(totTris, reMsrd); // april 8
-                    mInstance.reParamList.put(totTris, Arrays.asList(totTris, pred_meanD, predThr, 1.0));
+                    mInstance.trisReMir.put(totTris, reMsrd); // april 8
+                    mInstance.reParamListMir.put(totTris, Arrays.asList(totTris, pred_meanD, predThr, 1.0));
 
                   //  /*nill commented  sep 7
 
                     if (mape > 0.10 && variousTris >= 2) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
 
 
-                        ListMultimap<Double, List<Double>> copyreParamList = ArrayListMultimap.create(mInstance.reParamList);// take a copy to then fill it for training up to capacity of 10
-                        ListMultimap<Double, Double> copytrisRe = ArrayListMultimap.create(mInstance.trisRe);// take a copy to then fill it for training up to capacity of 10
+                        ListMultimap<Double, List<Double>> copyreParamList = ArrayListMultimap.create(mInstance.reParamListMir);// take a copy to then fill it for training up to capacity of 10
+                        ListMultimap<Double, Double> copytrisRe = ArrayListMultimap.create(mInstance.trisReMir);// take a copy to then fill it for training up to capacity of 10
 
 
                        // This is to calculate mean of bins for distance, throughput ,...
-                        for (double curT : mInstance.trisRe.keySet()) {
+                        for (double curT : mInstance.trisReMir.keySet()) {
 
-                            if (curT != 0 && mInstance.trisRe.get(curT).size() < binCap) {
-                                int index = mInstance.trisRe.get(curT).size();
+                            if (curT != 0 && mInstance.trisReMir.get(curT).size() < binCap) {
+                                int index = mInstance.trisReMir.get(curT).size();
                                 double meanRE = 0, mmeanDK = 0, meanPrth = 0;
 
                                 for (int i = 0; i < index; i++) {
-                                    meanRE += mInstance.trisRe.get(curT).get(i);
-                                    List<Double> reParL = mInstance.reParamList.get(curT).get(i);
+                                    meanRE += mInstance.trisReMir.get(curT).get(i);
+                                    List<Double> reParL = mInstance.reParamListMir.get(curT).get(i);
                                     mmeanDK += reParL.get(1);
                                     meanPrth += reParL.get(2);
                                 }
@@ -451,7 +451,6 @@ public class Mir implements Runnable {
                         double[][] reRegParameters = copyreParamList.values().stream()
                                 .map(l -> l.stream().mapToDouble(Double::doubleValue).toArray())
                                 .toArray(double[][]::new);
-
 
 
 
@@ -631,12 +630,12 @@ public class Mir implements Runnable {
 // heap clean-> memory efficiency
                 if((variousTris % 8==0) && variousTris>2&& mInstance.cleanedbin==false )// every 5x times we check to clear the bins provided that the model is accurate
                 {
-                    mInstance.reParamList.clear();
+                    mInstance.reParamListMir.clear();
                     mInstance.trisMeanDisk_Mir.clear();
                     mInstance.trisMeanThr.clear();
                     mInstance.thParamList_Mir.clear();
-                    mInstance.trisRe.clear();
-                    mInstance.reParamList.clear();
+                    mInstance.trisReMir.clear();
+                    mInstance.reParamListMir.clear();
                     // to start over data collection
 
                     mInstance.decTris.clear();
@@ -685,10 +684,10 @@ public class Mir implements Runnable {
                     .toArray();
             index= findClosest(disArray , predDis);// the index of value needed to be deleted
             // since we add if objcount != zero to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
-           if(index<mInstance.trisRe.get(totTris).size() &&  index<mInstance.reParamList.get(totTris).size())
+           if(index<mInstance.trisReMir.get(totTris).size() &&  index<mInstance.reParamListMir.get(totTris).size())
             {
-                mInstance.trisRe.get(totTris).remove(index);
-            mInstance.reParamList.get(totTris).remove(index);
+                mInstance.trisReMir.get(totTris).remove(index);
+            mInstance.reParamListMir.get(totTris).remove(index);
             }
         }
 

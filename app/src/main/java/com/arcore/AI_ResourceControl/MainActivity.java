@@ -78,7 +78,11 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimap;
 
 import java.lang.Math;
 import java.io.InputStream;
@@ -156,7 +160,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     StringBuilder tasks = new StringBuilder();
 
 
-    //$$$$$$$$$$$$$$$$$$$ for MIRE-extended
+    //$$$$$$$$$$$$$$$$$$$ for XMIRE-
     ListMultimap<Integer, Double> modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
     ListMultimap<Integer, Double> total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
 
@@ -172,21 +176,22 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     List<Double> baseline_AIthr= new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
     List<Double> est_weights= new ArrayList<>();// this is a list of normalized  estimated weights
-    List<Double> msr_weights= new ArrayList<>();// this is a list of normalized measured weights
+//    List<Double> msr_weights= new ArrayList<>();// this is a list of normalized measured weights
 
     List<Double> baseline_est_weights= new ArrayList<>();// the accuracy of AI throughput model
 
     List<Integer> rsp_miss_counter=new ArrayList<>();
     List<Integer> thr_miss_counter=new ArrayList<>();
-    List<ListMultimap<Double, Double>> thr_models= new ArrayList<>();// map from each model to throughput an Tris
-
+    List<Multimap<Double, Double>> thr_models= new LinkedList<>();// map from each model to throughput an Tris -> has HASHEDMULTIMAP that preserves order of insersion
+    // List<LinkedHashMultimap<Double, Double>> thr_models= new ArrayList<>();
+//    Multimap<Double, Double> hm = LinkedHashMultimap.create();
 
     int thr_miss_counter1=0;
     double last_tris=0;
     //$$$$$$$$$$$$$$
     double des_Q= 0.7; //# this is avg desired Q
     double des_Thr = 35; // 0.65*throughput; in line 2063,
-    List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // to hold list of response time
+    List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // LinkedHashMultimap to keep order of insersion to hold list of response time
     List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
 
     ListMultimap<Double, List<Double>> thParamList_Mir = ArrayListMultimap.create();
@@ -206,9 +211,12 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     ListMultimap<Double, Double> trisMeanDisk_Mir = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
 
 
-    ListMultimap<Double, Double> trisRe = ArrayListMultimap.create();//  a map from tot tris to measured RE
-    ListMultimap<Double, List<Double>> reParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
+    Multimap<Double, Double> trisRe= LinkedHashMultimap.create();
+           // new LinkedList<>(); // to hold list of throughput
 
+    ListMultimap<Double, Double> trisReMir = ArrayListMultimap.create();//  a map from tot tris to measured RE
+    ListMultimap<Double, List<Double>> reParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
+    ListMultimap<Double, List<Double>> reParamListMir =ArrayListMultimap.create();
 
     int lastConscCounter=0; // counts the number of consecutive change in tris count, if we reach 5 we will change the tris
     int acc_counter=0;
@@ -217,10 +225,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double rohD=0.0001;
     double delta=66.92;
     double thRmse;
-    double des_weight=0.3;
+    double des_weight=0.5;
     //for RE modeling and algorithm
 
-    int orgTrisAllobj=0;
+    double orgTrisAllobj=0d;
     public int objectCount = 0;
     private String[] assetList = null;
     //private Integer[] objcount = new Integer[]{1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 160, 170, 180, 190, 200, 220, 240, 260, 300, 340, 380, 430, 500};
@@ -246,11 +254,12 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
-    private int scenarioTickLength = 24000;
+    private int scenarioTickLength = 50000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
+    //value to make sure tris change from object addition will not affect data collection in balancer.java (it collects data of recent tris)
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();
     private String currentTaskConfig = null;
-    private int taskConfigTickLength = 30000;
+    private int taskConfigTickLength = 50000;
     private int pauseLength = 10000;
 
     double thr_factor=0.6;
@@ -281,6 +290,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     int decision_p=1;
     List<Integer> o_tris = new ArrayList<>();
 
+    double initial_meanD=0;
+    double initial_totT=0;
 
     List<Float> prevquality = new ArrayList<>();
     Process process2;
@@ -327,7 +338,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     float max_d_parameter=0.2f;
 
 //@@@ periodicTotTris of main instance is changed not actual main-> to access it always use getInstance.periodicTotTris
-    List<Double> preiodicTotTris= new ArrayList<Double>();// to collect triangle count every 500 ms
+    List<Double> totTrisList= new ArrayList<Double>();// to collect triangle count every 500 ms
+
     //double l
 
     float area_percentage=0.5f;
@@ -794,14 +806,24 @@ else{
 
                    rsp_models.clear();
                     thr_models.clear();
+//                    trisRe=LinkedHashMultimap.create();
+
                 //    trisMeanDisk=( ArrayListMultimap.create());
 //                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
                     for (AiItemsViewModel taskView : mList) { // up to the count of AI models we add values to lists below for parameters and slopes and baseline-throughput
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
                         rsp_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
-                        thr_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
-                        thParamList.add( ArrayListMultimap.create());
                         tParamList.add( ArrayListMultimap.create());
+
+                        thr_models.add(LinkedHashMultimap.create()); //LinkedHashMultimap guarantees to keep the insertion order for keys and values.... we want to have just this in order since the rest multimaps would
+                        // be OK pnce we know what is the first key (tris) added for thr_model and we use it to remove the older data from other hashmaps even if they are not in order
+                        // for each model we create a map of tris_thr that we had in MIR
+                        thParamList.add( ArrayListMultimap.create()); //  ArrayListMultimap only guarantees to keep the insertion order for values within a key, not key order
+
+
+
+                       // thParamList.add( ArrayListMultimap.create());
+                       // tParamList.add( ArrayListMultimap.create());
 
                         rohDL.add(rohD);// the weight  for throughput modeling
                         rohTL.add(rohT);
@@ -809,9 +831,9 @@ else{
                         rsp_miss_counter.add(0);
                         thr_miss_counter.add(0);
                         baseline_AIthr.add(0d);
-                        est_weights.add(0d);
-                        baseline_est_weights.add(0d);
-                        msr_weights.add(0d);
+                        est_weights.add(1d);
+                        baseline_est_weights.add(1d);// not used
+                        //msr_weights.add(0d);
                         hAI_acc.add(false);
                     }
 
@@ -1112,7 +1134,7 @@ else{
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
 
             StringBuilder sbb = new StringBuilder();
-            sbb.append("time,msr_thr,pred_thr,").append("percentage_error,").append("All_AI_accuracy,");
+            sbb.append("time,AVG_msr_thr,AVG_pred_thr,percentage_error,Weighted_msr_thr,Weighted_pred_thr,").append("All_AI_accuracy,");
 
             sbb.append('\n');
             writer.write(sbb.toString());
@@ -1605,31 +1627,11 @@ else{
 
 
 
-
-
-
-//                for (int i=0;i<mList.size();i++){
-//
-////                    modelMeanRsp.get(i).clear();
-////                    total_triangle.get(i).clear();
-//
-//                    coeff_total_triangle.put(i, (double) total_tris);
-//                    coeff_modelMeanRsp.put(i, 1000/mList.get(i).getThroughput());
-//
-//
-//                }
-
                     float original_tris=excel_tris.get(excelname.indexOf(currentModel));
                     renderArray.add(objectCount,new decimatedRenderable(modelSpinner.getSelectedItem().toString(),original_tris));
 
 
 
-
-//                try {
-//                    Thread.sleep(30);// to delay model addition
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
                 addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount));
                    
 
@@ -1702,6 +1704,8 @@ else{
 
                                         // update total_tris
                                         total_tris = total_tris + (ratioArray.get(i) * ((double)(o_tris.get(i))/tris_factor) );// total = total + 0.8*objtris
+                                    totTrisList.add(total_tris);
+
                                     //    trisDec.put(total_tris,true);
                                     if (!decTris.contains(total_tris)) {
                                         decTris.add(  total_tris);
@@ -1836,7 +1840,7 @@ else{
 
                 //  removePreviousAnchors(); // from net wrong
                 ModelRequestManager.getInstance().clear();
-               // totTrisList.clear();
+                totTrisList.clear();
                 predicted_distances.clear();
                 quality_log.clear();
                 orgTrisAllobj=0;
@@ -1885,7 +1889,7 @@ else{
                 tParamList.clear();
                 thParamList.clear();
                 trisRe.clear();
-                reParamList.clear();
+
                 // to start over data collection
 
                 decTris.clear();
@@ -2300,9 +2304,47 @@ else{
 
                             if(odraAlg=="1")// either choose the baseline or odra algorithm
 
+
                             {
+/*
+///nil test multimap to see insertion ordr is reserved or not
+                                Multimap<Double, Double> hm = LinkedHashMultimap.create();
+
+                                Multimap<Double, Double> hm2 =  ArrayListMultimap.create();
+                                // putting elements
+                                hm.put(0d, 1000d);
+                                hm.put(0d, 1d);
+                                hm.put(400d, 40d);
+                                hm.put(200d, 20d);
+                                hm.put(0d, 100d);
+                                hm.put(200d, 2000d);
+
+                                hm2.put(0d, 1000d);
+                                hm2.put(0d, 1d);
+                                hm2.put(400d, 40d);
+                                hm2.put(200d, 20d);
+                                hm2.put(0d, 100d);
+                                hm2.put(200d, 2000d);
+
+                                // printing LinkedHashMap
+
+                                double firstK=Iterables.getFirst( hm.keys(), null);
+                                double lastKey= Iterables.getLast( hm.keys(), null);// to get last key in hashmap
+                                double secondVal=Iterables.get(hm.get(200d),1); // to get any index of value set of a key
+
+                                List<Double> test= hm.get(1d).stream().collect(Collectors.toList());
+                                double avg= hm.get(1d).stream().mapToDouble(a -> a).average().getAsDouble();
+                                hm.removeAll(firstK);
+                                hm.removeAll(lastKey);
+                                for (Map.Entry<Double, Double> entry :
+                                        hm.entries()) {
+                                    System.out.println(entry.getKey() + " => "
+                                            + ": " + entry.getValue());
+                                }*/
+                                /// nill test
+
                                 new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
-                                //new balancer1(MainActivity.this).run(); // this has just throughput model to tris and uses rohT slope as estimated weight
+
 
                             }
 
@@ -2319,6 +2361,9 @@ else{
                 },
                 0,      // run first occurrence immediately
                 2000);
+
+
+
 
 
 
@@ -3839,6 +3884,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
         o_tris.add( (Integer) excel_tris.get(indq));
         // update total_tris
         total_tris+=   (  ((double)o_tris.get(objectCount) )/tris_factor)   ;
+        orgTrisAllobj+=   (  ((double)o_tris.get(objectCount) )/tris_factor);
 
         d1_prev.add(objectCount, 0f);
 
@@ -3846,7 +3892,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
         curTrisTime= SystemClock.uptimeMillis();
         //lastQuality.add(1f);// initialize
-        orgTrisAllobj+=( ((double)o_tris.get(objectCount))/tris_factor);
+
 
         //  Camera2BasicFragment .getInstance().update( (double) total_tris);// run linear reg
 

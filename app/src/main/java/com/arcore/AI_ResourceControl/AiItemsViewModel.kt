@@ -20,7 +20,9 @@ class AiItemsViewModel {
 //        "MN v1 0.25 Q 128", "mnasnet" ,"Inception v4 Quant", "Inception v4 Float", "Mobilenet v2 Float",
 
         "efficientclass-lite0",
-        "inception_v1_224_quant", "mobilenetClassv1",
+        "inception_v1_224_quant",
+       // "inception",
+        "mobilenetClassv1",
         "deeplabv3",
         //"lite-model_deeplabv3-xception65-ade20k",
 

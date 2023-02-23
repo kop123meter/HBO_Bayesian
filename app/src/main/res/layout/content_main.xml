@@ -87,7 +87,7 @@
             android:layout_marginRight="36dp"
 
             android:text="GC"
-            android:visibility="visible"
+            android:visibility="invisible"
             app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 

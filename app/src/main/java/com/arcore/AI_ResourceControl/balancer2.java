@@ -1,9 +1,15 @@
-/////temp deactivate
-///**
+// ///
+// /**
+//  * This is old balancer with per AI model trained considering all the bins not the updated ones
+//  * the measured W is omitted and instead we rely on estimated one. the problem with this code is that
+//  * 1- Wi_estimated does not change much along time because rohT and rohD of each model is trained for all points (even old data)
+//  * 2- when Wi_estimated comes from even past/obsolated data, it might happen that the order of AI models in terms of triangles impact is not accurate
+//  *
+//  * This is to test if we can use weight from linear regression of model specific : thr and dis-vs tris
 //
-// */
-///*This is equal to balancer, but just has throughput vs tris model for each AI modeling and uses rohT as the estimated wi */
-////throughput model to tris and uses rohT slope as estimated weight
+//  */
+//
+//
 //package com.arcore.AI_ResourceControl;
 ///*This code has relation ship between AI throughput and distance and triangle count*/
 //import java.io.File;
@@ -20,17 +26,19 @@
 //import java.util.LinkedList;
 //import java.util.List;
 //import java.util.Map;
-//import java.util.Optional;
+//import java.util.OptionalDouble;
 //import java.util.stream.Collectors;
 //
 //import static java.lang.Math.abs;
 //import static java.lang.Math.pow;
 //import static java.lang.Math.sqrt;
 //
+//import android.annotation.SuppressLint;
+//
 //import com.google.common.collect.ArrayListMultimap;
 //import com.google.common.collect.ListMultimap;
 //
-//public class balancer1 implements Runnable {
+//public class balancer2 implements Runnable {
 //
 //    int binCap=5;
 //    private final MainActivity mInstance;
@@ -48,10 +56,10 @@
 //    int sleepTime=60;
 //    //float candidate_obj[] = new float[total_obj];
 //    float tMin[] ;
-//    // int aiIndx;
+//   // int aiIndx;
 //
 //
-//    public balancer1(MainActivity mInstance) {
+//    public balancer2(MainActivity mInstance) {
 //
 //        this.mInstance = mInstance;
 //
@@ -59,8 +67,8 @@
 //        sensitivity = new float[objC];
 //        tris_share = new float[objC];
 //        objquality= new float[objC];// 1- degradation-error
-//        // aiIndx=ai_index;
-//        //model_index;
+//       // aiIndx=ai_index;
+//                //model_index;
 //
 //        //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
 //        fProfit= new float[objC][coarse_Ratios.length];
@@ -72,11 +80,12 @@
 //
 //    }
 //
+//    @SuppressLint("SuspiciousIndentation")
 //    @Override
 //    public void run() {
 //
-//        boolean acc2model = true;// all AI throughput trained models and RE are accurate
-//        //boolean accRe=true;// this is to check if the trained model for re is accurate
+//        boolean accmodel = true;// all AI throughput trained models and RE are accurate
+//        boolean accRe=true;// this is to check if the trained model for re is accurate
 //        boolean trainedTris = false;
 //        boolean trainedThr = false;
 //        boolean trainedRE = false;
@@ -86,28 +95,34 @@
 //        double meanDk = 0; // mean current dis
 //        double meanDkk = 0; // mean of d in the next period-> you need to cal the average of predicted d for all the objects
 //        double pred_meanD = mInstance.pred_meanD_cur; // for next 1 sc
+//        boolean fault_thr=false;
 //
 //
 //
 //
 //
-//
-//        for (int i = 0; i < mInstance.objectCount; i++) {
+//      for (int i = 0; i < mInstance.objectCount; i++) {
 //            double cur_dis=(double) mInstance.renderArray.get(i).return_distance();
-//            meanDk += cur_dis;
-//            meanDkk += mInstance.predicted_distances.get(i).get(1); // 0: next 1 sec, 1: next 2s :  // gets the first time, next 2s-- 3s of every object, ie. d1 of every obj
+//               meanDk += cur_dis;
+//                meanDkk += mInstance.predicted_distances.get(i).get(1); // 0: next 1 sec, 1: next 2s :  // gets the first time, next 2s-- 3s of every object, ie. d1 of every obj
 //
 //        }
 //
 //        int objc= mInstance.objectCount;
+//        totTris = mInstance.total_tris;
+//
+//
 //        if(objc>0) {
 //            meanDk /= objc;
 //            meanDkk /= objc;
 //
-//            meanDk = (double) (Math.round((double) (100 * meanDk))) / 100;
-//            meanDkk = (double) (Math.round((double) (100 * meanDkk))) / 100;
+//            meanDk = (double) Math.round((double) 100 * meanDk) / 100;
+//            meanDkk = (double) Math.round((double) 100 * meanDkk) / 100;
 //
-//
+//            if(objc==1) {
+//                mInstance.initial_meanD = meanDk;
+//                mInstance.initial_totT=totTris;
+//            }
 //            if (meanDkk == 0)
 //                meanDkk = meanDk;
 //            if (pred_meanD == 0)
@@ -119,9 +134,9 @@
 //
 //        //I got an error for regression since decimation occurs in UI thread and Modeling runs at the same time
 //        // solution is to start data collection after one period passes from algorithm
-//        // else{ // just collect data when algorithm was applied in the last period
+// // else{ // just collect data when algorithm was applied in the last period
 //
-//        totTris = mInstance.total_tris;
+//
 //
 //        double sum_currentWt= 0; // this is to calculate est_weights for AI models
 //        double sum_baseWt= 0;
@@ -135,25 +150,30 @@
 //        int variousTris = mInstance.trisMeanDisk.keySet().size();
 //
 //
-//        // add crrent distance one time
-//        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+//        double avg_msred_H=0; // is equal to sum(msr_Hi)/N -> reset every period
+//        double avg_est_H=0; // is equal to sum(H^i)/N -> reset every period
 //
+//       // mInstance.trisMeanDisk.put(totTris, pred_meanD); //one-time correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+//// this gets above bincap sooner than the rest of lists, so, we need to keep the size not more than 5
 //
-//            int Ai_count= mInstance.mList.size();
+//        int Ai_count= mInstance.mList.size();
 //        for (int aiIndx=0; aiIndx<Ai_count;aiIndx++) {
 //
 //            double predThr=0;
-//            boolean ai_accuracy=true; // the accuracy of specific model
+//
 //
 //            meanThr = mInstance.getThroughput(aiIndx);// after the objects are decimated
+//            while(meanThr > 150 || meanThr <1) // we wanna get a correct value
+//                meanThr = mInstance.getThroughput(aiIndx);// after the objects are decimated
+//            //if (meanThr < 120 && meanThr > 1)
 //
-//            if (meanThr < 120 && meanThr > 1) {
 //
-//                meanThr = (double) Math.round(meanThr * 100) / 100;
+//            meanThr = (double) Math.round( (double)  meanThr * 100) / 100;
 //
-//                //  int variousTris = mInstance.thr_models.get(aiIndx).keySet().size();
 //
-//                if (variousTris == 1) {// this is to update the baseline throughput per models
+//              //  int variousTris = mInstance.thr_models.get(aiIndx).keySet().size();
+//
+//            if (variousTris == 1) {// this is to update the baseline throughput per models
 //                    // we have no triangle count on screen
 //
 //                    if (mInstance.baseline_AIthr.get(aiIndx) == 0)
@@ -165,30 +185,30 @@
 //                }
 //
 //
+//
+//
 //// this is thr calculated using the modeling
-//                predThr = (mInstance.rohTL.get(aiIndx) * totTris)  + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+//                predThr = (mInstance.rohTL.get(aiIndx) * totTris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
 //                predThr = (double) Math.round((double) predThr * 100) / 100;
 //
 ////            writeThr(meanThr, predThr, trainedThr);// for the urrent period
 //
 //                int ind = -1;
-//                if (variousTris < 2) { // one object on the screen
+//                if (variousTris < 2) { // no object on the screen
 //
-//                    if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap) { // we keep inf of last 10 points
+//                    if (mInstance.thr_models.get(aiIndx).get(totTris).size() == binCap)  // we keep inf of last 10 points
 //                        cleanOutArraysThr(totTris, pred_meanD, mInstance,aiIndx);// cleans out the closest data to the curr one
 //
-//                    }
 //
-//                    mInstance.thr_models.get(aiIndx).put(totTris, meanThr); //correct:  should have real throughput for the regression
+//
+//                    mInstance.thr_models.get(aiIndx).put(totTris, meanThr); //adds to the end of list correct:  should have real throughput for the regression
 //                    // uses predicted cur distance for thr modeling
 //                    mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
 //
-//                    //temp to test : added to check thr model just with tris
-//                    mInstance.tParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
 //
-//
-////                     if(aiIndx==0) // this prevents a crash since we don't add to tris-meankK everytime, just for one time
-////                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //should be called one-time per decision period not per AI task since it is the distance of all AI tasks
+//                  //correct:  should have predicted value removes from the head (older data) -> to then add to the tail
+//                  if(aiIndx==0) // this prevents a crash since we don't add to tris-meankK everytime, just for one time + also needed to be removed in clear function one time
+//                     mInstance.trisMeanDisk.put(totTris, pred_meanD); //should be called one-time per decision period not per AI task since it is the distance of all AI tasks
 //
 //                }
 //
@@ -198,8 +218,8 @@
 //
 //// checks error of the model after new added model
 //                    double mape = 0.0; // mean of absolute error
-//                    double fit = (mInstance.rohTL.get(aiIndx) * totTris) + mInstance.deltaL.get(aiIndx); // fit is predicted current throughput should be predicted distance (we have next 1 sec but ok since we don't move)  for current period
-//
+//                    double fit = (mInstance.rohTL.get(aiIndx) * totTris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx); // fit is predicted current throughput should be predicted distance (we have next 1 sec but ok since we don't move)  for current period
+//                    //double fit = mInstance.thSlope * totTris + mInstance.thIntercept;;
 //                    mape = abs((meanThr - fit) / meanThr);// this is correct to calculate error coming from real throughput vs model
 //
 //                    // should have data collection any way
@@ -208,20 +228,19 @@
 //                    }
 //                    mInstance.thr_models.get(aiIndx).put(totTris, meanThr); // corrrect: should have real throughput for regression and thr param should have predicted distance
 //                    mInstance.thParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, pred_meanD, 1.0));
-//                    //temp to test
-//                    mInstance.tParamList.get(aiIndx).put(totTris, Arrays.asList(totTris, 1.0));
 //
-////                    if(aiIndx==0)// add crrent distance one time
-////                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
+//                    if(aiIndx==0) // this prevents a crash since we don't add to tris-meankK everytime, just for one time + also needed to be removed in clear function one time
+//                        mInstance.trisMeanDisk.put(totTris, pred_meanD); //should be called one-time per decision period not per AI task since it is the distance of all AI tasks
+//
+//
+//                    if(mape>0.1)
+//                        mInstance.hAI_acc.set(aiIndx,false);
 //
 //
 //                    ///  nil  to train model
-//                    if (mape > 0.1 && variousTris >= 2) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
+//                    if (mape > 0.1 && variousTris >= 3) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
 //
 //                        ListMultimap<Double, List<Double>> copythParamList = ArrayListMultimap.create(mInstance.thParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
-//                        // temp to test
-//                        copythParamList = ArrayListMultimap.create(mInstance.tParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
-//
 //                        ListMultimap<Double, Double> copytrisMeanThr = ArrayListMultimap.create(mInstance.thr_models.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
 //
 //                        // to fill un-filled bins with mean data and have fair data training
@@ -245,12 +264,7 @@
 //                                for (int j = index; j < binCap; j++) {
 //
 //                                    copytrisMeanThr.put(curT, mmeanTh);
-//
-//                                    //@@@ uncomment next line temp to test
-//                                    copythParamList.put(curT, Arrays.asList(curT, 1.0)); // this is to calculate the mean of values in the bins so it's correct
-//
-//                                    //@@@ commented temp to test
-////                                    copythParamList.put(curT, Arrays.asList(curT, mmeanDK, 1.0)); // this is to calculate the mean of values in the bins so it's correct
+//                                    copythParamList.put(curT, Arrays.asList(curT, mmeanDK, 1.0)); // this is to calculate the mean of values in the bins so it's correct
 //
 //                                }
 //                            }// if <10
@@ -299,15 +313,10 @@
 //                        mLinearRegression regression = new mLinearRegression(thRegParameters, y);
 //                        if (!Double.isNaN(regression.beta(0))) {
 //
-//
-//                            //added temp to test
-//                            mInstance.rohTL.set(aiIndx, regression.beta(0));
-//                            mInstance.deltaL.set(aiIndx, regression.beta(1)  );
-//                            // commented temp to test
-//                        /*     mInstance.rohTL.set(aiIndx, (double) Math.round( (double)regression.beta(0)*100  )/100     );
-//                           mInstance.rohDL.set(aiIndx,  (double) Math.round( (double)regression.beta(1) *100 )/100 );
-//                            mInstance.deltaL.set(aiIndx, (double) Math.round( (double) regression.beta(2)*100)/100  );*/
-//
+//                            mInstance.rohTL.set(aiIndx, (double) Math.round( (double)regression.beta(0)*100  )/100     );
+//                            mInstance.rohDL.set(aiIndx,  (double) Math.round( (double)regression.beta(1) *100 )/100 );
+//                            mInstance.deltaL.set(aiIndx, (double) Math.round( (double) regression.beta(2)*100)/100  );
+//                            //mInstance.thRmse = regression.rmse;
 //                            trainedThr = true;
 //
 //                        }
@@ -322,16 +331,16 @@
 //
 //
 ////                  specific AI throughput after remodeling
-//                    predThr = (mInstance.rohTL.get(aiIndx) * totTris) +  mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+//                    predThr = (mInstance.rohTL.get(aiIndx) * totTris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
 //                    predThr = (double) Math.round((double) predThr * 100) / 100;
 //
 //
 //                    mape = abs((meanThr - predThr) / meanThr);
 //                    if (mape > 0.1) {
 //
-//                        ai_accuracy=false;
+//
 //                        //mInstance.est_weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
-//                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
+//                      //  accmodel = false;// after training we check to see if the model is accurate to then cal next triangle
 //                        mInstance.hAI_acc.set(aiIndx, false);
 //
 //                        if (variousTris >= 3) {
@@ -357,106 +366,181 @@
 //
 //                    }
 //                    // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
-//                    mInstance.est_weights.set(aiIndx,  mInstance.rohTL.get(aiIndx) );// this has not-normalized est_weights
-//                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));// set the measured Wi = measured current throughput over baseline
-//                    //@@ we need to have measured weights based on the level of affected throughput so we use 1- hI/hBase
+//                    mInstance.est_weights.set(aiIndx, sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2)) );// not normalized-> new(SQRT( (rohT^2+rohD^2)) -> this has not-normalized est_weights
+//
+//
+//                   /* we don't use measured weight anymore since it's not accurate to use just a start and end point to measure w
+//                    double ai_sensitivity;
+//                    if(variousTris==2)
+//                         ai_sensitivity=   Math.sqrt(  Math.pow (((meanThr-mInstance.baseline_AIthr.get(aiIndx))/totTris),2)  +
+//                            Math.pow   ( ((meanThr-mInstance.baseline_AIthr.get(aiIndx))/meanDk ),2 ) ) ; // AI throughput sensitivity over change in tris and distance
+//
+//                    else{
+//
+//                        double iniTris=mInstance.initial_totT;// tris of first object in which throughput data is collected
+//                        double initial_thr = mInstance.thr_models.get(aiIndx).get(iniTris).get(0);// throughput data corresponds to initial tris for each AI model
+//                        ai_sensitivity=   Math.sqrt(  Math.pow (((meanThr-initial_thr )/(totTris- iniTris ) ),2)  +
+//                                Math.pow   ( ((meanThr- initial_thr )/(meanDk-mInstance.initial_meanD) ),2 ) ) ; // AI throughput sensitivity over change in tris and distance
+//
+//                    }
+//
+//                    if(ai_sensitivity==0){
+//                        // stop
+//                        int x=0;
+//                    }
+//
+//
+//                    mInstance.msr_weights.set(aiIndx,ai_sensitivity);
+//                    // old: mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));//not normalized-> set the measured Wi = measured current throughput over baseline
+//*/
+//
+//
 //
 //                } //Specific AI  throughput model
-//            }
-//            else
-//                mInstance.hAI_acc.set(aiIndx,false); // since the model is not trained
 //
-//            if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
-//                acc2model=false;
+//                if(mInstance.hAI_acc.contains(false))// if atleast one model has inaccurate throughput model, we don't train RE model below
+//                    accmodel=false;
 //
-//            writeThr(meanThr, predThr, trainedThr,aiIndx,ai_accuracy);// It has predicted and real throughput of task AI[index]
+//
+//                avg_est_H+=predThr;
+//
+//                avg_msred_H+=meanThr;
+//
+//                writeThr(meanThr, predThr, trainedThr,aiIndx,mInstance.hAI_acc.get(aiIndx));// It has predicted and real throughput of task AI[index]
+//
+//
+//            //else
+//              //  fault_thr=true; // the measured throughput could be zero or a very large num--> faulty data
 //
 //        }// for all AI models we train throughput
 //        /*   Specific AI throughput is tested and now works
-//         * so far, all model's est_weights are calculated  */
+//        * so far, all model's est_weights are calculated  */
 //
-//        if(variousTris>=2) { // at least two objects on the screen
-//            //double max_w = Collections.max(mInstance.est_weights);// max of estimated weight list
+//
+//
+//        avg_msred_H/=Ai_count; // this is average of all model's measured throughput
+//        avg_est_H/=Ai_count;//this is average of all estimated model throughput
+//        avg_est_H =  (double) Math.round((double) avg_est_H * 100) / 100;
+//        avg_msred_H =  (double) Math.round((double) avg_msred_H * 100) / 100;
+//
+//        double predWeighted_thr=0;
+//
+//        if(variousTris>=2) { // at least one object on the screen
+//          //  double max_w = Collections.max(mInstance.est_weights);// this is max without considering magnitude, so -5<-2
 //            double max_w = Collections.max(  mInstance.est_weights, new Comparator<Double>() { // returns max of absolute value of weights
-//                @Override
-//                public int compare(Double x, Double y) {
-//                    return Math.abs(x) < Math.abs(y) ? -1 : 1;
-//                }
+//                        @Override
+//                        public int compare(Double x, Double y) {
+//                            return Math.abs(x) < Math.abs(y) ? -1 : 1;
+//                        }});
 //
-//            });
+////          double max_msr_w = Collections.max(  mInstance.msr_weights, new Comparator<Double>() { // returns max of absolute value of weights
+////                            @Override
+////                            public int compare(Double x, Double y) {
+////                                return Math.abs(x) < Math.abs(y) ? -1 : 1;
+////                            }});
 //
-//            double max_msr_w = Collections.max(mInstance.msr_weights); // normalize measured weights
-//            for (int i = 0; i < Ai_count; i++) {
+//         for (int i = 0; i < Ai_count; i++) {
 //
-//                mInstance.est_weights.set(i, mInstance.est_weights.get(i) / max_w);// this has Normalized est_weights
-//                //@@@@@@@@@@this is a wrong wi-> correct this after weights are tested, since for PAI we need measured weights not estimated
-//                double wi = mInstance.est_weights.get(i);
-//                double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
-//                sum_currentWt += (wi * thr); //sum(Normalized msrd(Wi) * Hi)
-//                sum_baseWt += (wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+//                double nrm_estW=  (double) Math.round((double) (mInstance.est_weights.get(i) / max_w) * 100) / 100;
+//                mInstance.est_weights.set(i, nrm_estW);// this has Normalized est_weights
+//                double est_wi=mInstance.est_weights.get(i);// equal to normalized (sqrt(rohT^2 + rohD^2))
+////                double nrm_msrW=  (double) Math.round((double) (mInstance.msr_weights.get(i) / max_msr_w) * 100) / 100;
+////                mInstance.msr_weights.set(i, nrm_msrW);
 //
-//                sum_rohT_wi += (wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
-//                sum_rohD_wi += (wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)
-//                sum_delta_wi += (wi * mInstance.deltaL.get(i));//sigma(delta_i * wi)
+//                //@@@@@@@@@@ correct this after weights are tested, since for PAI we need measured weights not estimated
+////                double ms_wi = mInstance.msr_weights.get(i); // equal to normalized (cur_thr/baseline)
 //
-//                mInstance.msr_weights.set(i, mInstance.msr_weights.get(i) / max_msr_w);
+//                double msr_thr=  mInstance.thr_models.get(i).get(totTris).get( mInstance.thr_models.get(i).get(totTris).size()-1);// get the last/current value
+//                        //mInstance.thr_models.get(i).get(totTris).stream().mapToDouble(f -> f.doubleValue()).average().getAsDouble();// average of measured throughput in bin
+//
+//               // double msr_thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
+//                sum_currentWt += (est_wi * msr_thr); //est_wi instead of ms_wi
+//                sum_baseWt += (est_wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+//
+//
+//                sum_rohT_wi += ( est_wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
+//                sum_rohD_wi += (est_wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)
+//                sum_delta_wi += (est_wi * mInstance.deltaL.get(i));//sigma(delta_i * wi)
 //
 //                writeWeights(mInstance.hAI_acc.get(i),i);// write specific  weight after normalization
 //            }
+//
+//
+//            // check even if AI models are not accurate, the measured weighted_H and estimated Weighted_H are close?
+//            double total_est_weights = mInstance.est_weights.stream().mapToDouble(f -> f.doubleValue()).sum();
+//
+//            double msrd_Weighted_thr = sum_currentWt/total_est_weights;// this is average weighted throughput of current period
+//            msrd_Weighted_thr = (double) Math.round((double) msrd_Weighted_thr * 100) / 100; // sum of estimated weights
+//
+//
+//
+//            mInstance.rohT= sum_rohT_wi/total_est_weights;
+//            mInstance.rohD=sum_rohD_wi/total_est_weights;
+//            mInstance.delta=sum_delta_wi/total_est_weights;
+//
+//            predWeighted_thr = (mInstance.rohT * totTris) + (mInstance.rohD* pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
+//            predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
+//
+//            // the accuracy of average measured weighted thr vs estimated weighted throughput
+//            //double w_mape = Math.abs((msrd_Weighted_thr - predWeighted_thr) / msrd_Weighted_thr);
+//            //w_mape=(double) Math.round((double)w_mape*100)/100 ;
+//
+//
+//            // the accuracy of average measured and estimated throughput
+//            double model_mape = Math.abs((avg_msred_H - avg_est_H) / avg_msred_H);
+//            model_mape=(double) Math.round((double)model_mape*100)/100 ;
+//
+//            write_weightedH( avg_msred_H ,avg_est_H ,msrd_Weighted_thr,predWeighted_thr,model_mape*100, accmodel);
+//
+//
+//
 //        }
 //        /*************************   calculate Normalized weighted P_AI*/
 //        // to normalize, we need to find the maximum weight and normalize all models over that. and then we calculate sum(Wi * Hi)
 //
-//        if( acc2model){ // we start to train RE and calculate next tris if H_i models are accurate
 //
 //
-//            //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
-//            mInstance.des_Thr= sum_baseWt/Ai_count;
-//
-//            double measured_Weighted_thr=sum_currentWt/Ai_count;// this is average weighted throughput of current period
-//
-//            /********************  calculated weighted P_AI*/
-//
-//            /*
-//             * ******************* calculate average AI throughput from weighted model ->
-//             *  roh'T= sigma(rohT_i * wi)/N
-//             * roh'D= sigma(rohD_i * wi)/N
-//             * delta'= sigma(delta_i * wi)/N
-//             * */
-//
-//            mInstance.rohT= sum_rohT_wi/Ai_count;
-//            mInstance.rohD=sum_rohD_wi/Ai_count;
-//            mInstance.delta=sum_delta_wi/Ai_count;
-//
-//            double predWeighted_thr = (mInstance.rohT * totTris) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-//            predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
+///*
+//        if( accmodel){ // we start to train RE and calculate next tris if H_i models are accurate
 //
 //
-//            /* ******************* calculate average AI throughput from weighted model   ***********/
+//        //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
+//        mInstance.des_Thr= sum_baseWt/Ai_count;
+//
+//        //@********************  calculated weighted P_AI* @/
+//
+//
+//
+//
+////@ * ******************* calculate average AI throughput from weighted model -> roh'T= sigma(rohT_i * w^i)/N roh'D= sigma(rohD_i * wi)/Ndelta'= sigma(delta_i * wi)/N
+//
+//
+//
+//        //@ ******************* calculate average AI throughput from weighted model   *********** @//
 //
 //
 //            if (mInstance.objectCount == 0) {
 //            } else {//to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
 //
-//                /* so far we train each task's throughput model individually, but RE should be trained generally using measured RE value of
-//                 PAI that comes from sum(Wi * AI_thr)/0.7*(sum(Wi * base_Hi) and PAR as usual
-//                 */
+//                //* so far we train each task's throughput model individually, but RE should be trained generally using measured RE value of
+//                 //PAI that comes from sum(Wi * AI_thr)/0.7*(sum(Wi * base_Hi) and PAR as usual
+//                 /@*@/
 //
-//                //******************  RE modeling *************
+//                // @ ******************  RE modeling *************
 //                /// need to add a condition for running this periodically to make sure XMIR est_weights are stable but not for MIR maybe
 //
 //                //    writequality();
 //
 //
 //                double avgq = calculateMeanQuality();
-//                double PRoAR = (double) Math.round((avgq / mInstance.des_Q) * 100) / 100;
+//                double PRoAR = (double) Math.round( (double)  (avgq / mInstance.des_Q) * 100) / 100;
 //
-//                double PRoAI = (double) Math.round((sum_currentWt / sum_baseWt) * 100) / 100;// /n for nominator and denominator is removed
+//                double PRoAI = (double) Math.round((double) (sum_currentWt / sum_baseWt) * 100) / 100;// /n for nominator and denominator is removed
 //                //double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// for MIR
 //
 //
 //                double reMsrd = PRoAR / PRoAI;
-//                reMsrd = (double) Math.round(reMsrd * 100) / 100;
+//                reMsrd = (double) Math.round((double) reMsrd * 100) / 100;
 //
 //                int reModSize = mInstance.trisRe.size(); // has real mean-throughput
 //
@@ -562,7 +646,7 @@
 //                                .map(l -> l.stream().mapToDouble(Double::doubleValue).toArray())
 //                                .toArray(double[][]::new);
 //
-//                        if (variousTris >= 3) {
+//                        if (variousTris >= 4) {
 //                            mLinearRegression regression = new mLinearRegression(reRegParameters, RE);
 //                            if (!Double.isNaN(regression.beta(0))) {
 //                                mInstance.alphaT =   (double) Math.round((double) regression.beta(0) * 100) / 100;
@@ -589,13 +673,11 @@
 //                    // current period
 //                    double predRE = mInstance.alphaT * totTris + mInstance.alphaD * pred_meanD + mInstance.alphaH * predWeighted_thr + mInstance.zeta; // for almost current period
 //
-//
 //// nill added temp
-//
 //
 //                    mape = Math.abs((reMsrd - predRE) / reMsrd);// log this
 //                    if (mape > 0.1) {
-//                        acc2model = false;// after training we check to see if the model is accurate to then cal next triangle
+//                        accRe = false;// after training we check to see if the model is accurate to then cal next triangle
 //                        if (variousTris >= 3) // this is to regulate throughput factor for decimated values
 //                            mInstance.re_miss_counter += 1;
 //
@@ -632,7 +714,7 @@
 //                    long time1 = 0;
 //                    long time2 = 0;
 //                    /* temp deactivate
-//                    if (acc2model && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
+//                    if (accRE && accmodel && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
 //                    {
 //
 //                        time1 = System.nanoTime() / 1000000; //starting first loop
@@ -683,8 +765,8 @@
 //                        }
 //
 //
-//                    }  *///if
-//                    writeRE(reMsrd, predRE, trainedRE, totTris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, acc2model, mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
+//                    }  //@ //if
+//                    writeRE(reMsrd, predRE, trainedRE, totTris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, (accmodel&accRe), mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
 //
 //
 //                }           //  RE modeling and next tris
@@ -693,41 +775,43 @@
 //
 //
 //            if( mInstance.trisChanged==true)
-//            {  mInstance.cleanedbin=false;
-//                mInstance.trisChanged=false;
+//                {  mInstance.cleanedbin=false;
+//                    mInstance.trisChanged=false;
 //
-//            }
+//                }
 //
-///*
-//// heap clean-> memory efficiency
-//                if((variousTris % 8==0) && variousTris>2&& mInstance.cleanedbin==false )// every 5x times we check to clear the bins provided that the model is accurate
-//                {
-//                    mInstance.reParamList.clear();
-//                    mInstance.trisMeanDisk.get(aiIndx).clear();
-//                    mInstance.thr_models.get(aiIndx).clear();
-//                    mInstance.thParamList.get(aiIndx).clear();
-//
-//                    mInstance.trisRe.clear();
-//                    mInstance.reParamList.clear();
-//                    // to start over data collection
-//
-//                    mInstance.decTris.clear();
-//                    mInstance.cleanedbin= true;
-//                }*/
-//
-//
-//        }// if we have objs on the screen, we start RE model & training
-//
-//
-//
-//        // }   // if Nan
-//
-//        // else
-//        // Log.d("Mean Throughput is", "not accepted");
+/////*
+////// heap clean-> memory efficiency
+////                if((variousTris % 8==0) && variousTris>2&& mInstance.cleanedbin==false )// every 5x times we check to clear the bins provided that the model is accurate
+////                {
+////                    mInstance.reParamList.clear();
+////                    mInstance.trisMeanDisk.get(aiIndx).clear();
+////                    mInstance.thr_models.get(aiIndx).clear();
+////                    mInstance.thParamList.get(aiIndx).clear();
+////
+////                    mInstance.trisRe.clear();
+////                    mInstance.reParamList.clear();
+////                    // to start over data collection
+////
+////                    mInstance.decTris.clear();
+////                    mInstance.cleanedbin= true;
+////                }*/
+////
+////
+////            }// if we have objs on the screen, we start RE model & training
+////
+//// temp deactive RE training */
 //
 //
-//        mInstance.pred_meanD_cur = meanDkk; // the predicted current_mean_distance for next period is saved here
-//        // mInstance.prevtotTris = totTris;
+//       // }   // if Nan
+//
+//       // else
+//           // Log.d("Mean Throughput is", "not accepted");
+//
+//
+//        mInstance.pred_meanD_cur = meanDkk; // the predicted current_mean_distance for next period is saved here,
+//        // so we'll have the estimated current distance in next period
+//
 //
 //
 //
@@ -744,10 +828,10 @@
 //                    .toArray();
 //            index= findClosest(disArray , predDis);// the index of value needed to be deleted
 //            // since we add if objcount != zero to avoid wrong inf from tris=0 -> we won't have re or distance at this situation
-//            if(index<mInstance.trisRe.get(totTris).size() &&  index<mInstance.reParamList.get(totTris).size())
+//           if(index<mInstance.trisRe.get(totTris).size() &&  index<mInstance.reParamList.get(totTris).size())
 //            {
 //                mInstance.trisRe.get(totTris).remove(index);
-//                mInstance.reParamList.get(totTris).remove(index);
+//            mInstance.reParamList.get(totTris).remove(index);
 //            }
 //        }
 //
@@ -769,11 +853,9 @@
 //            index = findClosest(disArray, predDis);// the index of value(closest to current mean dis) needed to be deleted
 //            mInstance.thr_models.get(aiIndx).get(totTris).remove(index); // has the real throughput
 //            mInstance.thParamList.get(aiIndx).get(totTris).remove(index);
-//            // temp to test
-//            mInstance.tParamList.get(aiIndx).get(totTris).remove(index);
+//            if(aiIndx==0)// since we add to this just once at each period when aiindex==0
+//                mInstance.trisMeanDisk.get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
 //
-//            mInstance.trisMeanDisk.get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
-//            // mInstance.trisMeanDiskk.get(totTris).remove(index);
 //        }
 //
 //        return  index;
@@ -783,7 +865,7 @@
 //    public int cleanOutArraysThr_weighted(double totTris, double predDis, MainActivity mInstance){
 //
 //        int index=-1;
-//        if ( mInstance.trisMeanDisk_Mir.get(totTris).size() == binCap) {
+//        if ( mInstance.trisMeanDisk_Mir.get(totTris).size() >= binCap) {
 //
 //            double[] disArray = mInstance.trisMeanDisk_Mir.get(totTris).stream()
 //                    .mapToDouble(Double::doubleValue)
@@ -827,38 +909,38 @@
 //        String FILEPATH = currentFolder + File.separator + "Quality"+mInstance. fileseries+".csv";
 //
 //        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-//            for (int i=0; i<objC-1; i++) {
-//                float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-//                float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
+//           for (int i=0; i<objC-1; i++) {
+//               float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
+//               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
 ////               if (mInstance.renderArray.get(i).fileName.contains("0.6")) // third scenario has ratio 0.6
 ////                   r1 = 0.6f; // jsut for scenario3 objects are decimated
 ////               else if(mInstance.renderArray.get(i).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 ////                   r1=0.3f;
 //
 //
-//                float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
-//                int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
-//                // excel file has all information for the degredation model
-//                float gamma = mInstance.excel_gamma.get(indq);
-//                float a = mInstance.excel_alpha.get(indq);
-//                float b = mInstance.excel_betta.get(indq);
-//                float c = mInstance.excel_c.get(indq);
-//                float d_k = mInstance.renderArray.get(i).return_distance();// current distance
+//               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
+//               int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
+//               // excel file has all information for the degredation model
+//               float gamma = mInstance.excel_gamma.get(indq);
+//               float a = mInstance.excel_alpha.get(indq);
+//               float b = mInstance.excel_betta.get(indq);
+//               float c = mInstance.excel_c.get(indq);
+//               float d_k = mInstance.renderArray.get(i).return_distance();// current distance
 //
-//                float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
-//                float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
+//               float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
+//               float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
 //
 //
-//                float max_nrmd = mInstance.excel_maxd.get(indq);
-//                tmper1 = tmper1 / max_nrmd; // normalized
-//                tmper2= tmper2 /max_nrmd;
+//               float max_nrmd = mInstance.excel_maxd.get(indq);
+//               tmper1 = tmper1 / max_nrmd; // normalized
+//               tmper2= tmper2 /max_nrmd;
 //
-//                if (tmper2 < 0)
-//                    tmper2 = 0;
+//               if (tmper2 < 0)
+//                   tmper2 = 0;
 //
-//                //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
-//                sensitivity[i] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));
-//                tmper1 = (float) (Math.round((float) (tmper1 * 1000))) / 1000;
+//               //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
+//               sensitivity[i] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));
+//               tmper1 = (float) Math.round((float) (tmper1 * 1000)) / 1000;
 //
 //                StringBuilder sb = new StringBuilder();
 //                sb.append(dateFormat.format(new Date()));
@@ -870,7 +952,7 @@
 //                sb.append(r1);
 //                sb.append(',');
 //                sb.append(1-tmper1);
-//                //  sb.append(mInstance.tasks.toString());
+//              //  sb.append(mInstance.tasks.toString());
 //
 //                sb.append('\n');
 //                writer.write(sb.toString());
@@ -890,7 +972,7 @@
 //        StringBuilder sb = new StringBuilder();
 //        sb.append(dateFormat.format(new Date())); sb.append(',').append((aiIndx)).append(",");
 //        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',').append(ai_acc).append(",");
-//        sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append("");sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
+//        sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append(mInstance.rohDL.get(aiIndx));sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
 //        sb.append(mInstance.des_Thr);
 //        sb.append(','); sb.append(mInstance.des_Q).append(',');
 //        sb.append(mInstance.total_tris);
@@ -899,15 +981,15 @@
 //        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
 //
 //
-//            for (int i=0;i<mInstance.mList.size();i++)
-//            {
-//                AiItemsViewModel taskView=mInstance.mList.get(i);
-//                sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
-//                        .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-//                        .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
+//        for (int i=0;i<mInstance.mList.size();i++)
+//        {
+//            AiItemsViewModel taskView=mInstance.mList.get(i);
+//            sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+//                    .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+//                    .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
 //
 //
-//            }
+//        }
 //            sb.append('\n');
 //            writer.write(sb.toString());
 //            System.out.println("done!");
@@ -925,8 +1007,28 @@
 //        StringBuilder sb = new StringBuilder();
 //        sb.append(dateFormat.format(new Date())); sb.append(',').append(ai_acc);
 //        AiItemsViewModel taskView=mInstance.mList.get(ai_indx);
-//        sb .append(",").append(taskView.getModels().get(taskView.getCurrentModel())).append(",").append(  mInstance.msr_weights.get(ai_indx))
-//                .append(",").append(mInstance.est_weights.get(ai_indx));
+//        sb .append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+//                .append(" ,")  .append(",").append(mInstance.est_weights.get(ai_indx));
+//        sb.append('\n');
+//
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+//            writer.write(sb.toString());
+//            System.out.println("done!");
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
+//    }
+//
+//
+//    public void write_weightedH( double avg_msr_H, double avg_est_H, double msr, double pre, double Mape,boolean acc_model){ // AI throughput information for each task individually and response time for all models
+//
+//        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+//        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+//        String FILEPATH = currentFolder + File.separator + "Weighted_throughput"+mInstance. fileseries+".csv";
+//        StringBuilder sb = new StringBuilder();
+//        sb.append(dateFormat.format(new Date())); sb.append(',').append(    avg_msr_H+","+avg_est_H+","+Mape+
+//                ","+msr+","+pre+","+acc_model);
+//
 //        sb.append('\n');
 //        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
 //            writer.write(sb.toString());
@@ -935,6 +1037,7 @@
 //            System.out.println(e.getMessage());
 //        }
 //    }
+//
 //
 //    // public void writeRE(double realRe, double predRe, boolean trainedFlag,double totT, double nextT, boolean trainedT, double pAR, double pAI){
 //    public void writeRE(double realRe, double predRe, boolean trainedFlag, double totT, double nextT, double algTris, boolean trainedT,
@@ -988,7 +1091,7 @@
 ////            else if(mInstance.renderArray.get(ind).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 ////                curQ=0.3f;
 //
-//            float deg_error = (float) (Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000))) / 1000;
+//            float deg_error = (float) Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000)) / 1000;
 //            float max_nrmd = mInstance.excel_maxd.get(i);
 //
 //            float cur_degerror = deg_error / max_nrmd;
@@ -1102,9 +1205,9 @@
 //
 //
 //        for (int i : sortedcandidate_obj.keySet())
-//        //if ( mInstance.renderArray.size()>i &&  mInstance.renderArray.get(i)!=null)
+//            //if ( mInstance.renderArray.size()>i &&  mInstance.renderArray.get(i)!=null)
 //
-//        {// to avoid null pointer error
+//            {// to avoid null pointer error
 //
 //            mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)/mInstance.tris_factor));// total =total -1*objtris
 //            mInstance.ratioArray.set(i, coarse_Ratios[j]);
@@ -1113,7 +1216,7 @@
 //            mInstance.runOnUiThread(() -> mInstance.renderArray.get(i).decimatedModelRequest(mInstance.ratioArray.get(i), i, false));
 //
 //            mInstance.total_tris = mInstance.total_tris + (mInstance.ratioArray.get(i) *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
-//            // mInstance.trisDec.put(mInstance.total_tris,true);
+//           // mInstance.trisDec.put(mInstance.total_tris,true);
 //
 //            j = track_obj[i][j];
 //            Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
