@@ -221,13 +221,14 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        app:layout_constraintGuide_end="411dp" />
+        app:layout_constraintGuide_percent="0.00243309" />
 
     <Button
         android:id="@+id/button_toggleUi"
         android:layout_width="78dp"
         android:layout_height="48dp"
         android:text="Toggle"
+        android:textColor="#455A64"
         app:layout_constraintBottom_toBottomOf="@+id/switch_streamToggle"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.024"
@@ -262,6 +263,7 @@
         android:layout_height="48dp"
         android:layout_marginStart="16dp"
         android:text="+"
+        android:textColor="#455A64"
         app:layout_constraintBottom_toBottomOf="@+id/button_popAiTask"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.007"
@@ -366,6 +368,7 @@
         android:layout_marginTop="608dp"
         android:layout_marginEnd="304dp"
         android:text="Remove"
+        android:textColor="#7CB342"
         app:layout_constraintBottom_toTopOf="@id/simpleBar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintRight_toRightOf="parent"

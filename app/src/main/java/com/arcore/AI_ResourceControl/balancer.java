@@ -30,6 +30,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.abs;
+import static java.lang.Math.min;
 import static java.lang.Math.pow;
 import static java.lang.Math.sqrt;
 
@@ -42,22 +43,22 @@ import com.google.common.collect.ListMultimap;
 
 public class balancer implements Runnable {
 
-    int binCap=5;
+    int binCap=7;
     private final MainActivity mInstance;
     float ref_ratio=0.5f;
     int objC;
-    float sensitivity[] ;
+    double sensitivity[] ;
     float objquality[];
-    float tris_share[];
-    Map <Integer, Float> candidate_obj;
+    double tris_share[];
+    Map <Integer, Double> candidate_obj;
     float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
-    float [][]fProfit;
-    float [][] tRemainder;
+    double [][]fProfit;
+    double [][] tRemainder;
     int [][] track_obj;
     int sleepTime=60;
     //float candidate_obj[] = new float[total_obj];
-    float tMin[] ;
+    double tMin[] ;
     int missCounter=3;//means at least 4 noises
    // int aiIndx;
 
@@ -67,18 +68,18 @@ public class balancer implements Runnable {
         this.mInstance = mInstance;
 
         objC=mInstance.objectCount+1;
-        sensitivity = new float[objC];
-        tris_share = new float[objC];
+        sensitivity = new double[objC];
+        tris_share = new double[objC];
         objquality= new float[objC];// 1- degradation-error
        // aiIndx=ai_index;
                 //model_index;
 
         //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
-        fProfit= new float[objC][coarse_Ratios.length];
-        tRemainder= new float[objC][coarse_Ratios.length];
+        fProfit= new double[objC][coarse_Ratios.length];
+        tRemainder= new double[objC][coarse_Ratios.length];
         track_obj= new int[objC][coarse_Ratios.length];
         //float candidate_obj[] = new float[total_obj];
-        tMin = new float[objC];
+        tMin = new double[objC];
 
 
     }
@@ -100,7 +101,7 @@ public class balancer implements Runnable {
         double meanDkk = 0; // mean of d in the next period-> you need to cal the average of predicted d for all the objects
         double pred_meanD = mInstance.pred_meanD_cur; // for next 1 sc
         boolean fault_thr=false;
-        int tris_window=5;
+        int tris_window=4;
 
 
         double period_init_tris=mInstance.total_tris;// this is the starting triangle count
@@ -124,8 +125,8 @@ public class balancer implements Runnable {
             meanDk /= objc;
             meanDkk /= objc;
 
-            meanDk = (double) Math.round((double) 100 * meanDk) / 100;
-            meanDkk = (double) Math.round((double) 100 * meanDkk) / 100;
+          //  meanDk = (double) Math.round((double) 1000 * meanDk) / 1000;
+           // meanDkk = (double) Math.round((double) 1000 * meanDkk) / 1000;
 
             if(objc==1) {
                 mInstance.initial_meanD = meanDk;
@@ -163,7 +164,7 @@ public class balancer implements Runnable {
 
        // mInstance.trisMeanDisk.put(totTris, pred_meanD); //one-time correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 // this gets above bincap sooner than the rest of lists, so, we need to keep the size not more than 5
-
+        double aiMaxError=0.14;
         int Ai_count= mInstance.mList.size();
         for (int aiIndx=0; aiIndx<Ai_count;aiIndx++) {
 
@@ -176,7 +177,7 @@ public class balancer implements Runnable {
             //if (meanThr < 120 && meanThr > 1)
 
 
-            meanThr = (double) Math.round( (double)  meanThr * 1000) / 1000;
+           // meanThr = (double) Math.round( (double)  meanThr * 1000) / 1000;
 
 // don't use tris-dis here since->we need to remove a record of old tris for each AI model
             int variousTris = mInstance.thr_models.get(aiIndx).keySet().size();// since  from thr_models
@@ -197,7 +198,7 @@ public class balancer implements Runnable {
 
 // this is thr calculated using the modeling
                 predThr = (mInstance.rohTL.get(aiIndx) * mInstance.total_tris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-                predThr = (double) Math.round((double) predThr * 100) / 100;
+               // predThr = (double) Math.round((double) predThr * 1000) / 1000;
 
 //            writeThr(meanThr, predThr, trainedThr);// for the urrent period
 
@@ -239,7 +240,7 @@ public class balancer implements Runnable {
                     // should have data collection any way
                     if ( mInstance.thr_models.get(aiIndx).containsKey(fixedT) &&
                              mInstance.thr_models.get(aiIndx).get(fixedT).size() == binCap) { //we delete from array of initial tris not new, since we have data of initial tris by 100% we keep data up to binCap per triangleCount
-                        cleanOutArraysThr(fixedT, pred_meanD, mInstance);// cleans out the closest data to the curr one within bins
+                        cleanOutArraysThrFIFO(fixedT, pred_meanD, mInstance);// cleans out the closest data to the curr one within bins
                     }
 
 
@@ -255,13 +256,13 @@ public class balancer implements Runnable {
 //                    if( ! mInstance.trisMeanDisk.containsKey(mInstance.total_tris))// this is to make sure if we change tris in main_activity, trisMeanDisk has at least one data point
 //                        mInstance.trisMeanDisk.put(mInstance.total_tris, pred_meanD);
 
-                    double mape = 0.0; // mean of absolute error
+                    double perAI_mape = 0.0; // mean of absolute error
                //     double fit = (mInstance.rohTL.get(aiIndx) * mInstance.total_tris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx); // fit is predicted current throughput should be predicted distance (we have next 1 sec but ok since we don't move)  for current period
                     //double fit = mInstance.thSlope * mInstance.total_tris + mInstance.thIntercept;;
-                    mape = abs((meanThr - predThr) / meanThr);// this is correct to calculate error coming from real throughput vs model
+            perAI_mape = abs((meanThr - predThr)) / meanThr;// this is correct to calculate error coming from real throughput vs model
 
 
-                    if(mape>0.1)
+                    if(perAI_mape>aiMaxError)
                         mInstance.hAI_acc.set(aiIndx,false);
 
 
@@ -271,7 +272,7 @@ public class balancer implements Runnable {
 
 
                     ///    to train H model
-                    if (mape > 0.1 && variousTris >= 3 && period_init_tris==mInstance.total_tris) {// we need points with at least two diff tris in order to generate the line
+                    if (perAI_mape > aiMaxError && variousTris >= 3 && period_init_tris==mInstance.total_tris) {// we need points with at least two diff tris in order to generate the line
 
                         ListMultimap<Double, List<Double>> copythParamList = ArrayListMultimap.create(mInstance.thParamList.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
                         ListMultimap<Double, Double> copytrisMeanThr = ArrayListMultimap.create(mInstance.thr_models.get(aiIndx));// take a copy to then fill it for training up to capacity of 10
@@ -357,9 +358,10 @@ public class balancer implements Runnable {
                         mLinearRegression regression = new mLinearRegression(thRegParameters, y);
                         if (!Double.isNaN(regression.beta(0))) {
 
-                            mInstance.rohTL.set(aiIndx, (double) Math.round( (double)regression.beta(0)*100  )/100     );
-                            mInstance.rohDL.set(aiIndx,  (double) Math.round( (double)regression.beta(1) *100 )/100 );
-                            mInstance.deltaL.set(aiIndx, (double) Math.round( (double) regression.beta(2)*100)/100  );
+                          //  mInstance.rohTL.set(aiIndx, (double) Math.round( (double)regression.beta(0)*100  )/100     );
+                            mInstance.rohTL.set(aiIndx,  regression.beta(0)     );
+                            mInstance.rohDL.set(aiIndx,  regression.beta(1)   );
+                            mInstance.deltaL.set(aiIndx, regression.beta(2)    );
                             //mInstance.thRmse = regression.rmse;
                             trainedThr = true;
 
@@ -376,11 +378,12 @@ public class balancer implements Runnable {
 
 //                  specific AI throughput after remodeling
                     predThr = (mInstance.rohTL.get(aiIndx) * mInstance.total_tris) + (mInstance.rohDL.get(aiIndx) * pred_meanD) + mInstance.deltaL.get(aiIndx);// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-                    predThr = (double) Math.round((double) predThr * 100) / 100;
+                    //predThr = (double) Math.round((double) predThr * 1000) / 1000;
 
 
-                    mape = abs((meanThr - predThr) / meanThr);
-                    if (mape > 0.1) {
+                   double mape = abs(meanThr - predThr) / meanThr;
+
+                    if (mape > aiMaxError) {
 
 
                         //mInstance.est_weights.set(aiIndx,0d);// means that the model is not accurate, so we don't use it's weigth
@@ -411,12 +414,13 @@ public class balancer implements Runnable {
                     }
                     // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
 
-                    double cur_est_w=sqrt( pow(mInstance.rohTL.get(aiIndx),2)+ pow(mInstance.rohDL.get(aiIndx),2));
-                    double alpha=0.7;
-                    cur_est_w=  alpha*(cur_est_w) + ((1-alpha)* mInstance.est_weights.get(aiIndx) ); // smoothing function of past and current data
+                if(variousTris>=2 && mape<=aiMaxError) {// we won't update the est_w of the incorrect model but we update the rest Ws
+                    double cur_est_w = sqrt(pow(mInstance.rohTL.get(aiIndx), 2) + pow(mInstance.rohDL.get(aiIndx), 2));
+                    double alpha = 0.7;
+                    cur_est_w = alpha * (cur_est_w) + ((1 - alpha) * mInstance.est_weights.get(aiIndx)); // smoothing function of past and current data
 
-                    mInstance.est_weights.set(aiIndx, cur_est_w );// not normalized-> new(SQRT( (rohT^2+rohD^2)) -> this has not-normalized est_weights
-
+                    mInstance.est_weights.set(aiIndx, cur_est_w);// not normalized-> new(SQRT( (rohT^2+rohD^2)) -> this has not-normalized est_weights
+                }
 
                    /* we don't use measured weight anymore since it's not accurate to use just a start and end point to measure w
                     double ai_sensitivity;
@@ -469,8 +473,8 @@ public class balancer implements Runnable {
 
         avg_msred_H/=Ai_count; // this is average of all model's measured throughput
         avg_est_H/=Ai_count;//this is average of all estimated model throughput
-        avg_est_H =  (double) Math.round((double) avg_est_H * 100) / 100;
-        avg_msred_H =  (double) Math.round((double) avg_msred_H * 100) / 100;
+      //  avg_est_H =  (double) Math.round((double) avg_est_H * 1000) / 1000;
+      //  avg_msred_H =  (double) Math.round((double) avg_msred_H * 1000) / 1000;
 
         double predWeighted_thr=0;
        int  variousTris = mInstance.trisMeanDisk.keySet().size();// update various tris after data collection
@@ -493,8 +497,8 @@ public class balancer implements Runnable {
 
          for (int i = 0; i < Ai_count; i++) {
 
-                double nrm_estW=  (double) Math.round((double) (mInstance.est_weights.get(i) / max_w) * 100) / 100;
-                mInstance.est_weights.set(i, nrm_estW);// this has Normalized est_weights
+                double nrm_estW=  (double)  (mInstance.est_weights.get(i) / max_w) ;
+                mInstance.nrmest_weights.set(i, nrm_estW);// this has Normalized est_weights
                 double est_wi=nrm_estW;// equal to normalized (sqrt(rohT^2 + rohD^2))
 //                double nrm_msrW=  (double) Math.round((double) (mInstance.msr_weights.get(i) / max_msr_w) * 100) / 100;
 //                mInstance.msr_weights.set(i, nrm_msrW);
@@ -511,7 +515,7 @@ public class balancer implements Runnable {
 
                // double msr_thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
                 sum_currentWt += (est_wi * msr_thr); //est_wi instead of ms_wi
-                sum_baseWt += (est_wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+                sum_baseWt += (est_wi * mInstance.baseline_AIthr.get(i) * mInstance.thr_factor);//sum(Normalized Wi * Hbase)
 
 
                 sum_rohT_wi += ( est_wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
@@ -523,10 +527,10 @@ public class balancer implements Runnable {
 
 
             // check even if AI models are not accurate, the measured weighted_H and estimated Weighted_H are close?
-            double total_est_weights = mInstance.est_weights.stream().mapToDouble(f -> f.doubleValue()).sum();
+            double total_est_weights = mInstance.nrmest_weights.stream().mapToDouble(f -> f.doubleValue()).sum();
 
             double msrd_Weighted_thr = sum_currentWt/total_est_weights;// this is average weighted throughput of current period
-            msrd_Weighted_thr = (double) Math.round((double) msrd_Weighted_thr * 100) / 100; // sum of estimated weights
+          //  msrd_Weighted_thr = (double)  msrd_Weighted_thr ; // sum of estimated weights
 
 
 
@@ -535,7 +539,7 @@ public class balancer implements Runnable {
             mInstance.delta=sum_delta_wi/total_est_weights;
 
             predWeighted_thr = (mInstance.rohT * mInstance.total_tris) + (mInstance.rohD* pred_meanD) + mInstance.delta;// use predicted distance for almost current period (predicted distance for next 1 sec is the closest one we have)
-            predWeighted_thr = (double) Math.round((double) predWeighted_thr * 100) / 100;
+          //  predWeighted_thr = (double)predWeighted_thr ;
 
             // the accuracy of average measured weighted thr vs estimated weighted throughput
             //double w_mape = Math.abs((msrd_Weighted_thr - predWeighted_thr) / msrd_Weighted_thr);
@@ -543,12 +547,12 @@ public class balancer implements Runnable {
 
 
             // the accuracy of average measured and estimated throughput
-            double model_mape = Math.abs((avg_msred_H - avg_est_H) / avg_msred_H);
-            model_mape=(double) Math.round((double)model_mape*100)/100 ;
+            double model_mape = Math.abs(avg_msred_H - avg_est_H) / avg_msred_H;
+           // model_mape=(double) Math.round((double)model_mape*100)/100 ;
 
             write_weightedH( avg_msred_H ,avg_est_H ,msrd_Weighted_thr,predWeighted_thr,model_mape*100, accmodel);
 
-            if(model_mape>0.1)
+            if(model_mape>0.1)// this is for avg throughput not perAI model throughput
                 acc_throughput=false;
 
 
@@ -563,7 +567,7 @@ public class balancer implements Runnable {
 
 
         //sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)
-        mInstance.des_Thr= sum_baseWt/Ai_count;
+        //mInstance.des_Thr= mInstance.baseline_AIthr.get()/Ai_count;
 
         //@********************  calculated weighted P_AI* @/
 //@ * ******************* calculate average AI throughput from weighted model -> roh'T= sigma(rohT_i * w^i)/N roh'D= sigma(rohD_i * wi)/Ndelta'= sigma(delta_i * wi)/N
@@ -580,39 +584,44 @@ public class balancer implements Runnable {
                 //    writequality();
 
                 double avgq = calculateMeanQuality();
-                double PRoAR = (double) Math.round( (double)  (avgq / mInstance.des_Q) * 100) / 100;
+                double PRoAR =  (avgq / mInstance.des_Q);
 
-                double PRoAI = (double) Math.round((double) (sum_currentWt / sum_baseWt) * 100) / 100;// /n for nominator and denominator is removed
+                double PRoAI = (sum_currentWt / sum_baseWt) ;// /n for nominator and denominator is removed
                 //double PRoAI = (double) Math.round((meanThr / mInstance.des_Thr) * 100) / 100;// for MIR
 
                 double reMsrd = PRoAR / PRoAI;
-                reMsrd = (double) Math.round((double) reMsrd * 100) / 100;
+                //reMsrd = (double) Math.round((double) reMsrd * 1000) / 1000;
 
 
-                // NEW @@@ Enable W windows for RE training since we use est_thr with the same idea
-                int var_tris= mInstance.trisRe.keySet().size();
-                if(var_tris==tris_window)// I am tying to remove the current value of hashmap
-                {
-                    // cleans out the closest data to the curr one within bins @@@ NOTE THAT ONLY mInstance.thr_models has the data ordered based on insersion
-                    double oldest_tris= Iterables.getFirst( mInstance.trisRe.keys(), null);//  the oldest inserted entry (the trisCount) ->
-                   mInstance.trisRe.removeAll(oldest_tris);
-                    mInstance.reParamList.removeAll(oldest_tris);
 
-                }// removes the set of <key.list> from the head of multimap
 
+                int var_tris= mInstance.trisRe.keySet().size();// no need for RE since we have the correct data point of system balance even for past data
 
                 int reModSize =var_tris;
                         // has real mean-throughput
 //                if (reModSize < 4)
 //                {
-                double mape = 0.0;
+                double re_mape = 0.0;
                 if(acc_throughput) {// we collect RE data if Average throughput model is accurate
+
+
+                    // NEW @@@ Enable W windows for RE training since we use est_thr with the same idea
+                      if(var_tris==tris_window)// I am tying to remove the current value of hashmap
+                    {
+                        // cleans out the closest data to the curr one within bins @@@ NOTE THAT ONLY mInstance.thr_models has the data ordered based on insersion
+                        double oldest_tris= Iterables.getFirst( mInstance.trisRe.keys(), null);//  the oldest inserted entry (the trisCount) ->
+                        mInstance.trisRe.removeAll(oldest_tris);
+                        mInstance.reParamList.removeAll(oldest_tris);
+
+                    }// removes the set of <key.list> from the head of multimap
+
+
                     // throughput model s accurate
                     double fixedT = mInstance.total_tris;
                     if (mInstance.trisRe.containsKey(fixedT) && mInstance.trisRe.get(fixedT).size() == binCap)
-                        cleanOutArraysRE(fixedT, pred_meanD, mInstance);// check to remove extra value in the RE parameters list , substitue the newer one
+                        cleanOutArraysREFIFO(fixedT, pred_meanD, mInstance);// check to remove extra value in the RE parameters list , substitue the newer one
 
-
+                    fixedT = mInstance.total_tris;
                     if( mInstance.trisRe.keySet().contains(mInstance.total_tris) && mInstance.trisRe.get(mInstance.total_tris).contains(reMsrd) ){
                         Random r = new Random();
                         double randomValue = 0.00001 + (0.0001 - 0.00001) * r.nextDouble();
@@ -633,7 +642,7 @@ public class balancer implements Runnable {
                 }
 
                 double fit = (mInstance.alphaT * mInstance.total_tris) + (mInstance.alphaD * pred_meanD) + (mInstance.alphaH * predWeighted_thr) + mInstance.zeta;// uses predicted modeling  for current period
-                mape = Math.abs((reMsrd - fit) / reMsrd);
+                re_mape = Math.abs(reMsrd - fit) / reMsrd;
 
                 var_tris= mInstance.trisRe.keySet().size();
 
@@ -648,7 +657,7 @@ public class balancer implements Runnable {
 //                    mInstance.trisRe.put(mInstance.total_tris, reMsrd); // april 8
 //                    mInstance.reParamList.put(mInstance.total_tris, Arrays.asList(mInstance.total_tris, pred_meanD, predWeighted_thr, 1.0));
 
-                    if (mape > 0.10 && variousTris >= 3) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
+                    if (re_mape > 0.10 && variousTris >= 3) {// we ignore tris=0 them we need points with at least two diff tris in order to generate the line
 
                         ListMultimap<Double, List<Double>> copyreParamList = ArrayListMultimap.create(mInstance.reParamList);// take a copy to then fill it for training up to capacity of 10
                         ListMultimap<Double, Double> copytrisRe = ArrayListMultimap.create(mInstance.trisRe);// take a copy to then fill it for training up to capacity of 10
@@ -752,10 +761,10 @@ public class balancer implements Runnable {
                         if (var_tris >= 3) {// since it includes non-zero tris, so 3 is three objects on screen
                             mLinearRegression regression = new mLinearRegression(reRegParameters, RE);
                             if (!Double.isNaN(regression.beta(0))) {
-                                mInstance.alphaT =   (double) Math.round((double) regression.beta(0) * 100) / 100;
-                                mInstance.alphaD = (double) Math.round((double) regression.beta(1) * 100) / 100;
-                                mInstance.alphaH = (double) Math.round((double) regression.beta(2) * 100) / 100;
-                                mInstance.zeta = (double) Math.round((double) regression.beta(3) * 100) / 100;
+                                mInstance.alphaT =  regression.beta(0) ;
+                                mInstance.alphaD = regression.beta(1);
+                                mInstance.alphaH = regression.beta(2);
+                                mInstance.zeta = regression.beta(3);
                                 trainedRE = true;
                             }
 
@@ -774,12 +783,12 @@ public class balancer implements Runnable {
                     //   nil   commented  sep 7
 
                     // current period
-                    double predRE = mInstance.alphaT * mInstance.total_tris + mInstance.alphaD * pred_meanD + mInstance.alphaH * predWeighted_thr + mInstance.zeta; // for almost current period
-                    predRE = (double) Math.round((double) predRE * 1000) / 1000;
+                    double predRE = (mInstance.alphaT * mInstance.total_tris) + (mInstance.alphaD * pred_meanD) + (mInstance.alphaH * predWeighted_thr) + mInstance.zeta; // for almost current period
+                   // predRE = (double) Math.round((double) predRE * 1000) / 1000;
 // nill added temp
 
-                    mape = Math.abs((reMsrd - predRE) / reMsrd);// log this
-                    if (mape > 0.1) {
+                re_mape = Math.abs(reMsrd - predRE) / reMsrd;// log this
+                    if (re_mape > 0.1) {
                         accRe = false;// after training we check to see if the model is accurate to then cal next triangle
                         if (variousTris >= 3) // this is to regulate throughput factor for decimated values
                             mInstance.re_miss_counter += 1;
@@ -816,8 +825,11 @@ public class balancer implements Runnable {
 
                     long time1 = 0;
                     long time2 = 0;
-               //     /* temp deactivate
-                    if (accRe && acc_throughput && mInstance.lastConscCounter > 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
+
+
+               //     /* temp deactivate -> this is for next triangle count computation and odra algorithm
+
+                    if (accRe && acc_throughput && mInstance.lastConscCounter >= 4) // if both RE and all AI throughput models are accurate ,, the second condition is to skip change in nexttris for the first loop while we just had a change in tot tris
                     {
 
                         time1 = System.nanoTime() / 1000000; //starting first loop
@@ -826,22 +838,22 @@ public class balancer implements Runnable {
                                 - (mInstance.zeta + (mInstance.alphaH * mInstance.delta));
                         // double nomin2= 1- (mInstance.alphaD* meanDkk) -(mInstance.alphaH *)
                         double denom = mInstance.alphaT + (mInstance.rohT * mInstance.alphaH); //α + ργ
-                        double tmpnextTris = (nomin / denom);
+                        double tmpnextTris = (nomin / (denom));
 
-                        if (tmpnextTris > 0) {
+                        if (tmpnextTris > 0 && tmpnextTris <= mInstance.orgTrisAllobj) {
 
                             // temporarily inactive to not to run algo-> just wanna check nexttris values
                             if (tmpnextTris < mInstance.orgTrisAllobj && tmpnextTris >= minTrisThreshold)
                                 nextTris = tmpnextTris;
 
                             else if (tmpnextTris < minTrisThreshold)
-                                nextTris = minTrisThreshold + 1000;
+                                nextTris = minTrisThreshold ;
 
-                            else if (tmpnextTris > mInstance.orgTrisAllobj)
-                                nextTris = mInstance.orgTrisAllobj;
+                           // else if (tmpnextTris > mInstance.orgTrisAllobj)
+                             //   nextTris = mInstance.orgTrisAllobj;
 
 
-                            nextTris = Math.round(nextTris * 100) / 100;
+                           // nextTris = Math.round(nextTris * 1000) / 1000;
                             trainedTris = true;
 
                             try {
@@ -869,6 +881,8 @@ public class balancer implements Runnable {
 
 
                     }  //@ //if
+
+
                     writeRE(reMsrd, predRE, trainedRE, mInstance.total_tris, nextTris, algNxtTris, trainedTris, PRoAR, PRoAI, (acc_throughput&accRe), mInstance.orgTrisAllobj, avgq, mInstance.t_loop1);// writes to the file
 
 
@@ -908,7 +922,7 @@ public class balancer implements Runnable {
     }//run
 
 
-    public void cleanOutArraysRE(double totTris, double predDis, MainActivity mInstance){
+    public void cleanOutArraysRE(double totTris, double predDis, MainActivity mInstance){// clear based on various distance value
 
         int index=0;
 
@@ -926,14 +940,47 @@ public class balancer implements Runnable {
                     mInstance.trisRe.get(totTris).remove(value);
                    List<Double> value2 = Iterables.get(mInstance.reParamList.get(totTris), index);// gets the value in thr_models (hashmultimap)
                     mInstance.reParamList.get(totTris).remove(value2);}
-
-
-
         // return index;
     }
 
 
 
+    public void cleanOutArraysREFIFO(double totTris, double predDis, MainActivity mInstance){// clear based on FIFO
+
+                int index=0;
+                double value = Iterables.get(mInstance.trisRe.get(totTris), index);// gets the value in thr_models (hashmultimap)
+                mInstance.trisRe.get(totTris).remove(value);
+                List<Double> value2 = Iterables.get(mInstance.reParamList.get(totTris), index);// gets the value in thr_models (hashmultimap)
+                mInstance.reParamList.get(totTris).remove(value2);
+        // return index;
+    }
+
+
+    public int cleanOutArraysThrFIFO(double totTris, double predDis, MainActivity mInstance){// FIFO policy to get the updated data
+
+//        while( mInstance.trisMeanDisk.get(totTris).size()>binCap) // to make sure if it doesn't have extra data
+//            mInstance.trisMeanDisk.get(totTris).remove(0);
+
+        int index=0; // all multimaps preserve value of a key, so we know any index  would apply for all lists
+
+        int Ai_count= mInstance.mList.size();
+
+        for (int aiIndx=0;aiIndx<Ai_count;aiIndx++)// we need to do it for all AIs here, since if we remove from general array of trisMeanDisk for AI_index=0, the next AIs won't have the information of tris-meandistance
+            for (int i=binCap-1; i<mInstance.thr_models.get(aiIndx).get(totTris).size();i++) {
+
+                double value = Iterables.get(mInstance.thr_models.get(aiIndx).get(totTris), index);// gets the value in thr_models (hashmultimap)
+                mInstance.thr_models.get(aiIndx).get(totTris).remove(value); // This code removes the value not the older one that had remove(index)
+
+                List<Double> value2 = Iterables.get(mInstance.thParamList.get(aiIndx).get(totTris), index);// gets the value in thr_models (hashmultimap)
+                mInstance.thParamList.get(aiIndx).get(totTris).remove(value2);
+
+                //mInstance.thParamList.get(aiIndx).get(totTris).remove(index);
+                if (aiIndx == 0)// since we add to this just once at each period when aiindex==0
+                    mInstance.trisMeanDisk.get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
+            }
+
+        return  index;// not used
+    }
 
     public int cleanOutArraysThr(double totTris, double predDis, MainActivity mInstance){// if tris0meandisk is full, it means
         // the array of other AI tasks is full too, so we update the lists
@@ -955,7 +1002,10 @@ public class balancer implements Runnable {
 
             double value = Iterables.get(mInstance.thr_models.get(aiIndx).get(totTris), index);// gets the value in thr_models (hashmultimap)
             mInstance.thr_models.get(aiIndx).get(totTris).remove(value); // This code removes the value not the older one that had remove(index)
-            mInstance.thParamList.get(aiIndx).get(totTris).remove(index);
+                List<Double> value2 = Iterables.get(mInstance.thParamList.get(aiIndx).get(totTris), index);// gets the value in thr_models (hashmultimap)
+                mInstance.thParamList.get(aiIndx).get(totTris).remove(value2);
+
+            //mInstance.thParamList.get(aiIndx).get(totTris).remove(index);
             if (aiIndx == 0)// since we add to this just once at each period when aiindex==0
                 mInstance.trisMeanDisk.get(totTris).remove(index); //removes from the head (older data) -> to then add to the tail
         }
@@ -1028,15 +1078,15 @@ public class balancer implements Runnable {
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
            for (int i=0; i<objC-1; i++) {
-               float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
+               double curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
+               double r1 = mInstance.ratioArray.get(i); // current object decimation ratio
 //               if (mInstance.renderArray.get(i).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                   r1 = 0.6f; // jsut for scenario3 objects are decimated
 //               else if(mInstance.renderArray.get(i).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 //                   r1=0.3f;
 
 
-               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
+               double r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
                int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
                // excel file has all information for the degredation model
                float gamma = mInstance.excel_gamma.get(indq);
@@ -1091,7 +1141,7 @@ public class balancer implements Runnable {
         sb.append(dateFormat.format(new Date())); sb.append(',').append((aiIndx)).append(",");
         sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',').append(ai_acc).append(",");
         sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append(mInstance.rohDL.get(aiIndx));sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
-        sb.append(mInstance.des_Thr);
+        sb.append(mInstance.baseline_AIthr.get(aiIndx)* mInstance.thr_factor);
         sb.append(','); sb.append(mInstance.des_Q).append(',');
         sb.append(mInstance.total_tris);
 
@@ -1126,7 +1176,7 @@ public class balancer implements Runnable {
         sb.append(dateFormat.format(new Date())); sb.append(',').append(ai_acc);
         AiItemsViewModel taskView=mInstance.mList.get(ai_indx);
         sb .append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
-                .append(" ,")  .append(",").append(mInstance.est_weights.get(ai_indx));
+                .append(" ,")  .append(",").append(mInstance.nrmest_weights.get(ai_indx));
         sb.append('\n');
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
@@ -1202,7 +1252,7 @@ public class balancer implements Runnable {
             float b = mInstance.excel_betta.get(i);
             float c = mInstance.excel_c.get(i);
             float d = mInstance.renderArray.get(ind).return_distance();
-            float curQ = mInstance.ratioArray.get(ind);
+            double curQ = mInstance.ratioArray.get(ind);
 
 //            if (mInstance.renderArray.get(ind).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                curQ = 0.6f; // jsut for scenario3 objects are decimated
@@ -1227,7 +1277,7 @@ public class balancer implements Runnable {
 
     }
 
-    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, float r1) {
+    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, double r1) {
 
         float error;
         if(r1==1)
@@ -1242,7 +1292,7 @@ public class balancer implements Runnable {
 
 
         candidate_obj = new HashMap<>();
-        Map<Integer, Float> sortedcandidate_obj = new HashMap<>();
+        Map<Integer, Double> sortedcandidate_obj = new HashMap<>();
         float sum_org_tris = 0; // sum of all tris of the objects o the screen
 
         for (int ind = 0; ind < mInstance.objectCount; ind++) {
@@ -1250,7 +1300,7 @@ public class balancer implements Runnable {
             sum_org_tris += mInstance.renderArray.get(ind).orig_tris;// this will ne used to cal min of tris needed at each row (object) in bellow
 
 
-            float curtris = mInstance.renderArray.get(ind).orig_tris * mInstance.ratioArray.get(ind);
+            double curtris = mInstance.renderArray.get(ind).orig_tris * mInstance.ratioArray.get(ind);
 
 
             tris_share[ind] = (curtris / tUP);
@@ -1262,15 +1312,15 @@ public class balancer implements Runnable {
         // Up to here, the candidate objects are known
 
 
-        float updated_sum_org_tris = sum_org_tris; // keeps the last value which is sum_org_tris - tris1-tris2-....
+        double updated_sum_org_tris = sum_org_tris; // keeps the last value which is sum_org_tris - tris1-tris2-....
         for (int i : sortedcandidate_obj.keySet()) { // check this gets the candidate object index to calculate min weight
-            float sum_org_tris_minus = updated_sum_org_tris - mInstance.renderArray.get(i).orig_tris; // this is summ of tris for all the objects except the current one
+            double sum_org_tris_minus = updated_sum_org_tris - mInstance.renderArray.get(i).orig_tris; // this is summ of tris for all the objects except the current one
             updated_sum_org_tris = sum_org_tris_minus;
             tMin[i] = coarse_Ratios[coarse_Ratios.length - 1] * sum_org_tris_minus;// minimum tris needs for object i+1 to object n
             ///@@@@ if this line works lonely, delete the extra line for the last object to zero in the alg
         }
 
-        Map.Entry<Integer, Float> entry = sortedcandidate_obj.entrySet().iterator().next();
+        Map.Entry<Integer, Double> entry = sortedcandidate_obj.entrySet().iterator().next();
         int key = entry.getKey(); // get access to the first key -> to see if it is the first object for bellow code
 
         int prevInd = 0;
@@ -1293,8 +1343,8 @@ public class balancer implements Runnable {
                 } else //  here is the dynamic programming section
                     for (int s = 0; s < coarse_Ratios.length; s++) {
 
-                        float f = fProfit[prevInd][s] + quality;
-                        float t = tRemainder[prevInd][s] - (mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]);
+                        double f = fProfit[prevInd][s] + quality;
+                        double t = tRemainder[prevInd][s] - (mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]);
                         if (t >= tMin[i] && fProfit[i][j] < f) {
 
                             fProfit[i][j] = f;
@@ -1312,7 +1362,7 @@ public class balancer implements Runnable {
         sortedcandidate_obj = sortByValue(candidate_obj, true); // to iterate through the list from lowest to highest values
 
         int lowPobjIndx = sortedcandidate_obj.entrySet().iterator().next().getKey(); // line 26
-        float tmp=fProfit[lowPobjIndx][0];
+        double tmp=fProfit[lowPobjIndx][0];
         int j=0;
         for  (int maxindex=1;maxindex<coarse_Ratios.length;maxindex++) // line 27
             if(fProfit[lowPobjIndx][maxindex]>tmp)// finds the index of coarse-grain ratio with maximum profit
@@ -1327,7 +1377,7 @@ public class balancer implements Runnable {
 
             {// to avoid null pointer error
 
-            mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)/mInstance.tris_factor));// total =total -1*objtris
+            mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)));// total =total -1*objtris
             mInstance.ratioArray.set(i, coarse_Ratios[j]);
 
 
@@ -1350,9 +1400,9 @@ public class balancer implements Runnable {
     }
 
 
-    private static Map<Integer, Float> sortByValue(Map<Integer, Float> unsortMap, final boolean order)
+    private static Map<Integer, Double> sortByValue(Map<Integer, Double> unsortMap, final boolean order)
     {
-        List<Map.Entry<Integer, Float>> list = new LinkedList<>(unsortMap.entrySet());
+        List<Map.Entry<Integer, Double>> list = new LinkedList<>(unsortMap.entrySet());
 
         // Sorting the list based on values
         list.sort((o1, o2) -> order ? o1.getValue().compareTo(o2.getValue()) == 0

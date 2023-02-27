@@ -31,11 +31,11 @@ public class baseline implements Runnable {
     private final MainActivity mInstance;
     float ref_ratio=0.5f;
     int objC;
-    float sensitivity[] ;
+    double sensitivity[] ;
     float objquality[];
     float tris_share[];
 
-    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
+    float []coarse_Ratios=new float[]{1F, (float) 0.8, (float) 0.6, 0.4f, 0.2f, 0.05f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
 
     int sleepTime=50;
@@ -45,7 +45,7 @@ public class baseline implements Runnable {
     public baseline(MainActivity mInstance) {
         objC=mInstance.objectCount+1;
         this.mInstance = mInstance;
-        sensitivity = new float[objC];
+        sensitivity = new double[objC];
         tris_share = new float[objC];
         objquality= new float[objC];// 1- degradation-error
 
@@ -141,10 +141,10 @@ public class baseline implements Runnable {
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
            for (int i=0; i<objC-1; i++) {
-               float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
+               double curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
+               double r1 = mInstance.ratioArray.get(i); // current object decimation ratio
 
-               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
+               double r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
                int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
                // excel file has all information for the degredation model
                float gamma = mInstance.excel_gamma.get(indq);
@@ -229,7 +229,7 @@ public class baseline implements Runnable {
             float b = mInstance.excel_betta.get(i);
             float c = mInstance.excel_c.get(i);
             float d = mInstance.renderArray.get(ind).return_distance();
-            float curQ = mInstance.ratioArray.get(ind);
+            double curQ = mInstance.ratioArray.get(ind);
 
 
             float deg_error = (float) (Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000))) / 1000;
@@ -250,7 +250,7 @@ public class baseline implements Runnable {
 
     }
 
-    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, float r1) {
+    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, double r1) {
 
         float error;
         if(r1==1)
@@ -280,7 +280,7 @@ public class baseline implements Runnable {
 
                 //decimate all
                 mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)/1000) );// total =total -1*objtris
-                mInstance.ratioArray.set(i, coarse_Ratios[index]);
+                mInstance.ratioArray.set(i,  coarse_Ratios[index]);
                 TextView posText = (TextView)mInstance. findViewById(R.id.dec_req);
                 posText.setText("Request for " +mInstance. renderArray.get(i).fileName + " " + coarse_Ratios[index]);
                 int finalI = i;

@@ -27,35 +27,35 @@ public class Mir implements Runnable {
     private final MainActivity mInstance;
     float ref_ratio=0.5f;
     int objC;
-    float sensitivity[] ;
+    double sensitivity[] ;
     float objquality[];
-    float tris_share[];
+    double tris_share[];
     Map <Integer, Float> candidate_obj;
     float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
-    float [][]fProfit;
-    float [][] tRemainder;
+    double [][]fProfit;
+    double [][] tRemainder;
     int [][] track_obj;
     int sleepTime=60;
     //float candidate_obj[] = new float[total_obj];
-    float tMin[] ;
+    double tMin[] ;
 
     public Mir(MainActivity mInstance) {
 
         this.mInstance = mInstance;
 
         objC=mInstance.objectCount+1;
-        sensitivity = new float[objC];
-        tris_share = new float[objC];
+        sensitivity = new double[objC];
+        tris_share = new double[objC];
         objquality= new float[objC];// 1- degradation-error
 
 
         //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
-        fProfit= new float[objC][coarse_Ratios.length];
-        tRemainder= new float[objC][coarse_Ratios.length];
+        fProfit= new double[objC][coarse_Ratios.length];
+        tRemainder= new double[objC][coarse_Ratios.length];
         track_obj= new int[objC][coarse_Ratios.length];
         //float candidate_obj[] = new float[total_obj];
-        tMin = new float[objC];
+        tMin = new double[objC];
 
 
     }
@@ -744,15 +744,15 @@ public class Mir implements Runnable {
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
            for (int i=0; i<objC-1; i++) {
-               float curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
+               double curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
+               double r1 = mInstance.ratioArray.get(i); // current object decimation ratio
 //               if (mInstance.renderArray.get(i).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                   r1 = 0.6f; // jsut for scenario3 objects are decimated
 //               else if(mInstance.renderArray.get(i).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 //                   r1=0.3f;
 
 
-               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
+               double r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
                int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
                // excel file has all information for the degredation model
                float gamma = mInstance.excel_gamma.get(indq);
@@ -955,7 +955,7 @@ public class Mir implements Runnable {
             float b = mInstance.excel_betta.get(i);
             float c = mInstance.excel_c.get(i);
             float d = mInstance.renderArray.get(ind).return_distance();
-            float curQ = mInstance.ratioArray.get(ind);
+            double curQ = mInstance.ratioArray.get(ind);
 
 //            if (mInstance.renderArray.get(ind).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                curQ = 0.6f; // jsut for scenario3 objects are decimated
@@ -980,7 +980,7 @@ public class Mir implements Runnable {
 
     }
 
-    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, float r1) {
+    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, double r1) {
 
         float error;
         if(r1==1)
@@ -1003,7 +1003,7 @@ public class Mir implements Runnable {
             sum_org_tris += mInstance.renderArray.get(ind).orig_tris;// this will ne used to cal min of tris needed at each row (object) in bellow
 
 
-            float curtris = mInstance.renderArray.get(ind).orig_tris * mInstance.ratioArray.get(ind);
+            double curtris = mInstance.renderArray.get(ind).orig_tris * mInstance.ratioArray.get(ind);
 
           /* I calculate this in quality function
            float r1 = mInstance.ratioArray.get(ind); // current object decimation ratio
@@ -1026,7 +1026,7 @@ public class Mir implements Runnable {
             //Qi−Qi,r divided by Ti(1−Rr) = (1-er1) - (1-er2) / ....
             sensitivity[ind] = (abs(tmper2 - tmper1) / (curtris - (ref_ratio * curtris)));*/
             tris_share[ind] = (curtris / tUP);
-            candidate_obj.put(ind, sensitivity[ind] / tris_share[ind]);
+            candidate_obj.put(ind, (float) (sensitivity[ind] / tris_share[ind]));
 
 
         }
@@ -1034,9 +1034,9 @@ public class Mir implements Runnable {
         // Up to here, the candidate objects are known
 
 
-        float updated_sum_org_tris = sum_org_tris; // keeps the last value which is sum_org_tris - tris1-tris2-....
+        double updated_sum_org_tris = sum_org_tris; // keeps the last value which is sum_org_tris - tris1-tris2-....
         for (int i : sortedcandidate_obj.keySet()) { // check this gets the candidate object index to calculate min weight
-            float sum_org_tris_minus = updated_sum_org_tris - mInstance.renderArray.get(i).orig_tris; // this is summ of tris for all the objects except the current one
+            double sum_org_tris_minus = updated_sum_org_tris - mInstance.renderArray.get(i).orig_tris; // this is summ of tris for all the objects except the current one
             updated_sum_org_tris = sum_org_tris_minus;
             tMin[i] = coarse_Ratios[coarse_Ratios.length - 1] * sum_org_tris_minus;// minimum tris needs for object i+1 to object n
             ///@@@@ if this line works lonely, delete the extra line for the last object to zero in the alg
@@ -1057,7 +1057,7 @@ public class Mir implements Runnable {
                 float c =mInstance. excel_c.get(indq);
                 float d_k = mInstance.renderArray.get(i).return_distance();// current distance
                 float max_nrmd = mInstance.excel_maxd.get(indq);
-                float quality = 1 -( Calculate_deg_er(a, b, c, d_k, gamma, coarse_Ratios[j]) / max_nrmd  ); // deg error for current sit
+                double quality = 1 -( Calculate_deg_er(a, b, c, d_k, gamma, coarse_Ratios[j]) / max_nrmd  ); // deg error for current sit
 
                 if (i == key && tUP >= mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]) { // the first object in the candidate list
                     fProfit[i][j] = quality;// Fα(i),j ←Qα(i),j -> i is alpha i
@@ -1065,8 +1065,8 @@ public class Mir implements Runnable {
                 } else //  here is the dynamic programming section
                     for (int s = 0; s < coarse_Ratios.length; s++) {
 
-                        float f = fProfit[prevInd][s] + quality;
-                        float t = tRemainder[prevInd][s] - (mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]);
+                        double f = fProfit[prevInd][s] + quality;
+                        double t = tRemainder[prevInd][s] - (mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]);
                         if (t >= tMin[i] && fProfit[i][j] < f) {
 
                             fProfit[i][j] = f;
@@ -1084,7 +1084,7 @@ public class Mir implements Runnable {
         sortedcandidate_obj = sortByValue(candidate_obj, true); // to iterate through the list from lowest to highest values
 
         int lowPobjIndx = sortedcandidate_obj.entrySet().iterator().next().getKey(); // line 26
-        float tmp=fProfit[lowPobjIndx][0];
+        double tmp=fProfit[lowPobjIndx][0];
         int j=0;
         for  (int maxindex=1;maxindex<coarse_Ratios.length;maxindex++) // line 27
             if(fProfit[lowPobjIndx][maxindex]>tmp)// finds the index of coarse-grain ratio with maximum profit
@@ -1099,7 +1099,7 @@ public class Mir implements Runnable {
 
             {// to avoid null pointer error
 
-            mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)/mInstance.tris_factor));// total =total -1*objtris
+            mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)));// total =total -1*objtris
             mInstance.ratioArray.set(i, coarse_Ratios[j]);
 
 

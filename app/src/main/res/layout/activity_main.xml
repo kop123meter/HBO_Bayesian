@@ -25,13 +25,15 @@
             android:layout_width="match_parent"
             android:layout_height="35dp"
             android:layout_gravity="left"
-            android:text="Decimation Request" />
+            android:text="@string/decimation_request"
+            android:textColor="#BBDEFB" />
 
         <TextView
             android:id="@+id/objnum"
             android:layout_width="match_parent"
             android:layout_height="35dp"
-            android:text="obj_num" />
+            android:text="obj_num"
+            android:textColor="#BBDEFB" />
 
         <TextView
             android:id="@+id/thr"

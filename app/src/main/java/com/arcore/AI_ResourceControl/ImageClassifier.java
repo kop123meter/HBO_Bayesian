@@ -19,6 +19,7 @@ import android.app.Activity;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.os.SystemClock;
+import android.os.Trace;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.util.Log;
@@ -176,9 +177,22 @@ public abstract class ImageClassifier {
 
   /**Classifies frame, does not produce output*/
 void classifyFrame(Bitmap bitmap) {
+
+  Trace.beginSection("preprocessBitmap");
   convertBitmapToByteBuffer(bitmap);
+  Trace.endSection();
+
+
+  // Run the inference call.
+  // Add this method in to NNAPI systrace analysis.
+  Trace.beginSection("[NN_LA_PE]runInferenceModel");
+  long startTime = SystemClock.uptimeMillis();
   runInference();
   // nil created this commented to not consider it for inference time printToFile(); // added nil
+  long endTime = SystemClock.uptimeMillis();
+  Trace.endSection();
+
+
 
 
 }

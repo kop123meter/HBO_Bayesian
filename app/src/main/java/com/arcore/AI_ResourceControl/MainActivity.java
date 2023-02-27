@@ -134,7 +134,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     /*please note that this factor selection affects the alpha parameters for throughput model. so make sure to choose it correctly
     * eg, for some AI models if normalized  tris goes from 0.2 to 85, and throughput of AI1 is 9, the alpha_d changes for, 0.002 to 3.4 for one model which is not good compared to other models that might have still alpha d bellow 0.1*/
    // double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
-    double tris_factor=1000; // to normalize tris and have a better parameters for throughput model
+   // double tris_factor=1; // to normalize tris and have a better parameters for throughput model
 
     int maxtime=6; // 20 means calculates data for next 10 sec ->>>should be even num
     // if 5, goes up to 2.5 s. if 10, goes up to 5s
@@ -176,6 +176,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     List<Double> baseline_AIthr= new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
     List<Double> est_weights= new ArrayList<>();// this is a list of normalized  estimated weights
+    List<Double> nrmest_weights= new ArrayList<>();// this is a list of normalized  estimated weights
+
 //    List<Double> msr_weights= new ArrayList<>();// this is a list of normalized measured weights
 
     List<Double> baseline_est_weights= new ArrayList<>();// the accuracy of AI throughput model
@@ -254,7 +256,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
-    private int scenarioTickLength = 50000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 65000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
     //value to make sure tris change from object addition will not affect data collection in balancer.java (it collects data of recent tris)
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();
@@ -262,7 +264,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private int taskConfigTickLength = 50000;
     private int pauseLength = 10000;
 
-    double thr_factor=0.6;
+    double thr_factor=0.5;
     double re_factor=0.9;
     //int rsp_miss_counter=0;
     int re_miss_counter=0;
@@ -288,7 +290,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     boolean trisChanged=false;
     float percReduction = 0;
     int decision_p=1;
-    List<Integer> o_tris = new ArrayList<>();
+    List<Double> o_tris = new ArrayList<>();
 
     double initial_meanD=0;
     double initial_totT=0;
@@ -302,7 +304,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Float> excel_gamma = new ArrayList<>();
     List<Float> excel_maxd = new ArrayList<>();
     List<String> excelname = new ArrayList<>();
-    List<Integer> excel_tris = new ArrayList<>();
+    List<Double> excel_tris = new ArrayList<>();
     List<Float> excel_mindis = new ArrayList<>();
     List<Boolean> closer = new ArrayList<>();
     List<Float> max_d = new ArrayList<>();
@@ -442,13 +444,13 @@ else{
         public TransformableNode baseAnchor;
         public String fileName;
         private int ID;
-        public float orig_tris;
+        public double orig_tris;
         //public float current_tris;
 
 //        public float getcur_tris() {
 //            return current_tris;
 //        }
-        public float getOrg_tris() {
+        public double getOrg_tris() {
             return orig_tris;
         }
 
@@ -470,7 +472,7 @@ else{
 
         public abstract void redraw(int i);
 
-        public abstract void decimatedModelRequest(float percentageReduction, int i, boolean rd);
+        public abstract void decimatedModelRequest(double percentageReduction, int i, boolean rd);
         public abstract void indirect_redraw(float percentageReduction, int i);
         //public abstract void print(AdapterView<?> parent, int pos);
 
@@ -519,7 +521,7 @@ else{
             nextID++;
         }
 
-        public void decimatedModelRequest(float percentageReduction, int i, boolean rd) {
+        public void decimatedModelRequest(double percentageReduction, int i, boolean rd) {
             return;
         }
         public void indirect_redraw(float percentageReduction, int i) {
@@ -579,7 +581,7 @@ else{
 
     //Decimated renderable -- has the ability to redraw and make model request from the manager
     private class decimatedRenderable extends baseRenderable {
-        decimatedRenderable(String filename, float tris) {
+        decimatedRenderable(String filename, double tris) {
             this.fileName = filename;
             this.orig_tris=tris;
           //  this.current_tris=tris;
@@ -595,7 +597,7 @@ else{
         }
 
 
-        public void decimatedModelRequest(float percentageReduction, int id, boolean redraw_direct) {
+        public void decimatedModelRequest(double percentageReduction, int id, boolean redraw_direct) {
             //Nil
 
            // decimate_thread.add(decimate_count, new Thread(){
@@ -603,7 +605,7 @@ else{
              //   @Override
                // public void run(){
 
-                    percReduction = percentageReduction;
+                    percReduction = (float) percentageReduction;
            //
             //      commented on May 2 2022   ModelRequestManager.getInstance().add(new ModelRequest(cacheArray[id], fileName, percentageReduction, getApplicationContext(), MainActivity.this, id),redraw_direct );
 //April 21 Nill , istead of calling mdelreq, sinc we have already downloaded objs from screen, we can call directly redraw
@@ -833,6 +835,7 @@ else{
                         baseline_AIthr.add(0d);
                         est_weights.add(1d);
                         baseline_est_weights.add(1d);// not used
+                        nrmest_weights.add(1d);// not used
                         //msr_weights.add(0d);
                         hAI_acc.add(false);
                     }
@@ -1177,6 +1180,7 @@ else{
 
         try {
 
+           double tfactor=10000;
             InputStream inputStream = getResources().getAssets().open("degmodel_file.csv");
 
             InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
@@ -1192,7 +1196,7 @@ else{
                 excel_c.add(Float.parseFloat(cols[2]));
                 excel_gamma.add(Float.parseFloat(cols[3]));
                 excel_maxd.add(Float.parseFloat(cols[4]));
-                excel_tris.add(Integer.parseInt(cols[5]));
+                excel_tris.add(Integer.parseInt(cols[5])/tfactor);
                 excel_mindis.add(Float.parseFloat(cols[7]));
                 excel_filesize.add(Float.parseFloat(cols[8]));
                 excelname.add((String) (cols[6]));
@@ -1627,7 +1631,7 @@ else{
 
 
 
-                    float original_tris=excel_tris.get(excelname.indexOf(currentModel));
+                    double original_tris=excel_tris.get(excelname.indexOf(currentModel));
                     renderArray.add(objectCount,new decimatedRenderable(modelSpinner.getSelectedItem().toString(),original_tris));
 
 
@@ -1695,15 +1699,17 @@ else{
                                     //if (under_Perc == false) {
                                     //(o_tris.get(i)/1000) is to have a better est_weights for throughput modeling
 
-                                        total_tris = total_tris - (ratioArray.get(i) * ((double)(o_tris.get(i))/tris_factor)     );// total =total -1*objtris
+                                        total_tris = total_tris - (ratioArray.get(i) * ((double)(o_tris.get(i)))     );// total =total -1*objtris
                                        // ratioArray[i] = ratio[0] / 100f;
-                                        ratioArray.set(i, ratio[0] / 100f);
+
+
+                                        ratioArray.set(i,  ( ratio[0]) / 100f);
                                         renderArray.get(i).decimatedModelRequest(ratio[0] / 100f, i, false);
                                         posText.setText("Request for " + renderArray.get(i).fileName + " " + ratio[0] / 100f);
 
 
                                         // update total_tris
-                                        total_tris = total_tris + (ratioArray.get(i) * ((double)(o_tris.get(i))/tris_factor) );// total = total + 0.8*objtris
+                                        total_tris = total_tris + (ratioArray.get(i) * ((double)(o_tris.get(i))) );// total = total + 0.8*objtris
                                     totTrisList.add(total_tris);
 
                                     //    trisDec.put(total_tris,true);
@@ -1784,8 +1790,8 @@ else{
 
 
 
-                        total_tris = total_tris - (ratioArray.get(i) * ( ((double)o_tris.get(i))/tris_factor));// total =total -1*objtris
-                        orgTrisAllobj -= (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor));
+                        total_tris = total_tris - (ratioArray.get(i) * ( ((double)o_tris.get(i))));// total =total -1*objtris
+                        orgTrisAllobj -= (ratioArray.get(i) * (((double)o_tris.get(i))));
                         objectCount -= 1;
                         TextView posText = (TextView) findViewById(R.id.objnum);
                         posText.setText("obj_num: " + objectCount);
@@ -1876,6 +1882,10 @@ else{
 
                 decimate_thread.clear();
                 renderArray .clear();
+
+                nrmest_weights.clear();
+                est_weights.clear();
+
             }
         });
 
@@ -2005,7 +2015,7 @@ else{
                                   //  policy = policySpinner.getSelectedItem().toString();
 
                                     //modelSpinner.setSelection(modelSelectAdapter.getPosition(currentModel));
-                                    float original_tris = excel_tris.get(excelname.indexOf(currentModel));
+                                    double original_tris = excel_tris.get(excelname.indexOf(currentModel));
                                     renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
                                    // commented temp sep
 
@@ -2212,27 +2222,27 @@ else{
                             float decRatio;
 
                             if (under_Perc == false) {
-                                total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor) );// total =total -1*objtris
+                                total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))) );// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 100f;
-                                ratioArray.set(i, seekBar.getProgress() / 100f);
+                                ratioArray.set(i,  decRatio);
                                 renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
 
 
                                 // update total_tris
-                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor))  ;// total = total + 0.8*objtris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))))  ;// total = total + 0.8*objtris
                           //      trisDec.put(total_tris,true);
                                 if (!decTris.contains(total_tris))
                                    decTris.add(total_tris);
                                 curTrisTime= SystemClock.uptimeMillis();
                                 // quality is registered
                             } else {
-                                total_tris = total_tris - (ratioArray.get(i)*(((double)o_tris.get(i))/tris_factor));// total =total -1*objtris
+                                total_tris = total_tris - (ratioArray.get(i)*(((double)o_tris.get(i))));// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 1000f;
-                                ratioArray.set(i, seekBar.getProgress() / 1000f);
+                                ratioArray.set(i,  decRatio);
                                 renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
 
                                 // update total_tris
-                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))/tris_factor));// total = total + 0.8*objtris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))));// total = total + 0.8*objtris
                              //   trisDec.put(total_tris,true);
                                 if (!decTris.contains(total_tris))
                                     decTris.add(total_tris);
@@ -3881,10 +3891,10 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
 
        int indq = excelname.indexOf(renderArray.get(objectCount).fileName);// search in excel file to find the name of current object and get access to the index of current object
-        o_tris.add( (Integer) excel_tris.get(indq));
+        o_tris.add(  excel_tris.get(indq));
         // update total_tris
-        total_tris+=   (  ((double)o_tris.get(objectCount) )/tris_factor)   ;
-        orgTrisAllobj+=   (  ((double)o_tris.get(objectCount) )/tris_factor);
+        total_tris+=   (  ((double)o_tris.get(objectCount) ))   ;
+        orgTrisAllobj+=   (  ((double)o_tris.get(objectCount) ));
 
         d1_prev.add(objectCount, 0f);
 
@@ -3904,7 +3914,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
         time_log.add(objectCount,  dateFormat.format(new Date()).toString() );
 
 
-        ratioArray.add(objectCount,1f);
+        ratioArray.add(objectCount, 1F);
         objectCount++;
 
 
