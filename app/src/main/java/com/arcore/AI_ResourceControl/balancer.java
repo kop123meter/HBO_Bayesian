@@ -164,7 +164,7 @@ public class balancer implements Runnable {
 
        // mInstance.trisMeanDisk.put(totTris, pred_meanD); //one-time correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 // this gets above bincap sooner than the rest of lists, so, we need to keep the size not more than 5
-        double aiMaxError=0.14;
+        double aiMaxError=0.13;
         int Ai_count= mInstance.mList.size();
         for (int aiIndx=0; aiIndx<Ai_count;aiIndx++) {
 
@@ -515,7 +515,7 @@ public class balancer implements Runnable {
 
                // double msr_thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
                 sum_currentWt += (est_wi * msr_thr); //est_wi instead of ms_wi
-                sum_baseWt += (est_wi * mInstance.baseline_AIthr.get(i) * mInstance.thr_factor);//sum(Normalized Wi * Hbase)
+                sum_baseWt += (est_wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
 
 
                 sum_rohT_wi += ( est_wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
@@ -840,7 +840,7 @@ public class balancer implements Runnable {
                         double denom = mInstance.alphaT + (mInstance.rohT * mInstance.alphaH); //α + ργ
                         double tmpnextTris = (nomin / (denom));
 
-                        if (tmpnextTris > 0 && tmpnextTris <= mInstance.orgTrisAllobj) {
+                        if (tmpnextTris > 0) {
 
                             // temporarily inactive to not to run algo-> just wanna check nexttris values
                             if (tmpnextTris < mInstance.orgTrisAllobj && tmpnextTris >= minTrisThreshold)
@@ -849,8 +849,8 @@ public class balancer implements Runnable {
                             else if (tmpnextTris < minTrisThreshold)
                                 nextTris = minTrisThreshold ;
 
-                           // else if (tmpnextTris > mInstance.orgTrisAllobj)
-                             //   nextTris = mInstance.orgTrisAllobj;
+                            else if (tmpnextTris > mInstance.orgTrisAllobj)
+                                nextTris = mInstance.orgTrisAllobj;
 
 
                            // nextTris = Math.round(nextTris * 1000) / 1000;
@@ -1079,14 +1079,14 @@ public class balancer implements Runnable {
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
            for (int i=0; i<objC-1; i++) {
                double curtris = mInstance.renderArray.get(i).orig_tris * mInstance.ratioArray.get(i);
-               double r1 = mInstance.ratioArray.get(i); // current object decimation ratio
+               float r1 = mInstance.ratioArray.get(i); // current object decimation ratio
 //               if (mInstance.renderArray.get(i).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                   r1 = 0.6f; // jsut for scenario3 objects are decimated
 //               else if(mInstance.renderArray.get(i).fileName.contains("0.3")) // sixth scenario has ratio 0.3
 //                   r1=0.3f;
 
 
-               double r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
+               float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
                int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(i).fileName);// search in excel file to find the name of current object and get access to the index of current object
                // excel file has all information for the degredation model
                float gamma = mInstance.excel_gamma.get(indq);
@@ -1252,7 +1252,7 @@ public class balancer implements Runnable {
             float b = mInstance.excel_betta.get(i);
             float c = mInstance.excel_c.get(i);
             float d = mInstance.renderArray.get(ind).return_distance();
-            double curQ = mInstance.ratioArray.get(ind);
+            float curQ = mInstance.ratioArray.get(ind);
 
 //            if (mInstance.renderArray.get(ind).fileName.contains("0.6")) // third scenario has ratio 0.6
 //                curQ = 0.6f; // jsut for scenario3 objects are decimated
@@ -1277,7 +1277,7 @@ public class balancer implements Runnable {
 
     }
 
-    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, double r1) {
+    public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, float r1) {
 
         float error;
         if(r1==1)

@@ -227,7 +227,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double rohD=0.0001;
     double delta=66.92;
     double thRmse;
-    double des_weight=0.5;
+    double des_weight=0.6;
     //for RE modeling and algorithm
 
     double orgTrisAllobj=0d;
@@ -256,7 +256,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
-    private int scenarioTickLength = 65000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 60000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
     //value to make sure tris change from object addition will not affect data collection in balancer.java (it collects data of recent tris)
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();

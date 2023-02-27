@@ -24,6 +24,8 @@
     <string name="obj_num">TextView</string>
     <string name="camera_position">Camera Position:</string>
     <string name="decimation_request">Decimation Request</string>
+    <string name="save">save</string>
+    <string name="_1">1</string>
     <string-array name="user_score">
         <item>1</item>
         <item>2</item>
