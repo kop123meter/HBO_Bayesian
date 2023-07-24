@@ -20,6 +20,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.media.Image;
 import android.os.Handler;
@@ -40,8 +41,7 @@ import android.os.CountDownTimer;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-  import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -78,9 +78,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.LinkedHashMultimap;
-import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 
@@ -90,14 +88,21 @@ import java.io.InputStream;
 import static java.lang.Math.abs;
 import static java.lang.Math.min;
 import static java.lang.Math.round;
+import static java.lang.Thread.sleep;
 //import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper;
-
+//import  javax.imageio;
+//import java.awt.*;
+//import java.awt.image.*;
 /*TODO: constant update distance to file
   see if we can update AR capabilities -- find out pointer operation (why will it not draw past 2 meters or whateverz
   update menu popups for simplified files -- thumbnails have to be 64x64
   compare anchor and hit position in place object
 
 */
+
+
+
+
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
 
@@ -113,15 +118,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     //private static MainActivity Instance = new com.arcore.MixedAIAR.MainActivity();
 
 
-    //    static
-//    {
-//        Instance =
-//    }
-//    public static MainActivity getInstance()
-//    {
-//        return Instance;
-//    }
 
+boolean oneTimeAccess=true;// to send image to server
     private boolean isTracking;
     private boolean isHitting;
 
@@ -135,7 +133,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     * eg, for some AI models if normalized  tris goes from 0.2 to 85, and throughput of AI1 is 9, the alpha_d changes for, 0.002 to 3.4 for one model which is not good compared to other models that might have still alpha d bellow 0.1*/
    // double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
    // double tris_factor=1; // to normalize tris and have a better parameters for throughput model
-
+    double avgq=1;
     int maxtime=6; // 20 means calculates data for next 10 sec ->>>should be even num
     // if 5, goes up to 2.5 s. if 10, goes up to 5s
     double pred_meanD_cur=0; // predicted mean distance in next two second saved as current d in dataCol for next period
@@ -155,10 +153,16 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     //double nextTris = 0;
     //double algNxtTris = 0;
     long t_loop1=0;
-    String odraAlg="1";
+    int alg=1;
+
+    String [] algName=new String[]{"XMIR","MIR"};
     //long t_loop2=0;
     StringBuilder tasks = new StringBuilder();
 
+     boolean stopTimer = false;
+     boolean stopwrite_datacollect = true;
+    boolean stop_thread = false;
+    List<List<Integer>> combinations_copy ;
 
     //$$$$$$$$$$$$$$$$$$$ for XMIRE-
     ListMultimap<Integer, Double> modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
@@ -168,13 +172,18 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     ListMultimap<Integer, Double> coeff_total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
 
     List<ListMultimap<Double, Double>> rsp_models= new ArrayList<>();// map from each model to throughput an Tris
+    List<Double> rohTLRt= new ArrayList<>();
+    List<Double> rohDLRt= new ArrayList<>();
+    List<Double> deltaLRt= new ArrayList<>();
+
     List<Double> rohTL= new ArrayList<>();
     List<Double> rohDL= new ArrayList<>();
     List<Double> deltaL= new ArrayList<>();
+
     List<Boolean> hAI_acc= new ArrayList<>();// the accuracy of AI throughput model
+    List<Integer> conseq_error= new ArrayList<>();// the counter for consequent per AI throughput error
 
-
-    List<Double> baseline_AIthr= new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
+    List<Double> baseline_AIRt = new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
     List<Double> est_weights= new ArrayList<>();// this is a list of normalized  estimated weights
     List<Double> nrmest_weights= new ArrayList<>();// this is a list of normalized  estimated weights
 
@@ -192,7 +201,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double last_tris=0;
     //$$$$$$$$$$$$$$
     double des_Q= 0.7; //# this is avg desired Q
-    double des_Thr = 35; // 0.65*throughput; in line 2063,
+    double des_Thr = 0; // 0.65*throughput; in line 2063,
+    double des_thr_weight=0.45;
+    double des_Rt_weight=1/des_thr_weight;// for response time, 1.5x is equal to 50% increase in response time or 50% decrease in throughput?
     List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // LinkedHashMultimap to keep order of insersion to hold list of response time
     List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
 
@@ -227,7 +238,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double rohD=0.0001;
     double delta=66.92;
     double thRmse;
-    double des_weight=0.6;
+    boolean bayesian_pushed=false;
     //for RE modeling and algorithm
 
     double orgTrisAllobj=0d;
@@ -238,11 +249,19 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private Double[] desiredQ = new Double[]{0.7, 0.5, 0.3 };
     private String[] desiredalg = new String[]{"1","2" ,"3"};
     private Double[] desiredThr_weight = new Double[]{1.3,1.1, 0.9, 0.8, 0.7 , 0.6, 0.5};
+
+    public List<Double> avg_reponseT=new ArrayList<>();
+
+    AiRecyclerviewAdapter adapter;// added by nil
+    RecyclerView recyclerView_aiSettings;
     private String currentModel = null;
      boolean decAll  = true; // older name :referenceObjectSwitchCheck
+ //   boolean usecash=true;// should be true for the tests
+    boolean usecash=false;// either downloads from the edge or uses cash
     private boolean autoPlace = false;// older name multipleSwitchCheck
     private boolean askedbefore = false;
-     int nextID = 1;
+   // int nextID = 1;
+    int nextID = 0;
     boolean under_Perc = false; // it is used for seekbar and the percentages with 0.1 precios like 1.1%, I press 11% in app and /1000 here
     boolean fisrService = false;
     CountDownTimer countDownTimer;
@@ -256,12 +275,13 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
-    private int scenarioTickLength = 60000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 40000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
     //value to make sure tris change from object addition will not affect data collection in balancer.java (it collects data of recent tris)
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();
     private String currentTaskConfig = null;
-    private int taskConfigTickLength = 50000;
+    private int taskConfigTickLength = 3000;
+         //   35000;
     private int pauseLength = 10000;
 
     double thr_factor=0.5;
@@ -287,7 +307,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     File obj;
     File tris_num;
     File GPU_usage;
-    boolean trisChanged=false;
+    boolean basethr_tag=false;
+//    boolean trisChanged=false;
     float percReduction = 0;
     int decision_p=1;
     List<Double> o_tris = new ArrayList<>();
@@ -315,6 +336,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<String> eng_dec = new ArrayList<>();
 
     int baseline_index=0;// index of all objects ratio of the coarse_ratio array
+    List<List<Integer>> combinations = new ArrayList<>();
+            //Arrays.asList(new List[]{new ArrayList<>()});
 
     List<String> quality_log = new ArrayList<>();
     List<String> time_log = new ArrayList<>();
@@ -350,7 +373,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double total_tris=0;
 
 
-
+     boolean activate_b =true;
+     boolean sleepmode=false;
     ///prediction - Nil/Saloni
     private ArrayList<Float> timeLog = new ArrayList<>();
 
@@ -600,22 +624,19 @@ else{
         public void decimatedModelRequest(double percentageReduction, int id, boolean redraw_direct) {
             //Nil
 
-           // decimate_thread.add(decimate_count, new Thread(){
-
-             //   @Override
-               // public void run(){
+//
 
                     percReduction = (float) percentageReduction;
-           //
-            //      commented on May 2 2022   ModelRequestManager.getInstance().add(new ModelRequest(cacheArray[id], fileName, percentageReduction, getApplicationContext(), MainActivity.this, id),redraw_direct );
-//April 21 Nill , istead of calling mdelreq, sinc we have already downloaded objs from screen, we can call directly redraw
-            renderArray.get(id).redraw(id);
+        //this is to request for new decimated objects in edge
+            ModelRequestManager.getInstance().add(new ModelRequest(cacheArray.get(id), fileName, percReduction, getApplicationContext(), MainActivity.this, id),redraw_direct,false );
+// this is for request for offloading to the edge : works withput image as the last argumant
+        //    ModelRequestManager.getInstance().add(new ModelRequest("classifier", getApplicationContext(), MainActivity.this),redraw_direct, true);
 
 
-              //  }//
+            //April 21 Nill , istead of calling mdelreq, sinc we have already downloaded objs from screen, we can call directly redraw
+            //renderArray.get(id).redraw(id); uncomment this if you want to load from cache and aslo make cash flag (redirect label here) true
 
 
-           // } );
 
 
 
@@ -719,6 +740,10 @@ else{
     }
 
 
+
+
+
+    /// for python bridge
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -726,9 +751,22 @@ else{
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        //1- way MyPythonRunner myPythonRunner = new MyPythonRunner();
+        //2- way myPythonRunner.runPythonCode();
+        //OptimizationExample oe=new OptimizationExample();
+       // oe.main(null);
+// 3d way:
+       /// ServerThread serverThread= new ServerThread();
+        //serverThread.run();
+
+////////////////
+
+
         ////////////////
-        // manyAI
+        // python bridge
         ////////////////
+
+
 
         /**coroutine flow source that captures camera frames from updateTracking() function*/
        // DynamicBitmapSource source = new DynamicBitmapSource(bitmapUpdaterApi);
@@ -737,10 +775,13 @@ else{
 
 //        for(int i = 0; i<20; i++) {
         mList.add(new AiItemsViewModel());
+        avg_reponseT.add(0d);
 //        }
         // Define the recycler view that holds the AI settings cards
-        RecyclerView recyclerView_aiSettings = findViewById(R.id.recycler_view_aiSettings);
-        AiRecyclerviewAdapter adapter = new AiRecyclerviewAdapter(mList, source, this, MainActivity.this);
+     //   RecyclerView
+          recyclerView_aiSettings = findViewById(R.id.recycler_view_aiSettings);
+        //AiRecyclerviewAdapter
+                adapter = new AiRecyclerviewAdapter(mList, source, this, MainActivity.this);
 
         // set the adapter and layout manager for the recycler view
         recyclerView_aiSettings.setAdapter(new AiRecyclerviewAdapter(mList, source, this, MainActivity.this));
@@ -749,13 +790,27 @@ else{
 
         // Set up UI elements
         Switch switchToggleStream = (Switch) findViewById(R.id.switch_streamToggle);
+        Switch switchbalancer = (Switch) findViewById(R.id.switch_balancer);
         Button buttonPushAiTask = (Button) findViewById(R.id.button_pushAiTask);
         Button buttonPopAiTask = (Button) findViewById(R.id.button_popAiTask);
         TextView textNumOfAiTasks = (TextView) findViewById(R.id.text_numOfAiTasks);
       //  TextView textThroughput = (TextView) findViewById(R.id.textView_throughput);
        // TextView textGpuUtilization = (TextView) findViewById(R.id.textView_gpuUtilization);
 
-        buttonPushAiTask.setOnClickListener(new View.OnClickListener() {
+
+
+        switchbalancer.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    activate_b =true;
+
+                }
+                else
+                    activate_b =false;
+            }
+            });
+
+                    buttonPushAiTask.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
                 // get num of ai tasks from textView
                 int numAiTasks = Integer.parseInt(textNumOfAiTasks.getText().toString());
@@ -767,15 +822,14 @@ else{
                     // update num of AI tasks
                     textNumOfAiTasks.setText(String.format("%d", numAiTasks));
                     mList.add(new AiItemsViewModel());
+                    avg_reponseT.add(0d);
                     adapter.setMList(mList);
                     recyclerView_aiSettings.setAdapter(adapter);
                 }
 
-
-
-
             }
         });
+
 
         buttonPopAiTask.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
@@ -789,6 +843,8 @@ else{
                     // update num of AI tasks
                     textNumOfAiTasks.setText(String.format("%d", numAiTasks));
                     mList.remove(numAiTasks);
+                    avg_reponseT.remove(avg_reponseT.size()-1);// shrink the list
+
                     adapter.setMList(mList);
                     recyclerView_aiSettings.setAdapter(adapter);
                 }
@@ -811,7 +867,7 @@ else{
 //                    trisRe=LinkedHashMultimap.create();
 
                 //    trisMeanDisk=( ArrayListMultimap.create());
-//                    ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
+       //             ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
                     for (AiItemsViewModel taskView : mList) { // up to the count of AI models we add values to lists below for parameters and slopes and baseline-throughput
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
                         rsp_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
@@ -830,14 +886,18 @@ else{
                         rohDL.add(rohD);// the weight  for throughput modeling
                         rohTL.add(rohT);
                         deltaL.add(delta);
+                        rohDLRt.add(rohD);// the weight  for throughput modeling
+                        rohTLRt.add(rohT);
+                        deltaLRt.add(delta);
                         rsp_miss_counter.add(0);
                         thr_miss_counter.add(0);
-                        baseline_AIthr.add(0d);
+                        baseline_AIRt.add(0d);
                         est_weights.add(1d);
                         baseline_est_weights.add(1d);// not used
                         nrmest_weights.add(1d);// not used
                         //msr_weights.add(0d);
                         hAI_acc.add(false);
+                        conseq_error.add(0);
                     }
 
 
@@ -863,6 +923,15 @@ else{
 //                            mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
                           //  if(mList.get(i).getRunCollection())
                             mList.get(i).getCollector().startCollect();
+
+
+                            double curT = (double) (Math.round((double) ( mList.get(i).getTot_rps() * 100))) / 100;
+
+                            // update min response time for each AI task
+                            avg_reponseT.set(i, curT  );
+
+
+
                         }
                     } else {
                    //     Toast toast = Toast.makeText(MainActivity.this, "Set all AI models & Devices before continuing", Toast.LENGTH_LONG);
@@ -905,14 +974,14 @@ else{
         // AR //
 
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+       // Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+       // setSupportActionBar(toolbar);
         TextView posText1 = (TextView) findViewById(R.id.objnum);
         posText1.setText("obj_num: " + 0);
 
 
-        TextView posText2 = (TextView) findViewById(R.id.thr);
-        posText2.setText("Throughput: " );
+//        TextView posText2 = (TextView) findViewById(R.id.thr);
+//        posText2.setText("Throughput: " );
 
         //create the file to store user score data
         dateFile = new File(getExternalFilesDir(null),
@@ -1025,8 +1094,8 @@ else{
             sbb.append(',').append("trained_flag,").append("Thr_accuracy,");
             sbb.append("rohT").append(',').append("rohD").append(',').append("delta").append(',');
             sbb.append("desiredH").append(',').append("desiredQ").append(',');
-
             sbb.append("Tris");
+            sbb.append(",meanH,Meanpred_H,perAI_mape");
             sbb.append(',');
             sbb.append("Model1");
             sbb.append(',');
@@ -1069,6 +1138,33 @@ else{
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
         }
+
+
+
+
+        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+        FILEPATH = currentFolder + File.separator +"Bayesian_dataCollection"+ fileseries+".csv";
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+//date, thr, tris, model, device, thread
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("time");
+            sbb.append(',');
+            sbb.append("Model1").append(',').append("Device1").append(',').append("RT1");
+
+            sbb.append(',').append("Model2").append(',').append("Device2");
+            sbb.append(',').append("RT2").append(',');
+
+            sbb.append("Model3").append(',').append("Device3").append(',').append("RT3").append(',');
+            sbb.append("Tris").append(',').append("avgQ");
+//            .append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
+         sbb.append('\n');
+            writer.write(sbb.toString());
+            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
 
 
 
@@ -1311,7 +1407,7 @@ else{
 //           public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
 //                                                  // your code here
 //               //des_Q= Double.valueOf( qSpinner.getSelectedItem().toString());
-//                 odraAlg=( qSpinner.getSelectedItem().toString());// yes or no
+//                 alg=( qSpinner.getSelectedItem().toString());// yes or no
 //
 //                                              }
 //            @Override
@@ -1334,7 +1430,7 @@ else{
             public void onItemSelected(AdapterView<?> parentView, View selectedItemView, int position, long id) {
                 // your code here
                 //des_Q= Double.valueOf( qSpinner.getSelectedItem().toString());
-                odraAlg=( qSpinner.getSelectedItem().toString());// yes or no
+                alg= Integer.valueOf ( qSpinner.getSelectedItem().toString());// yes or no
 
             }
             @Override
@@ -1636,8 +1732,8 @@ else{
 
 
 
+
                 addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount));
-                   
 
 //nill temporary oct 24
 //                    renderArray[objectCount] = new decimatedRenderable(modelSpinner.getSelectedItem().toString());
@@ -1660,7 +1756,7 @@ else{
         Auto_decimate_butt.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
-                TextView posText = (TextView) findViewById(R.id.dec_req);
+       //         TextView posText = (TextView) findViewById(R.id.dec_req);
 
                 Toast toast = Toast.makeText(MainActivity.this,
                         "Please Upload the decimated objects to the Phone storage", Toast.LENGTH_LONG);
@@ -1705,7 +1801,7 @@ else{
 
                                         ratioArray.set(i,  ( ratio[0]) / 100f);
                                         renderArray.get(i).decimatedModelRequest(ratio[0] / 100f, i, false);
-                                        posText.setText("Request for " + renderArray.get(i).fileName + " " + ratio[0] / 100f);
+                                        //posText.setText("Request for " + renderArray.get(i).fileName + " " + ratio[0] / 100f);
 
 
                                         // update total_tris
@@ -1817,7 +1913,7 @@ else{
                         Server_reg_Freq.remove(i);
                         //  decimate_thread.remove(i);
                         renderArray.remove(i);
-                        trisChanged=true;
+//                        trisChanged=true;
 
 
                     }// if the item is selected
@@ -1851,7 +1947,8 @@ else{
                 quality_log.clear();
                 orgTrisAllobj=0;
                 objectCount = 0;
-                nextID = 1;
+                //nextID = 1;
+                nextID = 0;
                 TextView posText = (TextView) findViewById(R.id.objnum);
                 posText.setText("obj_num: " + objectCount);
 
@@ -1899,6 +1996,7 @@ else{
                 tParamList.clear();
                 thParamList.clear();
                 trisRe.clear();
+                trisReMir.clear();
 
                 // to start over data collection
 
@@ -1913,10 +2011,57 @@ else{
 
 
 
+/// bayesian test : you need to run three AI tasks for this test
+        Button bt = (Button) findViewById(R.id.bayesian);
+        bt.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+
+                int delegate_count=3;
+                //old  final List<List<Integer>>[] combinations = new List[]{new ArrayList<>()};
+                List<Integer> ct = new ArrayList<>();
+                for (int i=0;i<delegate_count;i++)
+                    for (int j=0;j<delegate_count;j++)
+                        for (int k=0;k<delegate_count;k++)
+                        // for (int m=0;m<delegate_count;m++)// the third task
+                        {
+                            List<Integer> l1 = Arrays.asList(i, j, k);
+                         //     List<Integer> l1 = Arrays.asList(i);
+                            combinations.add(l1);
+                        }
+
+                bayesian_pushed=true;
+                //  List<List<Integer>> combinations_copy = new ArrayList<>(combinations);
+                //  combinations_copy = new ArrayList<>(combinations);
+
+                combinations_copy = combinations.stream().collect(Collectors.toList());
+
+                /// each timer checks for one combination of AI delegate @@@ we need to restart the avg responseT value when ever the combination changes
+                CountDownTimer sceneTimer = new CountDownTimer(Long.MAX_VALUE, 40000) { // this is to automate adding objects to the screen
+                    @Override
+                    public void onTick(long millisUntilFinished) {
+
+                        new bayesian(MainActivity.this).run(); // change device and AI model
+
+                        if(stopTimer) // first check the finishT condition
+                        {      this.cancel();
+                            //   return;
+                        }
+
+                    }
+
+                    @Override
+                    public void onFinish() {
+                    }
+                }.start();
 
 
+            }
+        });
 
+// niloo back
 
+        // for bayesian
+        // I use this for motvation 0 in XMIR
         Button autoPlacementButton = (Button) findViewById(R.id.autoPlacement);// load button
         autoPlacementButton.setOnClickListener(view -> {
             runOnUiThread(clearButton::callOnClick);
@@ -1924,18 +2069,19 @@ else{
 
             new Thread(() -> {
                 try {
-//
-                        String curFolder = getExternalFilesDir(null).getAbsolutePath();
 
-                        String taskFilepath = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + currentTaskConfig;
-                        InputStreamReader taskInputStreamReader = new InputStreamReader(new BufferedInputStream(new FileInputStream(taskFilepath)));
+                    final int[] tris_variation = {4};
+                    String curFolder = getExternalFilesDir(null).getAbsolutePath();
+
+                    String taskFilepath = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + currentTaskConfig;
+                    InputStreamReader taskInputStreamReader = new InputStreamReader(new BufferedInputStream(new FileInputStream(taskFilepath)));
 
                     BufferedReader taskBr = new BufferedReader(taskInputStreamReader);
                     taskBr.readLine();  // column names
 
-                  //  final List<Float>[] sortedlist = new List<Float>[1];
-                        String sceneFilepath = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + currentScenario;
-                        InputStreamReader sceneInputStreamReader = new InputStreamReader(new BufferedInputStream(new FileInputStream(sceneFilepath)));
+                    //  final List<Float>[] sortedlist = new List<Float>[1];
+                    String sceneFilepath = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + currentScenario;
+                    InputStreamReader sceneInputStreamReader = new InputStreamReader(new BufferedInputStream(new FileInputStream(sceneFilepath)));
 
                     BufferedReader sceneBr = new BufferedReader(sceneInputStreamReader);
                     sceneBr.readLine();  // column names
@@ -1948,90 +2094,85 @@ else{
                             public void onTick(long millisUntilFinished) {
                                 if (objectCount == 0) {
                                     this.cancel();
-                                  //switch off is for motivation- exp2
+                                    //switch off is for motivation- exp2
                                     switchToggleStream.setChecked(false);
-                                   // runOnUiThread(() -> Toast.makeText(MainActivity.this, "You can pause and save collected data now", Toast.LENGTH_LONG).show());
+                                    // runOnUiThread(() -> Toast.makeText(MainActivity.this, "You can pause and save collected data now", Toast.LENGTH_LONG).show());
                                     runOnUiThread(clearButton::callOnClick);
                                     return;
                                 }
-                               // removePhase=true;
-
-
+                                // removePhase=true;
                                 // last element in the sorted list would be maximum
-                             //int index=   sortedlist[0].get(sortedlist[0].size() - 1);
+                                //int index=   sortedlist[0].get(sortedlist[0].size() - 1);
 
                                 String name = renderArray.get(objectCount-1).fileName;
                                 renderArray.get(objectCount-1).baseAnchor.select();
                                 runOnUiThread(removeButton::callOnClick);
 
-                               // runOnUiThread(Toast.makeText(MainActivity.this, "Removed " + name, Toast.LENGTH_LONG)::show);
+                                // runOnUiThread(Toast.makeText(MainActivity.this, "Removed " + name, Toast.LENGTH_LONG)::show);
                             }
-
-
-
                             @Override
                             public void onFinish() {
                             }
                         };
 
-                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) { // this is to automate adding objects to the screen
+                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 2000) {
+                            // this is to automate adding objects to the screen
                             @Override
                             public void onTick(long millisUntilFinished) {
                                 // tick per 1 second, reading new line each time
+
+
+                                // XMIR MOTV0 is to run models concurently and add 5 planes at a time
+                               /*
+                                if(tris_variation[0] <=0)
+                                { this.cancel();
+                                     return;}
+
+                                double original_tris=excel_tris.get(excelname.indexOf(currentModel));
+                                for (int i=0; i<5;i++) {
+                                    renderArray.add(objectCount, new decimatedRenderable(modelSpinner.getSelectedItem().toString(), original_tris));
+                                    addObject(Uri.parse("models/" + currentModel + ".glb"), renderArray.get(objectCount));
+                                }
+                                tris_variation[0] -=1;
+                                */
+                                ///* MIR codes
+
+                                // this is to read from scenario1 and draw objs to the screen
                                 try {
                                     String record = sceneBr.readLine();
                                     if (record == null) {
-
-
                                         // just for detailed exp not for exp 4_1
-                                        /*
-                                        reParamList.clear();
-                                        trisMeanDisk.clear();
-                                        trisMeanThr.clear();
-                                        tParamList.clear();
-                                        trisRe.clear();
-                                        reParamList.clear();
-                                        // to start over data collection
-
-                                        decTris.clear();*/
-
+                                        //
+//                                        reParamList.clear();
+//                                        trisMeanDisk.clear();
+//                                        trisMeanThr.clear();
+//                                        tParamList.clear();
+//                                        trisRe.clear();
+//                                        reParamList.clear();
+//                                        // to start over data collection
+//                                        decTris.clear();
                                         this.cancel();
-
-
-
-
                                         //commented for motv-exp 1 and desing PAR-PAI experiment: commented switchToggleStream.setChecked(false);
-                                   //   removeTimer.start();
+                                        //   removeTimer.start();
 
                                         return;
                                     }
-
+                                    //
                                     String[] cols = record.split(",");
                                     currentModel = cols[0];
                                     float xOffset = Float.parseFloat(cols[1]);
                                     float yOffset = Float.parseFloat(cols[2]);
-
-
-                                  //  policy = policySpinner.getSelectedItem().toString();
-
-                                    //modelSpinner.setSelection(modelSelectAdapter.getPosition(currentModel));
                                     double original_tris = excel_tris.get(excelname.indexOf(currentModel));
                                     renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
-                                   // commented temp sep
-
-
-
-                                     addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);//
-
-
-
-
-
-                                    // Toast.makeText(MainActivity.this, String.format("Model: %s\nPos: (%f, %f)", currentModel, xOffset, yOffset), Toast.LENGTH_LONG).show();
+                                    addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);//
 
                                 } catch (IOException e) {
                                     e.printStackTrace();
                                 }
+                                //// this is to read from scenario1 and draw objs to the screen
+                                //   MIR project motivationn code
+
+
                             }
 
                             @Override
@@ -2045,8 +2186,6 @@ else{
 
                                 /// This is when we turned on the AI tasks and waited for 50s. Now we start the object placement
                                 if(startObject[0] ==true){
-
-
 
                                     this.cancel();
                                     sceneTimer.start();
@@ -2069,6 +2208,8 @@ else{
 
                                         AiItemsViewModel taskView = new AiItemsViewModel();
                                         mList.add(taskView);
+                                        avg_reponseT.add(0d);// per ai task we have avgRT
+
                                         adapter.setMList(mList);
                                         recyclerView_aiSettings.setAdapter(adapter);
                                         adapter.updateActiveModel(
@@ -2082,14 +2223,14 @@ else{
                                         i[0]++;
                                         textNumOfAiTasks.setText(String.format("%d", i[0]));
 //
-                                      //  Toast.makeText(MainActivity.this, String.format("New AI Task %s %s %d", taskView.getClassifier().getModelName(), taskView.getClassifier().getDevice(), taskView.getClassifier().getNumThreads()), Toast.LENGTH_SHORT).show();
+                                        //  Toast.makeText(MainActivity.this, String.format("New AI Task %s %s %d", taskView.getClassifier().getModelName(), taskView.getClassifier().getDevice(), taskView.getClassifier().getNumThreads()), Toast.LENGTH_SHORT).show();
 
                                         record = taskBr.readLine();
 
                                     }
 
                                     if (record == null) {// this is to immidiately start the AI tasks
-                                   //     Toast.makeText(MainActivity.this, "All AI task info has been applied", Toast.LENGTH_LONG).show();
+                                        //     Toast.makeText(MainActivity.this, "All AI task info has been applied", Toast.LENGTH_LONG).show();
                                         switchToggleStream.setChecked(true);
                                         startObject[0] =true; // to make sure if we have ML tasks running
 //                                        for (AiItemsViewModel taskView : mList) {
@@ -2110,13 +2251,223 @@ else{
                     });
                 } catch (IOException e) {
                     e.printStackTrace();
-                  //  runOnUiThread(() -> Toast.makeText(MainActivity.this, e.toString(), Toast.LENGTH_LONG).show());
+                    //  runOnUiThread(() -> Toast.makeText(MainActivity.this, e.toString(), Toast.LENGTH_LONG).show());
                 }
             }).start();
         });
 
+
+
+//this is for MIR
+//        Button autoPlacementButton = (Button) findViewById(R.id.autoPlacement);// load button
+//        autoPlacementButton.setOnClickListener(view -> {
+//            runOnUiThread(clearButton::callOnClick);
+//            mList.clear();
+//
+//            new Thread(() -> {
+//                try {
+//
+//                    final int[] tris_variation = {4};
+//                        String curFolder = getExternalFilesDir(null).getAbsolutePath();
+//
+//                        String taskFilepath = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + currentTaskConfig;
+//                        InputStreamReader taskInputStreamReader = new InputStreamReader(new BufferedInputStream(new FileInputStream(taskFilepath)));
+//
+//                    BufferedReader taskBr = new BufferedReader(taskInputStreamReader);
+//                    taskBr.readLine();  // column names
+//
+//                  //  final List<Float>[] sortedlist = new List<Float>[1];
+//                        String sceneFilepath = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + currentScenario;
+//                        InputStreamReader sceneInputStreamReader = new InputStreamReader(new BufferedInputStream(new FileInputStream(sceneFilepath)));
+//
+//                    BufferedReader sceneBr = new BufferedReader(sceneInputStreamReader);
+//                    sceneBr.readLine();  // column names
+//                    tasks = new StringBuilder();
+//                    runOnUiThread(() -> {
+//                        final int[] i = {0};
+//                        CountDownTimer taskTimer, sceneTimer, removeTimer; // this is to remove objects one by one
+//                        removeTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) {
+//                            @Override
+//                            public void onTick(long millisUntilFinished) {
+//                                if (objectCount == 0) {
+//                                    this.cancel();
+//                                  //switch off is for motivation- exp2
+//                                    switchToggleStream.setChecked(false);
+//                                   // runOnUiThread(() -> Toast.makeText(MainActivity.this, "You can pause and save collected data now", Toast.LENGTH_LONG).show());
+//                                    runOnUiThread(clearButton::callOnClick);
+//                                    return;
+//                                }
+//                               // removePhase=true;
+//
+//
+//                                // last element in the sorted list would be maximum
+//                             //int index=   sortedlist[0].get(sortedlist[0].size() - 1);
+//
+//                                String name = renderArray.get(objectCount-1).fileName;
+//                                renderArray.get(objectCount-1).baseAnchor.select();
+//                                runOnUiThread(removeButton::callOnClick);
+//
+//                               // runOnUiThread(Toast.makeText(MainActivity.this, "Removed " + name, Toast.LENGTH_LONG)::show);
+//                            }
+//
+//
+//
+//                            @Override
+//                            public void onFinish() {
+//                            }
+//                        };
+//
+//                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) { // this is to automate adding objects to the screen
+//                            @Override
+//                            public void onTick(long millisUntilFinished) {
+//                                // tick per 1 second, reading new line each time
+//                                try {
+//                                    String record = sceneBr.readLine();
+//                                    if (record == null) {
+//
+//
+//                                        // just for detailed exp not for exp 4_1
+//                                        /*
+//                                        reParamList.clear();
+//                                        trisMeanDisk.clear();
+//                                        trisMeanThr.clear();
+//                                        tParamList.clear();
+//                                        trisRe.clear();
+//                                        reParamList.clear();
+//                                        // to start over data collection
+//
+//                                        decTris.clear();*/
+//
+//                                        this.cancel();
+//
+//
+//
+//
+//                                        //commented for motv-exp 1 and desing PAR-PAI experiment: commented switchToggleStream.setChecked(false);
+//                                   //   removeTimer.start();
+//
+//                                        return;
+//                                    }
+//
+//                                    String[] cols = record.split(",");
+//                                    currentModel = cols[0];
+//                                    float xOffset = Float.parseFloat(cols[1]);
+//                                    float yOffset = Float.parseFloat(cols[2]);
+//
+//
+//                                  //  policy = policySpinner.getSelectedItem().toString();
+//
+//                                    //modelSpinner.setSelection(modelSelectAdapter.getPosition(currentModel));
+//                                    double original_tris = excel_tris.get(excelname.indexOf(currentModel));
+//                                    renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
+//                                   // commented temp sep
+//
+//                                     addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);//
+//
+//
+//                                    // Toast.makeText(MainActivity.this, String.format("Model: %s\nPos: (%f, %f)", currentModel, xOffset, yOffset), Toast.LENGTH_LONG).show();
+//
+//                                } catch (IOException e) {
+//                                    e.printStackTrace();
+//                                }
+//                            }
+//
+//                            @Override
+//                            public void onFinish() {
+//                            }
+//                        };
+//                        final boolean[] startObject = {false};
+//                        taskTimer = new CountDownTimer(Long.MAX_VALUE, taskConfigTickLength) {
+//                            @Override
+//                            public void onTick(long millisUntilFinished) {
+//
+//                                /// This is when we turned on the AI tasks and waited for 50s. Now we start the object placement
+//                                if(startObject[0] ==true){
+//
+//
+//
+//                                    this.cancel();
+//                                    sceneTimer.start();
+//                                    return;
+//
+//                                }
+//
+//                                try {
+//                                    String record = taskBr.readLine();
+//                                    // this is to run all selected AI tasks -> after this we need to waite for 50 sec and them start the object placement
+//                                    while (record != null) {
+//
+//                                        if (record!=null && switchToggleStream.isChecked())// this is to restart the previous AI tasks
+//                                            switchToggleStream.setChecked(false);
+//
+//                                        String[] cols = record.split(",");
+//                                        int numThreads = Integer.parseInt(cols[0]);
+//                                        String aiModel = cols[1];
+//                                        String device = cols[2];
+//
+//                                        AiItemsViewModel taskView = new AiItemsViewModel();
+//                                        mList.add(taskView);
+//                                        adapter.setMList(mList);
+//                                        recyclerView_aiSettings.setAdapter(adapter);
+//                                        adapter.updateActiveModel(
+//                                                taskView.getModels().indexOf(aiModel),
+//                                                taskView.getDevices().indexOf(device),
+//                                                numThreads,
+//                                                taskView,
+//                                                i[0]
+//                                        );
+//
+//                                        i[0]++;
+//                                        textNumOfAiTasks.setText(String.format("%d", i[0]));
+////
+//                                      //  Toast.makeText(MainActivity.this, String.format("New AI Task %s %s %d", taskView.getClassifier().getModelName(), taskView.getClassifier().getDevice(), taskView.getClassifier().getNumThreads()), Toast.LENGTH_SHORT).show();
+//
+//                                        record = taskBr.readLine();
+//
+//                                    }
+//
+//                                    if (record == null) {// this is to immidiately start the AI tasks
+//                                   //     Toast.makeText(MainActivity.this, "All AI task info has been applied", Toast.LENGTH_LONG).show();
+//                                        switchToggleStream.setChecked(true);
+//                                        startObject[0] =true; // to make sure if we have ML tasks running
+////                                        for (AiItemsViewModel taskView : mList) {
+////                                            tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));}
+//
+//                                    }
+//
+//
+//                                } catch (IOException e) {
+//                                    e.printStackTrace();
+//                                }
+//                            }
+//
+//                            @Override
+//                            public void onFinish() {
+//                            }
+//                        }.start();
+//                    });
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                  //  runOnUiThread(() -> Toast.makeText(MainActivity.this, e.toString(), Toast.LENGTH_LONG).show());
+//                }
+//            }).start();
+//        });
+
+
+
+
+
+
         Button savePlacementButton = (Button) findViewById(R.id.savePlacement);
         savePlacementButton.setOnClickListener(view -> {
+
+
+
+
+
+
+
+
             String curFolder = getExternalFilesDir(null).getAbsolutePath();
             int numSaved = new File(curFolder + File.separator + "saved_scenarios_configs").list().length;
             String saveDir = curFolder + File.separator + "saved_scenarios_configs" + File.separator + "save" + (numSaved+1);
@@ -2225,8 +2576,12 @@ else{
                                 total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))) );// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 100f;
                                 ratioArray.set(i,  decRatio);
-                                renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
-
+                                renderArray.get(i).decimatedModelRequest(decRatio, i, usecash);
+                                try {
+                                    Thread.sleep(20);
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
 
                                 // update total_tris
                                 total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))))  ;// total = total + 0.8*objtris
@@ -2235,11 +2590,13 @@ else{
                                    decTris.add(total_tris);
                                 curTrisTime= SystemClock.uptimeMillis();
                                 // quality is registered
-                            } else {
+                            }
+
+                            else {
                                 total_tris = total_tris - (ratioArray.get(i)*(((double)o_tris.get(i))));// total =total -1*objtris
                                 decRatio=seekBar.getProgress() / 1000f;
                                 ratioArray.set(i,  decRatio);
-                                renderArray.get(i).decimatedModelRequest(decRatio, i, decAll);
+                                renderArray.get(i).decimatedModelRequest(decRatio, i, usecash);
 
                                 // update total_tris
                                 total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))));// total = total + 0.8*objtris
@@ -2307,12 +2664,12 @@ else{
                           // for exp4_baseline comparisons we fix the desired throughput
                            if(!setDesTh){
                                double throughput= getThroughput();
-                               if(throughput <2000 && throughput>10)
-                               { des_Thr=   (double) (Math.round((double) ( des_weight*throughput* 1000))) / 1000;
+                               if(throughput <2000 && throughput>1)
+                               { // des_Thr=   (double) (Math.round((double) ( des_thr_weight*throughput* 1000))) / 1000;
                                setDesTh=true;}
                            }
 
-                            if(odraAlg=="1")// either choose the baseline or odra algorithm
+                            if(alg==1)// either choose the baseline or odra algorithm
 
 
                             {
@@ -2355,11 +2712,13 @@ else{
 
                                 new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
 
-
                             }
 
+                            else
+                                new Mir(MainActivity.this).run();
+
                             /* was  for MIR
-                            else  if(odraAlg=="2")
+                            else  if(alg=="2")
                                     new baseline_thr(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
                             else
                                 new baseline(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
@@ -2384,6 +2743,7 @@ else{
      double getThroughput(){
         Log.d("size", String.valueOf(mList.size()));
         double[] meanthr = new double[mList.size()];// up to the count of different AI models
+         double[] meanrT = new double[mList.size()];// mean of response time over all AIs
 
          double[] meanoverheadT = new double[mList.size()];
          double[] meaninfT = new double[mList.size()];
@@ -2397,29 +2757,110 @@ else{
             if(total != 0) {
                 double n=tempCollector.getNumOfTimesExecuted();
                 double b=tempCollector.getTotalOverhead();
-                meanthr[i]= (double)Math.round(  n*1000 *100/(double)tempCollector.getTotalResponseTime())/100;
-
-                meanoverheadT[i]= (double) Math.round(b* 100/n ) / 100;
+                meanthr[i]= (double)Math.round(  (n*1000 *100)/(double)tempCollector.getTotalResponseTime())/100;
+                double t= (double) tempCollector.getTotalResponseTime();
+               // meanrT[i]=(double)Math.round( (t *100)/n) /100;// mean response time
+                meanoverheadT[i]= (double) Math.round((b* 100) /n ) / 100;
                         //tempCollector.getNumOfTimesExecuted();
-                meaninfT[i]=(double)Math.round(tempCollector.getTotalInferenceTime()*100/n)/100;
-                mList.get(i).getCollector().setNumOfTimesExecuted(0);
-                mList.get(i).getCollector().setTotalResponseTime(0);
-                mList.get(i).getCollector().setTotalInferenceTime(0);
-                mList.get(i).getCollector().setTotalOverhead(0);
-                mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+                meaninfT[i]=(double)Math.round( (tempCollector.getTotalInferenceTime()*100) /n)/100;
+                mList.get(i).getCollector().resetRtData();
+//                mList.get(i).getCollector().setNumOfTimesExecuted(0);
+//                mList.get(i).getCollector().setTotalResponseTime(0);
+//                mList.get(i).getCollector().setTotalInferenceTime(0);
+//                mList.get(i).getCollector().setTotalOverhead(0);
+//                mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+
                 mList.get(i).setThroughput(meanthr[i]);// update throughput of each model
                 mList.get(i).setInferenceT(meaninfT[i]);// mean inference time of each model
                 mList.get(i).setOverheadT(meanoverheadT[i]); // overhead of each  model
             }
         }
-//        Log.d("rt", String.valueOf(meanResponseTimes[0]));
-        double avg = Arrays.stream(meanthr).average().orElse(Double.NaN);
 
-//        Log.d("Throughput", "rt: " +String.valueOf(avg) +" thrpt: " +String.valueOf((1/avg)*1000));
-        return avg;
+        double avg = Arrays.stream(meanthr).average().orElse(Double.NaN);
+        // double avg = Arrays.stream(meanrT).average().orElse(Double.NaN);
+
+
+        return  avg;// this is response time
           //      (1/avg)*1000;
     }
 
+
+    public void decimateAll(float ratio ) {// decimates all objects to ratio
+
+        for (int i = 0; i < objectCount; i++) {
+            float decRatio=ratio;
+            {
+                total_tris = total_tris - (ratioArray.get(i) * (((double) o_tris.get(i))));// total =total -1*objtris
+
+                ratioArray.set(i, decRatio);
+                renderArray.get(i).decimatedModelRequest(decRatio, i, usecash);
+                try {
+                    sleep(20);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                // update total_tris
+                total_tris = total_tris + (ratioArray.get(i) * (((double) o_tris.get(i))));// total = total + 0.8*objtris
+                //      trisDec.put(total_tris,true);
+                if (!decTris.contains(total_tris))
+                    decTris.add(total_tris);
+                curTrisTime = SystemClock.uptimeMillis();
+                // quality is registered
+            }
+        }
+    }
+
+    double [] getResponseT(int aiIndx){// returns average thr of each model
+
+        double meanthr=0;// up to the count of different AI models
+
+        double meanoverheadT ;
+        double meaninfT ;
+        double meanRT=0 ;// changed it for new weights
+        double acc=0;
+        BitmapCollector tempCollector;
+        int i=aiIndx;
+//        for(int i=0; i<mList.size(); i++) {
+        tempCollector = mList.get(i).getCollector();
+        tempCollector.setMInstance(MainActivity.this);
+        int total = tempCollector.getNumOfTimesExecuted();
+        if(total != 0) {
+            // double b=tempCollector.getTotalOverhead();
+            // double n=tempCollector.getNumOfTimesExecuted();
+            // double totT=(double)tempCollector.getTotalResponseTime();
+
+            meanthr= (double)Math.round( ( tempCollector.getNumOfTimesExecuted()*1000 *100)/(double)tempCollector.getTotalResponseTime())/100;
+
+            meanRT=(double)Math.round( ((double)tempCollector.getTotalResponseTime()*100)/tempCollector.getNumOfTimesExecuted())/100;
+
+            meanoverheadT= (double) Math.round(tempCollector.getTotalOverhead()* 100/tempCollector.getNumOfTimesExecuted() ) / 100;
+
+            meaninfT=(double)Math.round(tempCollector.getTotalInferenceTime()*100/tempCollector.getNumOfTimesExecuted()   )/100;
+            double meanPureinf=(double)Math.round(tempCollector.getTotalPureInf()*100/tempCollector.getNumOfTimesExecuted()   )/100;
+            acc=tempCollector.getInfAcc();
+
+            mList.get(i).getCollector().resetRtData();
+
+//                mList.get(i).getCollector().setNumOfTimesExecuted(0);
+//                mList.get(i).getCollector().setTotalResponseTime(0);
+//                mList.get(i).getCollector().setTotalInferenceTime(0);
+//                mList.get(i).getCollector().setTotalOverhead(0);
+//                mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+            mList.get(i).setThroughput(meanthr);// update throughput of each model
+            mList.get(i).setInferenceT(meaninfT);// mean inference time of each model
+            mList.get(i).setOverheadT(meanoverheadT); // overhead of each  model
+            //mList.get(i).setPureInfT(meanPureinf);
+            mList.get(i).setTot_rps(meanRT);
+        }
+
+        double[] rT_thr= new double[]{ (double) Math.round((double)  meanRT * 100) / 100,meanthr,acc};
+
+
+
+        // return meanRT;
+        return rT_thr ;//this was for prev exxperiments
+    }
 
 
 
@@ -2429,39 +2870,38 @@ else{
 
         double meanoverheadT ;
         double meaninfT ;
+        double meanRT=0 ;// changed it for new weights
 
         BitmapCollector tempCollector;
         int i=aiIndx;
 //        for(int i=0; i<mList.size(); i++) {
-            tempCollector = mList.get(i).getCollector();
-            tempCollector.setMInstance(MainActivity.this);
-            int total = tempCollector.getNumOfTimesExecuted();
-            if(total != 0) {
-                double n=tempCollector.getNumOfTimesExecuted();
-                double b=tempCollector.getTotalOverhead();
-                meanthr= (double)Math.round(  n*1000 *100/(double)tempCollector.getTotalResponseTime())/100;
+        tempCollector = mList.get(i).getCollector();
+        tempCollector.setMInstance(MainActivity.this);
+        int total = tempCollector.getNumOfTimesExecuted();
+        if(total != 0) {
+            double n=tempCollector.getNumOfTimesExecuted();
+            double b=tempCollector.getTotalOverhead();
+              meanthr= (double)Math.round( ( n*1000 *100)/(double)tempCollector.getTotalResponseTime())/100;
+            double mean_t=(double)tempCollector.getTotalResponseTime()/n;
+            meanoverheadT= (double) Math.round(b* 100/n ) / 100;
 
-                meanoverheadT= (double) Math.round(b* 100/n ) / 100;
+            meaninfT=(double)Math.round(tempCollector.getTotalInferenceTime()*100/n)/100;
+            double meanPureinf= (double)Math.round(tempCollector.getTotalPureInf()*100/n)/100;
+            mList.get(i).getCollector().resetRtData();
+//            mList.get(i).getCollector().setNumOfTimesExecuted(0);
+//            mList.get(i).getCollector().setTotalResponseTime(0);
+//            mList.get(i).getCollector().setTotalInferenceTime(0);
+//            mList.get(i).getCollector().setTotalOverhead(0);
+//            mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
+            mList.get(i).setThroughput(meanthr);// update throughput of each model
+            mList.get(i).setInferenceT(meaninfT);// mean inference time of each model
+            mList.get(i).setOverheadT(meanoverheadT); // overhead of each  model
+        }
 
-                meaninfT=(double)Math.round(tempCollector.getTotalInferenceTime()*100/n)/100;
-                mList.get(i).getCollector().setNumOfTimesExecuted(0);
-                mList.get(i).getCollector().setTotalResponseTime(0);
-                mList.get(i).getCollector().setTotalInferenceTime(0);
-                mList.get(i).getCollector().setTotalOverhead(0);
-                mList.get(i).getCollector().setEnd(System.nanoTime()/1000000);
-                mList.get(i).setThroughput(meanthr);// update throughput of each model
-                mList.get(i).setInferenceT(meaninfT);// mean inference time of each model
-                mList.get(i).setOverheadT(meanoverheadT); // overhead of each  model
-            }
 
-
-       return meanthr;
-
+        return meanthr;
+      ///  return meanRT;
     }
-
-
-
-
 
 
 
@@ -2472,7 +2912,7 @@ else{
 
 // starting the second loop : note that sensitivity calculation is just to detect the candidate object for decimation/maintaining triangle count-> it is apart from actual decimation ratio calculation
    /*
-    void odraAlg(float tUP) {
+    void alg(float tUP) {
 
         candidate_obj = new HashMap<>();
         Map<Integer, Float> sortedcandidate_obj = new HashMap<>();
@@ -3049,15 +3489,43 @@ private float computeWidth(ArrayList<Float> point){
 
     private void passFrameToBitmapUpdaterApi(Frame frame) throws NotYetAvailableException {
         YuvToRgbConverter converter = new YuvToRgbConverter(this);
+
         Image image = frame.acquireCameraImage();
         Bitmap bmp = Bitmap.createBitmap(image.getWidth(), image.getHeight(), Bitmap.Config.ARGB_8888);
 
-
+        oneTimeAccess=!oneTimeAccess;
         converter.yuvToRgb(image, bmp); /** line to be multithreaded*/
         image.close();
 
-//        bitmapUpdaterApi.updateBitmap(bmp);
+//
         bitmapUpdaterApi.setLatestBitmap(bmp);
+
+        if(oneTimeAccess) {
+            //  ModelRequestManager.getInstance().add(new ModelRequest("classifier", getApplicationContext(), MainActivity.this, image), false, true);
+            File path = this.getExternalFilesDir(null);
+        File dir = new File(path, "./");
+            File file = new File(dir, "frame.jpg");
+            if(!file.exists()){
+
+                try {
+                   FileOutputStream fOut = new FileOutputStream(file);
+                  bmp.compress(Bitmap.CompressFormat.JPEG, 85, fOut);
+                      fOut.flush();
+                 fOut.close();
+                 //this was to run offloading
+                   // ModelRequestManager.getInstance().add(new ModelRequest("classifier", getApplicationContext(), MainActivity.this, image), false, true);
+
+                }
+                catch (Exception e) {
+                   e.printStackTrace();
+//            LOG.i(null, "Save file error!");
+//            return false;
+                }
+           }
+
+
+        }
+
 
 //        ObjectDet odetector  = new ObjectDet(this);
 //        odetector.runObjectDetection(bmp);
@@ -3071,20 +3539,20 @@ private float computeWidth(ArrayList<Float> point){
 
         ///////writes images as file to storage for testing
 //        File path = this.getExternalFilesDir(null);
-//        File dir = new File(path, "data");
-//        try {
-//            File file = new File(dir, bmp+".jpeg");
-//            FileOutputStream fOut = new FileOutputStream(file);
-//            bmp.compress(Bitmap.CompressFormat.JPEG, 85, fOut);
-//            fOut.flush();
-//            fOut.close();
-//        }
-//        catch (Exception e) {
-//            e.printStackTrace();
-////            LOG.i(null, "Save file error!");
-////            return false;
-//        }
-//        System.out.println(bmp);
+////        File dir = new File(path, "data");
+////        try {
+////            File file = new File(dir, bmp+".jpeg");
+////            FileOutputStream fOut = new FileOutputStream(file);
+////            bmp.compress(Bitmap.CompressFormat.JPEG, 85, fOut);
+////            fOut.flush();
+////            fOut.close();
+////        }
+////        catch (Exception e) {
+////            e.printStackTrace();
+//////            LOG.i(null, "Save file error!");
+//////            return false;
+////        }
+////        System.out.println(bmp);
     }
 
     private boolean updateTracking() {
@@ -3932,7 +4400,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
         deg_error_log.add("");
         obj_quality.add(1f);
 
-        trisChanged=true;
+//        trisChanged=true;
 
 
         TextView posText = (TextView) findViewById(R.id.objnum);

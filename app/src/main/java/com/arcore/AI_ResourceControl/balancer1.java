@@ -156,11 +156,11 @@
 //                if (variousTris == 1) {// this is to update the baseline throughput per models
 //                    // we have no triangle count on screen
 //
-//                    if (mInstance.baseline_AIthr.get(aiIndx) == 0)
-//                        mInstance.baseline_AIthr.set(aiIndx, meanThr);
+//                    if (mInstance.baseline_AIRt.get(aiIndx) == 0)
+//                        mInstance.baseline_AIRt.set(aiIndx, meanThr);
 //                    else {
-//                        double curr_baseline = mInstance.baseline_AIthr.get(aiIndx);
-//                        mInstance.baseline_AIthr.set(aiIndx, (meanThr + curr_baseline) / 2);
+//                        double curr_baseline = mInstance.baseline_AIRt.get(aiIndx);
+//                        mInstance.baseline_AIRt.set(aiIndx, (meanThr + curr_baseline) / 2);
 //                    }
 //                }
 //
@@ -358,7 +358,7 @@
 //                    }
 //                    // let's say we estimate even if models are not accurate-> we then want to compare it with the measured wi
 //                    mInstance.est_weights.set(aiIndx,  mInstance.rohTL.get(aiIndx) );// this has not-normalized est_weights
-//                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));// set the measured Wi = measured current throughput over baseline
+//                    mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIRt.get(aiIndx)));// set the measured Wi = measured current throughput over baseline
 //                    //@@ we need to have measured weights based on the level of affected throughput so we use 1- hI/hBase
 //
 //                } //Specific AI  throughput model
@@ -393,7 +393,7 @@
 //                double wi = mInstance.est_weights.get(i);
 //                double thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
 //                sum_currentWt += (wi * thr); //sum(Normalized msrd(Wi) * Hi)
-//                sum_baseWt += (wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+//                sum_baseWt += (wi * mInstance.baseline_AIRt.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
 //
 //                sum_rohT_wi += (wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)
 //                sum_rohD_wi += (wi * mInstance.rohDL.get(i));//sigma(rohD_i * wi)

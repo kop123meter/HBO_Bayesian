@@ -11,8 +11,14 @@ buildscript {
 
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:4.2.1'
+
+       // implementation files('/home/niloofar/anaconda3/lib/python3.9/site-packages/jep/jep-4.1.1.jar.jar')
+
+        classpath 'com.android.tools.build:gradle:7.0.2'
+       // nil cm tmp
+      //  classpath 'com.android.tools.build:gradle:4.2.1'
         classpath 'de.undercouch:gradle-download-task:4.1.2'
+
         classpath 'androidx.navigation:navigation-safe-args-gradle-plugin:2.5.1'
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files

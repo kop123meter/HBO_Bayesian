@@ -134,9 +134,6 @@ class ImageClassifierHelper(
 //     nil created this commented to not consider it for inference time    if (results != null) {
 //            debugPrint(results)
 //        }
-
-
-
     }
 
     // Receive the device rotation (Surface.x values range from 0->3) and return EXIF orientation

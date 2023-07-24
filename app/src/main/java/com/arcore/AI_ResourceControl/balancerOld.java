@@ -140,12 +140,12 @@ public class balancerOld implements Runnable {
             if(variousTris==1  ){// this is to update the baseline throughput per models
                 // we have no triangle count on screen
 
-                if(mInstance.baseline_AIthr.get(aiIndx)==0)
-                    mInstance.baseline_AIthr.set(aiIndx,meanThr);
+                if(mInstance.baseline_AIRt.get(aiIndx)==0)
+                    mInstance.baseline_AIRt.set(aiIndx,meanThr);
                 else
                 {
-                    double curr_baseline= mInstance.baseline_AIthr.get(aiIndx);
-                    mInstance.baseline_AIthr.set(aiIndx, (meanThr+curr_baseline)/2);
+                    double curr_baseline= mInstance.baseline_AIRt.get(aiIndx);
+                    mInstance.baseline_AIRt.set(aiIndx, (meanThr+curr_baseline)/2);
                 }
             }
 
@@ -359,7 +359,7 @@ public class balancerOld implements Runnable {
                     mInstance.weights.set(i, mInstance.weights.get(i)/max_w  );// this has Normalized weights
                     double wi= mInstance.weights.get(i);
                     sum_currentWt+= wi* mInstance.getThroughput(i); //sum(Normalized Wi * Hi)
-                    sum_baseWt+= wi *mInstance.baseline_AIthr.get(i);
+                    sum_baseWt+= wi *mInstance.baseline_AIRt.get(i);
 
                 }
                 sum_baseWt*=mInstance.des_weight;// multiply by desired minimum throughput weight (0.7)

@@ -13,23 +13,20 @@ class AiItemsViewModel {
     val models = listOf(
 
         ///"mobilenet_v1_1.0_224",
-        "segmentor",
-        "MN v2 1.0 Q 224", "MN v1 1.0 Q 224",
+        "segmentor",// image segmentor
+        "MN v2 1.0 Q 224", "MN v1 1.0 Q 224",//are classifier
       // "inception_v1_224_quant",
-       "efficientdet-lite0", "mobilenetDetv1",
+       "efficientdet-lite0", "mobilenetDetv1", //object detection
 //        "MN v1 0.25 Q 128", "mnasnet" ,"Inception v4 Quant", "Inception v4 Float", "Mobilenet v2 Float",
 
-        "efficientclass-lite0",
-        "inception_v1_224_quant",
-       // "inception",
-        "mobilenetClassv1",
-        "deeplabv3",
-        //"lite-model_deeplabv3-xception65-ade20k",
+        "efficientclass-lite0", "inception_v1_224_quant", "mobilenetClassv1",// new classifier
+        "deeplabv3", // image segmentor
 
 
-        "model_metadata"
+
+        "model_metadata"// gesture detection
         )
-    val devices = listOf("CPU", "GPU", "NPU")
+    val devices = listOf("CPU", "GPU", "NNAPI")
     var collector : BitmapCollector? = null
     var classifier: ImageClassifier? = null
     var segm: ImageSegmentor? = null
@@ -43,6 +40,8 @@ class AiItemsViewModel {
     var throughput: Double = 0.0
     var overheadT: Double=0.0
     var inferenceT: Double=0.0
+//    var pureInfT: Double=0.0
+    var tot_rps: Double=0.0
     var gestureClas: GestureClassifierHelper?= null// "Gesture Classifier"
 }
 

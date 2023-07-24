@@ -126,25 +126,32 @@ public class ModelRequestManager {
         }
     }
 //Nil
-    public void add(ModelRequest modelRequest, boolean referenceSwitch) {
+    public void add(ModelRequest modelRequest, boolean referenceSwitch, boolean offloading) {
 
-        if (referenceSwitch==true) // means baseline 2 just get back to main for redrawing the obj
+       // referenceSwitch=true;// I added it manually here to redraw from the cache
 
-        {
-            Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
-        msg.obj = modelRequest;
-        modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
+        if(offloading ==true){// this is to send offloading req and recieve result.txt
 
-    }
+            Instance.mDownloadThreadPool.execute(new OffloadRequestRunnable(modelRequest, Instance));
 
+        }
+        else{
 
-        else {
+            if (referenceSwitch==true) // means baseline 2 just get back to main for redrawing the obj
 
-            Iterator requestIterator = mRequestList.iterator();
+               {
+                  Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
+                   msg.obj = modelRequest;
+                    modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
 
-            while (requestIterator.hasNext()) {
-                ModelRequest tempRequest = (ModelRequest) requestIterator.next();
-                if (modelRequest.getFilename() == tempRequest.getFilename()
+                }
+            else {
+
+                 Iterator requestIterator = mRequestList.iterator();
+
+                 while (requestIterator.hasNext()) {
+                       ModelRequest tempRequest = (ModelRequest) requestIterator.next();
+                       if (modelRequest.getFilename() == tempRequest.getFilename()
                         && modelRequest.getPercentageReduction() == tempRequest.getPercentageReduction() && modelRequest.getID() != tempRequest.getID()) {
                     Log.d("ModelRequest", "MATCHING FILENAME + CONVERSION. Adding ID " + modelRequest.getID() + " to ID " + tempRequest.getID());
                     tempRequest.addIDToArray(modelRequest.getID());
@@ -156,19 +163,23 @@ public class ModelRequestManager {
                     return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
                 }
 
-                if (tempRequest.getID() == modelRequest.getID() && modelRequest.getPercentageReduction() != tempRequest.getPercentageReduction())
+                   if (tempRequest.getID() == modelRequest.getID() && modelRequest.getPercentageReduction() != tempRequest.getPercentageReduction())
                     // means that we have already a request but we changed it so remove that
-                    mRequestList.remove(tempRequest);
+                      mRequestList.remove(tempRequest);
 
-            }
+                    }
 
 
-            mRequestList.offer(modelRequest);
-            Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
-            // un comment parallelism and start sequential  decimation
-            Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
-            // new ModelRequestRunnable(modelRequest, Instance).run();
-        }
+                  mRequestList.offer(modelRequest);
+                  Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
+                 // un comment parallelism and start sequential  decimation
+                  Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
+                  // new ModelRequestRunnable(modelRequest, Instance).run();
+        }}
+
+
+
+
         return;
 
     }

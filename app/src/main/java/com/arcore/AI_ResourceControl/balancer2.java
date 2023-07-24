@@ -176,11 +176,11 @@
 //            if (variousTris == 1) {// this is to update the baseline throughput per models
 //                    // we have no triangle count on screen
 //
-//                    if (mInstance.baseline_AIthr.get(aiIndx) == 0)
-//                        mInstance.baseline_AIthr.set(aiIndx, meanThr);
+//                    if (mInstance.baseline_AIRt.get(aiIndx) == 0)
+//                        mInstance.baseline_AIRt.set(aiIndx, meanThr);
 //                    else {
-//                        double curr_baseline = mInstance.baseline_AIthr.get(aiIndx);
-//                        mInstance.baseline_AIthr.set(aiIndx, (meanThr + curr_baseline) / 2);
+//                        double curr_baseline = mInstance.baseline_AIRt.get(aiIndx);
+//                        mInstance.baseline_AIRt.set(aiIndx, (meanThr + curr_baseline) / 2);
 //                    }
 //                }
 //
@@ -372,8 +372,8 @@
 //                   /* we don't use measured weight anymore since it's not accurate to use just a start and end point to measure w
 //                    double ai_sensitivity;
 //                    if(variousTris==2)
-//                         ai_sensitivity=   Math.sqrt(  Math.pow (((meanThr-mInstance.baseline_AIthr.get(aiIndx))/totTris),2)  +
-//                            Math.pow   ( ((meanThr-mInstance.baseline_AIthr.get(aiIndx))/meanDk ),2 ) ) ; // AI throughput sensitivity over change in tris and distance
+//                         ai_sensitivity=   Math.sqrt(  Math.pow (((meanThr-mInstance.baseline_AIRt.get(aiIndx))/totTris),2)  +
+//                            Math.pow   ( ((meanThr-mInstance.baseline_AIRt.get(aiIndx))/meanDk ),2 ) ) ; // AI throughput sensitivity over change in tris and distance
 //
 //                    else{
 //
@@ -391,7 +391,7 @@
 //
 //
 //                    mInstance.msr_weights.set(aiIndx,ai_sensitivity);
-//                    // old: mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIthr.get(aiIndx)));//not normalized-> set the measured Wi = measured current throughput over baseline
+//                    // old: mInstance.msr_weights.set(aiIndx, 1- (meanThr/ mInstance.baseline_AIRt.get(aiIndx)));//not normalized-> set the measured Wi = measured current throughput over baseline
 //*/
 //
 //
@@ -455,7 +455,7 @@
 //
 //               // double msr_thr = mInstance.thr_models.get(i).get(totTris).get(0);// get the throughput of current tris for each model
 //                sum_currentWt += (est_wi * msr_thr); //est_wi instead of ms_wi
-//                sum_baseWt += (est_wi * mInstance.baseline_AIthr.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
+//                sum_baseWt += (est_wi * mInstance.baseline_AIRt.get(i) * mInstance.des_weight);//sum(Normalized Wi * Hbase)
 //
 //
 //                sum_rohT_wi += ( est_wi * mInstance.rohTL.get(i));// sigma(rohT_i * wi)

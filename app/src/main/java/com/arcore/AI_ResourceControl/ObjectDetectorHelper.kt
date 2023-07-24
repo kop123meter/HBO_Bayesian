@@ -138,14 +138,15 @@ class ObjectDetectorHelper(
         }
     }
 
-   public  fun detect(image: Bitmap, imageRotation: Int) {
+   public fun detect(image: Bitmap, imageRotation: Int): Float {
         if (objectDetector == null) {
             setupObjectDetector()
         }
 
         // Inference time is the difference between the system time at the start and finish of the
-        // process
-        var inferenceTime = SystemClock.uptimeMillis()
+        // pro
+       // cess
+//        var inferenceTime = SystemClock.uptimeMillis()
 
 
         val imageProcessor =
@@ -156,14 +157,19 @@ class ObjectDetectorHelper(
         // Preprocess the image and convert it into a TensorImage for detection.
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
 
+       var inferenceTime = SystemClock.uptimeMillis().toFloat()
         val results = objectDetector?.detect(tensorImage)
-//    nil created this commented to not consider it for inference time     if (results != null) {
-//            debugPrint(results)
-//        }
-
+//    nil created this commented to not consider it for inference time
+       var avg_confidense: Float
+       avg_confidense=-1f
+    //if (results != null) {
+    //   avg_confidense = results?.let { debugPrint(it) }!!
+     //   }
         inferenceTime = SystemClock.uptimeMillis() - inferenceTime
 
-
+    //   val x = arrayOf(inferenceTime,avg_confidense)
+     //   return x
+       return inferenceTime
     }
 
 

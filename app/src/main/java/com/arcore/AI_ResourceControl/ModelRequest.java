@@ -2,6 +2,7 @@ package com.arcore.AI_ResourceControl;
 
 
 import android.content.Context;
+import android.media.Image;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ public class ModelRequest {
     private int ID;
     private Queue<Integer> similarRequestIDArray;
     private float cache;
+    Image imgFrame;
     //private List<Float> cacheratio ;
 
     ModelRequest(float cr,String filename, float percentageReduction, Context context, MainActivity mainActivity, int mID)
@@ -36,17 +38,21 @@ public class ModelRequest {
     }
 
 
-    ModelRequest(String filename, float percentageReduction, Context context, MainActivity mainActivity)
+    ModelRequest(String aiName, Context context, MainActivity mainActivity,Image img)
     {
+
+        this.filename = aiName;
         Log.d("ModelRequest", "Created ModelRequest - filename: " + filename);
-        this.filename = filename;
-        this.percentageReduction = percentageReduction;
         this.appContext = context;
         this.mainActivityWeakReference = new WeakReference<MainActivity>(mainActivity);
+        imgFrame=img;
     }
 
 
-
+    public Image getImage()
+    {
+        return imgFrame;
+    }
     public float getCache()
     {
         return cache;

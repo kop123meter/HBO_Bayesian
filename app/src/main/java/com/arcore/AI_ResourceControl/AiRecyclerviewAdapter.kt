@@ -162,13 +162,19 @@ class AiRecyclerviewAdapter(
         val switchToggleStream = activity.findViewById<Switch>(R.id.switch_streamToggle)
 
 //        if(itemsView.collector?.run == true) {
+////            itemsView.collector?.pauseCollect()
+//        if (switchToggleStream.isChecked) {
+////            switchToggleStream.isChecked = false
 //            itemsView.collector?.pauseCollect()
-        if (switchToggleStream.isChecked) {
-//            switchToggleStream.isChecked = false
-            itemsView.collector?.pauseCollect()
-            sleep(50)
-        }
+//            //  nil commented temp march 23
+//            sleep(90)
 //        }
+////        }
+
+        //  nil updated paril 2023 to see if crash is gone
+        itemsView.collector?.pauseCollect()
+        sleep(80)
+
 
         // Do not update if there is no change /
         if (modelIndex == itemsView.currentModel

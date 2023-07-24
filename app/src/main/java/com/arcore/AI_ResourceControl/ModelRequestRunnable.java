@@ -52,7 +52,7 @@ public class ModelRequestRunnable implements Runnable {
 
 
     //download chunk size, make sure to match on server thread
-    private final int BUFFER_SIZE = 16000;
+    private final int BUFFER_SIZE = 160000;
 
 
     //final ModelRequestTask modelDownloadTask;
@@ -87,10 +87,10 @@ public class ModelRequestRunnable implements Runnable {
 // for using the local memory undo the comment
         if (!new_file.exists()&& perc!=1) {
 
-            Toast toast = Toast.makeText(context.getApplicationContext(),
-                    "Please Upload the decimated objects to the Phone storage", Toast.LENGTH_LONG);
+//            Toast toast = Toast.makeText(context.getApplicationContext(),
+                  //  "Please Upload the decimated objects to the Phone storage", Toast.LENGTH_LONG);
 
-            toast.show();
+//            toast.show();
 
 
 //the bellow code is foe general try
@@ -121,7 +121,7 @@ public class ModelRequestRunnable implements Runnable {
 
                     // Establish connection with the server
                     //@@@pc address
-                    Socket socket = new Socket("35.16.116.212", 4444);
+                    Socket socket = new Socket("192.168.1.42", 4444);
 
 
                     // Open output stream

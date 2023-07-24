@@ -35,6 +35,8 @@ class BitmapCollector(
 ): ViewModel() {
 
     var start: Long = 0
+    var pureInfT: Long = 0
+    var infAcc: Float = 0f
     var end: Long = 0
     var overhead: Long = 0
     var InferenceTime: Long = 0
@@ -42,6 +44,7 @@ class BitmapCollector(
     var totalResponseTime: Long = 0
     var totalInferenceTime: Long = 0
     var totalOverhead: Long = 0
+    var totalPureInf: Long=0
     var numOfTimesExecuted = 0
   // first worked: var  objectDetectorHelper = ObjectDetectorHelper( context = mInstance, fileseries = mInstance.fileseries)
 
@@ -62,8 +65,15 @@ class BitmapCollector(
         totalResponseTime = 0
         numOfTimesExecuted = 0
         end = System.nanoTime()/1000000
-
+        pureInfT=0
+        overhead = 0
+        InferenceTime = 0
+        responseTime = 0
+        totalPureInf=0
+        infAcc=0f
     }
+
+
 
     /**
      * Stops running collector
@@ -156,7 +166,11 @@ class BitmapCollector(
 
                     start = System.nanoTime()/1000000
                     if(end!=0L) {
-                        overhead = start-end
+                        if(!mInstance.sleepmode)
+                            overhead = start-end
+                        else
+                            overhead = start-end-1000
+
                     }
 
 //object detection version complex: this is the main
