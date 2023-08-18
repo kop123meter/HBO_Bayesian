@@ -117,8 +117,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
    // private static MainActivity Instance = new MainActivity();
     //private static MainActivity Instance = new com.arcore.MixedAIAR.MainActivity();
 
+    String bayesian_delegate="";
 
-
+    int deleg_req=0;
 boolean oneTimeAccess=true;// to send image to server
     private boolean isTracking;
     private boolean isHitting;
@@ -146,7 +147,8 @@ boolean oneTimeAccess=true;// to send image to server
     private float ref_ratio=0.5f;
 
     Map <Integer, Float> candidate_obj;
-    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
+    //float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
+    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.1f,0.05f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
   //  boolean datacol=false;
     boolean trainedTris = false;
@@ -241,7 +243,7 @@ boolean oneTimeAccess=true;// to send image to server
     boolean bayesian_pushed=false;
     //for RE modeling and algorithm
 
-    double orgTrisAllobj=0d;
+    double orgTrisAllobj=0d; // is sum of (max object triangles) across all objects onthe screen
     public int objectCount = 0;
     private String[] assetList = null;
     //private Integer[] objcount = new Integer[]{1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 160, 170, 180, 190, 200, 220, 240, 260, 300, 340, 380, 430, 500};
@@ -251,6 +253,8 @@ boolean oneTimeAccess=true;// to send image to server
     private Double[] desiredThr_weight = new Double[]{1.3,1.1, 0.9, 0.8, 0.7 , 0.6, 0.5};
 
     public List<Double> avg_reponseT=new ArrayList<>();
+    public double avg_reward=0;// this is the bayesian average reward
+    //we use it to make sure whenever the reward is ready for each delegate req frm the pyhton server
 
     AiRecyclerviewAdapter adapter;// added by nil
     RecyclerView recyclerView_aiSettings;
@@ -338,6 +342,9 @@ boolean oneTimeAccess=true;// to send image to server
     int baseline_index=0;// index of all objects ratio of the coarse_ratio array
     List<List<Integer>> combinations = new ArrayList<>();
             //Arrays.asList(new List[]{new ArrayList<>()});
+     List<String> excel_offlineAIname = new ArrayList<>();
+    List<String> excel_offlineAIdelg = new ArrayList<>();
+    List<Double> excel_offlineAIRT = new ArrayList<>();
 
     List<String> quality_log = new ArrayList<>();
     List<String> time_log = new ArrayList<>();
@@ -371,7 +378,8 @@ boolean oneTimeAccess=true;// to send image to server
 
     // Conservative , or mean are other options
     double total_tris=0;
-
+    //for bayesian
+    List<Double> avg_AIperK = new ArrayList<>();
 
      boolean activate_b =true;
      boolean sleepmode=false;
@@ -424,38 +432,79 @@ boolean oneTimeAccess=true;// to send image to server
     private final Handler handler = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message inputMessage) {
+
             ModelRequest tempModelRequest = (ModelRequest) inputMessage.obj;
             Queue<Integer> tempIDArray = tempModelRequest.getSimilarRequestIDArray();
+            if (tempModelRequest.req != "delegate") // means we have decimation req
+            {
+                if (decAll == true) {//baseline 2
+                    int ind = tempModelRequest.getID();
+                    //  renderArray[ind].redraw(ind);
+                    renderArray.get(ind).redraw(ind);
+                } else {
+                    while (tempIDArray.isEmpty() == false) { // doesn't come here for baseline 2 - this is for eAR
+                        //ListIterator renderIterator = renderArray.listIterator(0);
+                        // int i=tempIDArray.peek();
+                        for (int i = 0; i < objectCount; i++) {
+                            if (renderArray.get(i).getID() == tempIDArray.peek()) {
+                                Log.d("ModelRequest", "renderArray[" + i + "] ID: " + renderArray.get(i).getID()
+                                        + " matches tempModelRequest SimilarRequestID: " + tempIDArray.peek());
+                                renderArray.get(i).redraw(i);
+                            }
+                        }
+                        tempIDArray.remove();
 
-            if (decAll==true){//baseline 2
-                int ind= tempModelRequest.getID();
-              //  renderArray[ind].redraw(ind);
-                renderArray.get(ind).redraw(ind);
+                    }
+                }
             }
 
+      else {
+// this is for delegate req
 
-else{
-            while (tempIDArray.isEmpty() == false) { // doesn't come here for baseline 2 - this is for eAR
-                //ListIterator renderIterator = renderArray.listIterator(0);
+                bayesian bys = new bayesian(MainActivity.this);
 
-               // int i=tempIDArray.peek();
+//                for (int i = 0; i < 2; i++){// last index should be the length of allDelegates coming fom the python client
 
-                for (int i = 0; i < objectCount; i++) {
+                    bys.apply_delegate_tris(tempModelRequest.all_delegates,0);
+                  /* temp removed to avoid non-sequentional applying delegate- here it just applies the last delegate (last index i)
 
+                    // this to be added at the end of apply_delg function for data collecton
+                    CountDownTimer sceneTimer = new CountDownTimer(Long.MAX_VALUE, 10000) {
+                    int counter = 10;
 
-                    if ( renderArray.get(i).getID() == tempIDArray.peek()) {
-                        Log.d("ModelRequest", "renderArray[" + i + "] ID: " +  renderArray.get(i).getID()
-                                + " matches tempModelRequest SimilarRequestID: " + tempIDArray.peek());
-                        renderArray.get(i).redraw(i);
+                    // this is to automate adding objects to the screen
+                    @Override
+                    public void onTick(long millisUntilFinished) {
 
-                        //  }
-                         }
+                        bys.writeRT();
+                        counter--;// to have this 10 times
+                        if (counter == 1) // should add this somewhere to stop collecting data after 15 times?
+                        {// calculate reward
+                            double average_AIRT = avg_AIperK.stream()
+                                    .mapToDouble(Float::doubleValue)
+                                    .average()
+                                    .orElseThrow(() -> new IllegalArgumentException("List is empty"));
+
+                            double reward = avgq - average_AIRT;
+                            send_thread connectionThread = new send_thread(reward);
+                            connectionThread.start();
+                            this.cancel();
+                        }
+                        // else if(counter<0)// we cannot cancle and send to the server at the same time. it kills the second process
+                        //   this.cancel();
+
                     }
-                    tempIDArray.remove();
 
-                }
+                    @Override
+                    public void onFinish() {
+                    }
+                }.start();*/
+
+//            }// for i =0 to index
+            //bayesian_delegate=tempModelRequest.delegate;
         }
-        }
+
+    }
     };
 
 
@@ -1079,7 +1128,33 @@ else{
             System.out.println(e.getMessage());
         }
 
+//         currentFolder = getExternalFilesDir(null).getAbsolutePath();
+//          FILEPATH = currentFolder + File.separator + "CHECK_avg_Latency"+ fileseries+".csv";
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+//
+//            StringBuilder sbb = new StringBuilder();
+//            sbb.append("time2");
+//            sbb.append(',');
+//            sbb.append("AI");
+//            sbb.append(',');
+//            sbb.append("Delegate");
+//            sbb.append(',');
+//            sbb.append("expected_RT"); //This is the best RT among all Delegates from the offline analysis
+//            sbb.append(',');
+//            sbb.append("actual_RT");
+//            sbb.append(',');
+//            sbb.append("latency,");
+//
+//            sbb.append('\n');
+//            writer.write(sbb.toString());
+//
+//            System.out.println("done!");
+//
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
 
+/*
          currentFolder = getExternalFilesDir(null).getAbsolutePath();
          FILEPATH = currentFolder + File.separator +"Throughput"+ fileseries+".csv";
 
@@ -1139,7 +1214,7 @@ else{
             System.out.println(e.getMessage());
         }
 
-
+*/
 
 
         currentFolder = getExternalFilesDir(null).getAbsolutePath();
@@ -1149,13 +1224,13 @@ else{
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("Model1").append(',').append("Device1").append(',').append("RT1");
+            sbb.append("Model1").append(',').append("Device1").append(',').append("Actual_RT1").append(',').append("Expected_RT1");
 
-            sbb.append(',').append("Model2").append(',').append("Device2");
-            sbb.append(',').append("RT2").append(',');
+            sbb.append(',').append("Model2").append(',').append(',').append("Device2").append("Actual_RT2").append(',').append("Expected_RT2");
+            sbb.append(',');
 
-            sbb.append("Model3").append(',').append("Device3").append(',').append("RT3").append(',');
-            sbb.append("Tris").append(',').append("avgQ");
+            sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3");
+            sbb.append("Tris").append(',').append("avgQ").append(',').append("avgLatency");// the last is accross all models
 //            .append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
          sbb.append('\n');
             writer.write(sbb.toString());
@@ -1165,8 +1240,29 @@ else{
             System.out.println(e.getMessage());
         }
 
+//        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+//        FILEPATH = currentFolder + File.separator + "StaticAIinference"+".csv";
+//
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+//
+//            StringBuilder sbb = new StringBuilder();
+//            sbb.append("time");
+//            sbb.append(',');
+//            sbb.append("AI_name");
+//            sbb.append(',');
+//            sbb.append("Delegate");
+//            sbb.append(',');
+//            sbb.append("Avg_infTime");
+//            sbb.append('\n');
+//            writer.write(sbb.toString());
+//            System.out.println("done!");
+//
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
 
 
+/*
 
         currentFolder = getExternalFilesDir(null).getAbsolutePath();
         FILEPATH = currentFolder + File.separator + "RE"+ fileseries+".csv";
@@ -1244,7 +1340,7 @@ else{
         }
 
 
-
+*/
 
 //        currentFolder = getExternalFilesDir(null).getAbsolutePath();
 //        FILEPATH = currentFolder + File.separator + "Quality"+ fileseries+".csv";
@@ -1270,7 +1366,30 @@ else{
 //            System.out.println(e.getMessage());
 //        }
 
+        try {// te recieve the AI offline analysis on respone time
 
+            double tfactor=10000;
+            InputStream inputStream = getResources().getAssets().open("StaticBestAIinference.csv");
+
+            InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+
+            BufferedReader br = new BufferedReader(inputStreamReader);
+            String line = "";
+            line = br.readLine();
+            while ((line = br.readLine()) != null) {
+                // use comma as separator
+                String[] cols = line.split(",");
+                excel_offlineAIname.add((String)(cols[1]));
+                excel_offlineAIdelg.add((String)(cols[2]));
+                excel_offlineAIRT.add(Double.parseDouble(cols[3]));
+
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
 
 
@@ -1986,28 +2105,44 @@ else{
             }
         });
 
-        Button gc = (Button) findViewById(R.id.gc);
+//        Button gc = (Button) findViewById(R.id.server);
+//        gc.setOnClickListener(new View.OnClickListener() {
+//            public void onClick(View view) {
+//
+//                reParamList.clear();
+//                trisMeanDisk.clear();
+//                trisMeanThr.clear();
+//                tParamList.clear();
+//                thParamList.clear();
+//                trisRe.clear();
+//                trisReMir.clear();
+//
+//                // to start over data collection
+//
+//                decTris.clear();
+//            }
+//            });
+
+        Button gc = (Button) findViewById(R.id.server);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
         gc.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
-                reParamList.clear();
-                trisMeanDisk.clear();
-                trisMeanThr.clear();
-                tParamList.clear();
-                thParamList.clear();
-                trisRe.clear();
-                trisReMir.clear();
+                ModelRequestManager.getInstance().add(new ModelRequest( getApplicationContext(), MainActivity.this, deleg_req,"delegate"),false,false );
+                deleg_req+=1;
 
-                // to start over data collection
-
-                decTris.clear();
             }
             });
 
 
+        Button offAnalyz = (Button) findViewById(R.id.offlineAnalysis);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        offAnalyz.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
 
+                bayesian bys= new bayesian(MainActivity.this);
+                bys.offlineAIdCol();
 
-
+            }
+        });
 
 
 
@@ -2016,9 +2151,13 @@ else{
         bt.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
+
+                bayesian bys= new bayesian(MainActivity.this);
+//                bys.apply_delegate_tris();
+
+               /* @@@@@@@@ Dont remove this code:  this is  to test AI delegate combination
                 int delegate_count=3;
-                //old  final List<List<Integer>>[] combinations = new List[]{new ArrayList<>()};
-                List<Integer> ct = new ArrayList<>();
+               List<Integer> ct = new ArrayList<>();
                 for (int i=0;i<delegate_count;i++)
                     for (int j=0;j<delegate_count;j++)
                         for (int k=0;k<delegate_count;k++)
@@ -2032,30 +2171,30 @@ else{
                 bayesian_pushed=true;
                 //  List<List<Integer>> combinations_copy = new ArrayList<>(combinations);
                 //  combinations_copy = new ArrayList<>(combinations);
-
                 combinations_copy = combinations.stream().collect(Collectors.toList());
-
+*/
                 /// each timer checks for one combination of AI delegate @@@ we need to restart the avg responseT value when ever the combination changes
-                CountDownTimer sceneTimer = new CountDownTimer(Long.MAX_VALUE, 40000) { // this is to automate adding objects to the screen
+                CountDownTimer sceneTimer = new CountDownTimer(Long.MAX_VALUE, 10000) { // this is to automate adding objects to the screen
                     @Override
                     public void onTick(long millisUntilFinished) {
 
-                        new bayesian(MainActivity.this).run(); // change device and AI model
-
+                        //new bayesian(MainActivity.this).run(); // change device and AI model
+                        double []selected_combinations=new double[] {0.3, 0.3,0.3,  (total_tris/2)};
+                        bys.apply_delegate_tris(selected_combinations,0);
+                        bys.writeRT();
                         if(stopTimer) // first check the finishT condition
                         {      this.cancel();
-                            //   return;
                         }
 
                     }
-
                     @Override
                     public void onFinish() {
                     }
                 }.start();
-
-
             }
+
+
+
         });
 
 // niloo back

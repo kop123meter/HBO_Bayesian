@@ -13,22 +13,27 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class ModelRequest {
 
-    private String filename;
+    private String filename;// either object file name for decimation or
     private float percentageReduction;
     private Context appContext;
     private WeakReference<MainActivity> mainActivityWeakReference;
+    public  final MainActivity activityMain;
     private int ID;
     private Queue<Integer> similarRequestIDArray;
     private float cache;
-    Image imgFrame;
+    String delegate;
+    public double[] all_delegates = new double[30];
+    public List<double[]> delg_list = new ArrayList<>();
+    String req="decimate";// this is to connect to the server to receive delegate and triangle count
     //private List<Float> cacheratio ;
 
-    ModelRequest(float cr,String filename, float percentageReduction, Context context, MainActivity mainActivity, int mID)
+    ModelRequest(float cr,String filename, float percentageReduction, Context context, MainActivity mainActivity, int mID)// this is for decimation request
     {
         Log.d("ModelRequest", "Created ModelRequest - filename: " + filename);
         this.filename = filename;
         this.percentageReduction = percentageReduction;
         this.appContext = context;
+        this.activityMain=mainActivity;// reference to activityMain class
         this.mainActivityWeakReference = new WeakReference<MainActivity>(mainActivity);
         this.ID = mID;
         this.similarRequestIDArray = new LinkedBlockingQueue<Integer>();
@@ -37,22 +42,33 @@ public class ModelRequest {
         //this.cacheratio=new ArrayList<>(cacheratio) ;
     }
 
-
-    ModelRequest(String aiName, Context context, MainActivity mainActivity,Image img)
+    ModelRequest( Context context, MainActivity mainActivity, int id,String req) // this is for bayesian delegate request
     {
-
-        this.filename = aiName;
+        this.activityMain=mainActivity;
+        this.req=req;
         Log.d("ModelRequest", "Created ModelRequest - filename: " + filename);
         this.appContext = context;
         this.mainActivityWeakReference = new WeakReference<MainActivity>(mainActivity);
-        imgFrame=img;
+        this.ID = id;
+
     }
 
 
-    public Image getImage()
-    {
-        return imgFrame;
-    }
+//    ModelRequest(String aiName, Context context, MainActivity mainActivity,Image img)
+//    {
+//
+//        this.filename = aiName;
+//        Log.d("ModelRequest", "Created ModelRequest - filename: " + filename);
+//        this.appContext = context;
+//        this.mainActivityWeakReference = new WeakReference<MainActivity>(mainActivity);
+//        imgFrame=img;
+//    }
+
+
+//    public Image getImage()
+//    {
+//        return imgFrame;
+//    }
     public float getCache()
     {
         return cache;

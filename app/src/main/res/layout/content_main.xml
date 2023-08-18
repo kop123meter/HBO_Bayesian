@@ -94,15 +94,28 @@
             app:layout_constraintTop_toTopOf="parent" />
 
         <Button
-            android:id="@+id/gc"
+            android:id="@+id/server"
             android:layout_width="68dp"
             android:layout_height="48dp"
             android:layout_gravity="right"
-            android:layout_marginTop="72dp"
-            android:layout_marginRight="36dp"
+            android:layout_marginTop="52dp"
+            android:layout_marginRight="64dp"
 
-            android:text="GC"
-            android:visibility="invisible"
+            android:text="Server"
+            android:visibility="visible"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <Button
+            android:id="@+id/offlineAnalysis"
+            android:layout_width="68dp"
+            android:layout_height="48dp"
+            android:layout_gravity="right"
+            android:layout_marginTop="48dp"
+            android:layout_marginRight="268dp"
+
+            android:text="offlineAnalysis"
+            android:visibility="visible"
             app:layout_constraintRight_toRightOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -143,7 +156,7 @@
             android:visibility="visible"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toTopOf="@id/gc"
+            app:layout_constraintTop_toTopOf="@id/server"
             app:layout_constraintVertical_bias="0.396"
             tools:ignore="SpeakableTextPresentCheck" />
 
@@ -158,7 +171,7 @@
             android:visibility="invisible"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toTopOf="@id/gc"
+            app:layout_constraintTop_toTopOf="@id/server"
             app:layout_constraintVertical_bias="0.47" />
 
         <Spinner

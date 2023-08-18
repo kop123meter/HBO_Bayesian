@@ -722,10 +722,6 @@ public class Mir implements Runnable {
                float tmper1 = Calculate_deg_er(a, b, c, d_k, gamma, r1); // deg error for current sit
                float tmper2 = Calculate_deg_er(a, b, c, d_k, gamma, r2); // deg error for more decimated obj
 
-
-
-
-
                float max_nrmd = mInstance.excel_maxd.get(indq);
                tmper1 = tmper1 / max_nrmd; // normalized
                tmper2= tmper2 /max_nrmd;

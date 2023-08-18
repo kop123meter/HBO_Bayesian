@@ -40,7 +40,7 @@ public class ModelRequestManager {
 
    // private final LinkedList<ModelRequest> mRequestList;
     static LinkedList<ModelRequest> mRequestList=new LinkedList<ModelRequest>();
-
+    static LinkedList<ModelRequest> dlgRequestList=new LinkedList<ModelRequest>();
 
     static LinkedList<ModelRequest> repeatedRequestList=new LinkedList<ModelRequest>();
 
@@ -51,6 +51,8 @@ public class ModelRequestManager {
     private final int CORE_THREAD_POOL_SIZE = 50;
 
     private final int MAX_THREAD_POOL_SIZE = 50;
+
+
 
 
 
@@ -130,6 +132,7 @@ public class ModelRequestManager {
 
        // referenceSwitch=true;// I added it manually here to redraw from the cache
 
+
         if(offloading ==true){// this is to send offloading req and recieve result.txt
 
             Instance.mDownloadThreadPool.execute(new OffloadRequestRunnable(modelRequest, Instance));
@@ -145,37 +148,67 @@ public class ModelRequestManager {
                     modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
 
                 }
-            else {
+            else { // nil added on July 2023
 
-                 Iterator requestIterator = mRequestList.iterator();
+                Iterator delIterator = dlgRequestList.iterator();
+                if (modelRequest.req!=null && modelRequest.req == "delegate") {// this is to send reward to client python
 
-                 while (requestIterator.hasNext()) {
-                       ModelRequest tempRequest = (ModelRequest) requestIterator.next();
-                       if (modelRequest.getFilename() == tempRequest.getFilename()
-                        && modelRequest.getPercentageReduction() == tempRequest.getPercentageReduction() && modelRequest.getID() != tempRequest.getID()) {
-                    Log.d("ModelRequest", "MATCHING FILENAME + CONVERSION. Adding ID " + modelRequest.getID() + " to ID " + tempRequest.getID());
-                    tempRequest.addIDToArray(modelRequest.getID());
-                    int current_ser_freq = modelRequest.getMainActivityWeakReference().get().Server_reg_Freq.get(modelRequest.getID());// to avoid repatative similar req by similar obj type
-                    if (modelRequest.getPercentageReduction() != 1 && modelRequest.getPercentageReduction() != modelRequest.getCache())
-                        modelRequest.getMainActivityWeakReference().get().Server_reg_Freq.set(modelRequest.getID(), current_ser_freq - 1);
-                    //if(tempRequest.getID()!= modelRequest.getID())// avoid repeatative req for same obj and same reduction ratio
-                    //  repeatedRequestList.add(modelRequest);
-                    return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
+                    while (delIterator.hasNext()) {
+                        ModelRequest tempRequest = (ModelRequest) delIterator.next();
+                        if ( modelRequest.getID() != tempRequest.getID()) {
+                            Log.d("ModelRequest", "MATCHING ID " + tempRequest.getID());
+                            tempRequest.addIDToArray(modelRequest.getID());
+                            return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
+                        }
+                    }
+
+                    dlgRequestList.offer(modelRequest);
+                    Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
+                    // un comment parallelism and start sequential  decimation
+                    //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
+                   //  new DelegateRequestRunnable(modelRequest, Instance).run();
+                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance));
+
                 }
+                else { // this is to decimate model
 
-                   if (tempRequest.getID() == modelRequest.getID() && modelRequest.getPercentageReduction() != tempRequest.getPercentageReduction())
-                    // means that we have already a request but we changed it so remove that
-                      mRequestList.remove(tempRequest);
+                    Iterator requestIterator = mRequestList.iterator();
+                    while (requestIterator.hasNext()) {
+                        ModelRequest tempRequest = (ModelRequest) requestIterator.next();
+                        if (modelRequest.getFilename() == tempRequest.getFilename()
+                                && modelRequest.getPercentageReduction() == tempRequest.getPercentageReduction() && modelRequest.getID() != tempRequest.getID()) {
+                            Log.d("ModelRequest", "MATCHING FILENAME + CONVERSION. Adding ID " + modelRequest.getID() + " to ID " + tempRequest.getID());
+                            tempRequest.addIDToArray(modelRequest.getID());
+                            int current_ser_freq = modelRequest.getMainActivityWeakReference().get().Server_reg_Freq.get(modelRequest.getID());// to avoid repatative similar req by similar obj type
+                            if (modelRequest.getPercentageReduction() != 1 && modelRequest.getPercentageReduction() != modelRequest.getCache())
+                                modelRequest.getMainActivityWeakReference().get().Server_reg_Freq.set(modelRequest.getID(), current_ser_freq - 1);
+                            //if(tempRequest.getID()!= modelRequest.getID())// avoid repeatative req for same obj and same reduction ratio
+                            //  repeatedRequestList.add(modelRequest);
+                            return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
+                        }
+
+                        if (tempRequest.getID() == modelRequest.getID() && modelRequest.getPercentageReduction() != tempRequest.getPercentageReduction())
+                            // means that we have already a request but we changed it so remove that
+                            mRequestList.remove(tempRequest);
 
                     }
 
 
-                  mRequestList.offer(modelRequest);
-                  Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
-                 // un comment parallelism and start sequential  decimation
-                  Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
-                  // new ModelRequestRunnable(modelRequest, Instance).run();
-        }}
+                    mRequestList.offer(modelRequest);
+                    Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
+                    // un comment parallelism and start sequential  decimation
+                    Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
+                    // new ModelRequestRunnable(modelRequest, Instance).run();
+                }
+
+
+            }
+
+
+
+
+
+        }
 
 
 
@@ -190,6 +223,7 @@ public void clear(){
         mRequestList.clear();
         repeatedRequestList.clear();
         mWorkQueue.clear();
+        dlgRequestList.clear();
 }
 
 

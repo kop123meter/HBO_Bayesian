@@ -87,11 +87,6 @@ public class ModelRequestRunnable implements Runnable {
 // for using the local memory undo the comment
         if (!new_file.exists()&& perc!=1) {
 
-//            Toast toast = Toast.makeText(context.getApplicationContext(),
-                  //  "Please Upload the decimated objects to the Phone storage", Toast.LENGTH_LONG);
-
-//            toast.show();
-
 
 //the bellow code is foe general try
    //    if(((perc!=cacheratio || !new_file.exists() ) && perc!=1)||  (!new_file.exists() && perc==1) ){
@@ -99,12 +94,6 @@ public class ModelRequestRunnable implements Runnable {
 
 
             Log.d("ModelRequest", "Entering Runnable");
-
-            //Stores current thread into modelDownloadTask so it can be interrupted
-            //modelDownloadTask.setDownloadThread(Thread.currentThread());
-
-            //set priority to background
-            //android.os.Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
 
 
             try {
@@ -115,11 +104,6 @@ public class ModelRequestRunnable implements Runnable {
 
                 try {
 
-                    //open stream to write new file
-                    // if (new_file.exists() == false) {
-
-
-                    // Establish connection with the server
                     //@@@pc address
                     Socket socket = new Socket("192.168.1.42", 4444);
 
@@ -141,10 +125,6 @@ public class ModelRequestRunnable implements Runnable {
                     FileOutputStream fout = new FileOutputStream(new_file);
 
 
-                    //start to read tris 15 sep
-                    //File Updated_Tris = new File(context.getExternalFilesDir(null), "/updated_Tris_" + filename+ ".txt");
-                    //open stream to write new file
-                    //FileOutputStream fout1 = new FileOutputStream(Updated_Tris);
                     BufferedInputStream socketInputStream1;
                     socketInputStream1 = new BufferedInputStream(socket.getInputStream());
                     byte[] buffer1 = new byte[BUFFER_SIZE];
@@ -192,31 +172,6 @@ public class ModelRequestRunnable implements Runnable {
                     modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
                     ModelRequestManager.mRequestList.remove(modelRequest);
 
-
-
-
-
-                    //int j=
-                //    for(int i=0; i<ModelRequestManager.repeatedRequestList.size() ;i++) {
-//
-                  /*  Iterator requestIterator = ModelRequestManager.repeatedRequestList.iterator(); // check other holding requests
-
-                        while(requestIterator.hasNext()) {
-                            ModelRequest tempRequest = (ModelRequest) requestIterator.next();
-
-                            if(tempRequest.getID() == modelRequest.getID())
-                                ModelRequestManager.repeatedRequestList.remove(tempRequest); // since we have already the latest version, previous holded req should be deleted
-
-                            else if (modelRequest.getFilename() == tempRequest.getFilename() && modelRequest.getPercentageReduction() == tempRequest.getPercentageReduction() && tempRequest.getID() != modelRequest.getID()) {
-// last condition for id is to make sure that we are ignoring older ratios for the same obj and mostly apply this redraw for other objs pending with similar ratio
-                                ModelRequestManager.mRequestList.offer(tempRequest);
-
-                                mInstance.handleState(DOWNLOAD_COMPLETE, tempRequest);
-                                ModelRequestManager.repeatedRequestList.remove(tempRequest);
-                            }
-
-                        }*/
-
                     outM.flush();
                     // close all the streams
                     fout.close();
@@ -257,14 +212,6 @@ public class ModelRequestRunnable implements Runnable {
             msg.obj = modelRequest;
             modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
             ModelRequestManager.mRequestList.remove(modelRequest);
-
-
-
-
-
-
-
-
 
             /*Iterator requestIterator = ModelRequestManager.repeatedRequestList.iterator(); // check other holding requests
 

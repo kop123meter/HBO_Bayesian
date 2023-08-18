@@ -33,9 +33,11 @@ public class ARServer {
 	private final BlockingQueue<Runnable> mWorkQueue;
 
 
-	private static final int MAXIMUM_PORT = 4444;
+	private static final int MAXIMUM_PORT = 5555;
 	//Socket receiving connections
-	private final ServerSocket serverSocket;
+	static Socket app_socket;
+
+	static ServerSocket serverSocket;
 	//number of clients connected to the server
 	static int number_of_clients = 0;
 	//List<ServerThread> current_thread = new ArrayList<>();
@@ -59,8 +61,10 @@ public class ARServer {
 	{
 		try {
 
-			Instance = new ARServer(4444);
-			//Instance = new ARServer(DEFAULT_PORT);
+//			if(number_of_clients%2==0)
+			  Instance = new ARServer(4444);
+//			else
+//			Instance = new ARServer(MAXIMUM_PORT);
 
 
 		} catch (IOException e) {
@@ -112,6 +116,17 @@ public class ARServer {
 			try {
 
 				Socket clientSocket = serverSocket.accept();
+
+				// this is for niloo test to see if I can save the java client data
+//				if(number_of_clients==1)
+//					app_socket= clientSocket;
+
+
+				// Get the InetAddress of the remote client
+				InetAddress clientAddress = clientSocket.getInetAddress();
+				String clientIP = clientAddress.getHostAddress();
+				System.out.println("Client connected from IP address: " + clientIP);
+
 				number_of_clients++;
 				System.out.println("New connection created: " + clientSocket);
 				System.out.println("Number of clients: " + number_of_clients);

@@ -571,12 +571,8 @@ public class Mir_old implements Runnable {
                             else if (tmpnextTris > mInstance.orgTrisAllobj)
                                 nextTris = mInstance.orgTrisAllobj;
 
-
-
                             nextTris =  Math.round(nextTris * 100) / 100;
                             trainedTris = true;
-
-
 
                          //   if (mInstance.trainedTris == true) {
                                 try {

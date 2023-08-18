@@ -72,7 +72,7 @@ public class OffloadRequestRunnable implements Runnable {
         this.perc=modelRequest.getPercentageReduction();
         this.mInstance = mInstance;
         this.cacheratio=modelRequest.getCache();
-        this.imgFrame=modelRequest.getImage();
+       // this.imgFrame=modelRequest.getImage();
 
         //this.repeatedRequestList= new LinkedList<ModelRequest>(repeatedRList);
 
