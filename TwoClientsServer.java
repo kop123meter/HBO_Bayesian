@@ -2,11 +2,14 @@ package server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-
+import java.text.SimpleDateFormat;
+import java.util.Date;
 public class TwoClientsServer {
 
 	public static long startTime=0;
 	public static long endTime=0;
+	public static SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm");
+	public static String fileseries=dateFormat.format(new Date());
 	public static void main(String[] args) {
 
 
@@ -32,7 +35,7 @@ public class TwoClientsServer {
 					pythonClientHandler client1Handler = new pythonClientHandler(clientSocket2, clientSocket1);
 					client1Handler.start();
 
-					startTime = System.currentTimeMillis();
+					//startTime = System.currentTimeMillis();
 
 					javaClientHandler fromJava_sender = new javaClientHandler( clientSocket1,clientSocket2);// this is to recieve a result back from java client
 					fromJava_sender.start();
@@ -71,6 +74,7 @@ public class TwoClientsServer {
 				// Read input from the client
 				String input = in.readLine();
 				System.out.println("Received from pythonClient and sent to the java client " + input);
+				startTime = System.currentTimeMillis();
 				// Send the input to the other client
 				out.println(input);
 
@@ -101,12 +105,17 @@ public class TwoClientsServer {
 				System.out.println("Receiveing from javaClient and sending to python: " );
 
 				while (!in.ready());// loop until data is ready to read
+				endTime = System.currentTimeMillis();
 				String input = in.readLine();
 				System.out.println("Received data " + input);
 				out.println(input);// send it to python!
-				endTime = System.currentTimeMillis();
-				System.out.println(" execution time : " + (endTime - startTime) + " milliseconds");
 
+				String data = "Execution time for reward: " + input +" : " + (endTime - startTime) + " milliseconds \n";
+				System.out.println(data);
+				File new_file = new File( "time"+fileseries+".txt");
+				FileOutputStream fout = new FileOutputStream(new_file,true);
+				fout.write(data.getBytes());
+				fout.close();
 
 				//clientSocket.close();
 			} catch (IOException e) {

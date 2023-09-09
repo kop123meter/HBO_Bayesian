@@ -14,79 +14,40 @@ package com.arcore.AI_ResourceControl;
 * The  apply_delegate_tris(selected_combinations); function on the other hand applies the selected combination gained from the java server
 * which comes from python client
 * */
+ import java.util.Arrays;
 
- import com.google.common.collect.ArrayListMultimap;
- import com.google.common.collect.Iterables;
-
-
- import java.io.IOException;
- import java.net.UnknownHostException;
- import java.io.BufferedReader;
  import java.io.File;
  import java.io.FileOutputStream;
- import java.io.InputStreamReader;
  import java.io.PrintWriter;
- import java.net.Socket;
  import java.util.Arrays;
 
 
- import java.io.BufferedReader;
- import java.io.File;
  import java.io.FileNotFoundException;
- import java.io.FileOutputStream;
- import java.io.IOException;
- import java.io.InputStreamReader;
- import java.io.PrintWriter;
- import java.net.Socket;
- import java.net.UnknownHostException;
  import java.text.SimpleDateFormat;
- import java.util.Arrays;
+ import java.util.Comparator;
  import java.util.Date;
  import java.util.HashMap;
  import java.util.LinkedHashMap;
  import java.util.LinkedList;
  import java.util.List;
  import java.util.Map;
+ import java.util.PriorityQueue;
  import java.util.stream.Collectors;
 
  import static java.lang.Math.abs;
 
  import android.annotation.SuppressLint;
- import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.stream.Collectors;
 
-import static java.lang.Math.abs;
+ import java.util.ArrayList;
+
+ import static java.lang.Math.abs;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.lang.Math.pow;
-import static java.lang.Math.sqrt;
-import static java.lang.Thread.sleep;
+ import static java.lang.Thread.sleep;
 
-import android.annotation.SuppressLint;
-import android.os.CountDownTimer;
-import android.widget.TextView;
+ import android.os.CountDownTimer;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.ListMultimap;
- import java.util.concurrent.Semaphore;
-
-public class bayesian implements Runnable {
+ public class bayesian implements Runnable {
 
     private final MainActivity mInstance;
 
@@ -97,6 +58,7 @@ public class bayesian implements Runnable {
 //    double sensitivity[] ;
 ////    float objquality[];
 //    double tris_share[];
+     int max_cap=6;
     Map <Integer, Double> candidate_obj;
     float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f,0.1f,0.05f};
         //    0.05f};
@@ -105,7 +67,7 @@ public class bayesian implements Runnable {
     double [][] tRemainder;
     int [][] track_obj;
     int sleepTime=15;
-
+     List<String> modelsToAssign= new ArrayList<>();
   //  double tMin[] ;
     int missCounter=3;//means at least 4 noises
     public List<double[]> listOfArrays = new ArrayList<>();
@@ -119,6 +81,18 @@ public class bayesian implements Runnable {
         listOfArrays.add(new double[] { 0.0, 0.7, 0.3, 0.335 });
         listOfArrays.add(new double[] { 0.0, 0.0, 1.0, 0.435 });
         listOfArrays.add(new double[] { 0.0, 1.0, 0.0, 0.265 });
+
+
+        //= Arrays.asList("AI1", "AI2", "AI3"); // List of model names to assign
+
+        for (int i = 0; i < mInstance.mList.size(); i++) {// we have each list of digits such as 000 or 003 with size of tasks, so if 00 is te digit, the task count is 2
+
+            AiItemsViewModel taskView = mInstance.mList.get(i);// the first to the last task
+            modelsToAssign.add(taskView.getModels().get(taskView.getCurrentModel()));// adds the name of the model to modelsToAssign
+        }
+
+
+
 
     }
     @SuppressLint("SuspiciousIndentation")
@@ -299,7 +273,7 @@ public class bayesian implements Runnable {
         return true;
     }
 
-   public List<Integer> delegate_capacity(double []selected_combinations){ // this function is to calculate the capacity of each delegate based on input % usage/ percentage usage
+   public List<Integer> old_delegate_capacity(double []selected_combinations){ // this function is to calculate the capacity of each delegate based on input % usage which is discrete (0.7,0.3,0) for example
 
         List<Integer> capacity=new ArrayList<>();
         int task_num=mInstance.mList.size();
@@ -311,62 +285,173 @@ public class bayesian implements Runnable {
        return  capacity;
    }
 
-//   public int heauristic (int ai_index,  List<Integer> capacity)// this is to return each model AI index
-//   {
-//
-//
-//   }
+     public List<Integer> delegate_capacity(double []selected_combinations) { // this function is to calculate the capacity of each delegate based on the continuos input % usage/ percentage usage
+         int task_num = mInstance.mList.size();
+         double[] percentageVector = {selected_combinations[0], selected_combinations[1], selected_combinations[2]};
+         int N = 3;  // Replace with your desired target sum
+
+         Integer[] sortedIndices = new Integer[percentageVector.length];
+         for (int i = 0; i < percentageVector.length; i++) {
+             sortedIndices[i] = i;
+         }
+
+         Arrays.sort(sortedIndices, Comparator.comparingDouble(i -> -percentageVector[i]));
+
+         List<Integer> scaledValues = new ArrayList<>();
+
+         for (int i = 0; i < percentageVector.length; i++) {
+             scaledValues.add((int) (percentageVector[i] * N));
+         }
+         // Adjust the values to ensure they sum up to N
+         int remainder = N - scaledValues.stream().mapToInt(Integer::intValue).sum();
+
+         // Distribute the remainder evenly among the values
+         for (int i = 0; i < N; i++) {
+             int index = sortedIndices[i];
+             scaledValues.set(index, scaledValues.get(index) + 1);
+             remainder--;
+             if (remainder <= 0) {
+                 break;
+             }
+         }
+
+    return scaledValues;
+
+     }
+
+    public void fifo_heuristic(List<Integer> capacity){
+
+        for (int i = 0; i < mInstance.mList.size(); i++) {// we have each list of digits such as 000 or 003 with size of tasks, so if 00 is te digit, the task count is 2
+
+            AiItemsViewModel taskView = mInstance.mList.get(i);// the first to the last task
+            int model = (taskView.getCurrentModel());
+            int device = taskView.getCurrentDevice();
+            // int new_device=heauristic(i,capacity);
+            int new_device = -1;
+            for (int j = 0; j < capacity.size(); j++)//  This is my FIFO heuristic function: up to three delegates we have
+            {
+                if (capacity.get(j) != 0) {
+                    new_device = j;// use the first available device
+                    capacity.set(j, capacity.get(j) - 1);// update the capacity
+                    break;// be out of the loop
+                }
+
+            }
+            if (device != new_device)// this means that the model should be updated
+            {
+                mInstance.adapter.setMList(mInstance.mList);
+                mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+                int finalI = i;
+                int finalNew_device = new_device;
+                mInstance.runOnUiThread(() ->
+                        mInstance.adapter.updateActiveModel(
+                                model,
+                                finalNew_device,
+                                1,
+                                taskView,
+                                finalI
+                        ));
+            }
+            try {
+                sleep(20);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }// this is to make sure the device is updated
+
+        }
+
+
+
+    }
+
+
+
+    public void afinity_heuristic(List<Integer> capacity){
+
+
+        List<AIModel> copuCurModels = new ArrayList<>();
+        copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
+        List<AiItemsViewModel> copyAiItems = new ArrayList<>();
+        copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
+
+        int delegatedM=mInstance.mList.size();// num of current tasks
+        PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
+
+        while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
+
+            AiItemsViewModel taskView = null;
+            AIModel assignedModel = sortedCurModels.poll();
+            int bestDlg=assignedModel.delegate;
+            for (AiItemsViewModel item : copyAiItems) {
+                if (item.getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
+                    taskView = item;
+
+                    break;
+                }
+            }
+            int tasksIndx = mInstance.mList.indexOf(taskView);
+
+
+            if(capacity.get(bestDlg) !=0)// you can easily assing the task and update delgate
+            {
+                delegatedM-=1;
+                capacity.set(bestDlg, capacity.get(bestDlg)-1);
+                copyAiItems.remove(taskView);
+                // assign the task
+                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
+                {
+                    mInstance.adapter.setMList(mInstance.mList);
+                    mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+                    int finalI = tasksIndx;
+                    int finalNew_device = bestDlg;
+                    AiItemsViewModel finalTaskView = taskView;
+                    mInstance.runOnUiThread(() ->
+                            mInstance.adapter.updateActiveModel(
+                                    finalTaskView.getCurrentModel() ,
+                                    finalNew_device,
+                                    1,
+                                    finalTaskView,
+                                    finalI// this is the index of mlist
+                            ));
+                }
+                try {
+                    sleep(10);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }// this is to make sure the device is updated
+                sortedCurModels.removeIf(modl -> modl.id==(assignedModel.id));
+
+            }
+
+            else{// capacity is zero , so remove all AIs from sorted list with the same capacity index
+                sortedCurModels.removeIf(modl -> modl.delegate.equals(bestDlg));
+
+            }
+
+
+        }
+
+
+        }// function
+
+
 
 
     public void apply_delegate_tris(double []selected_combinations1, int ind) {
 
+           mInstance.avg_AIperK.clear();// restart data collection
         // FIRST APPLY YHE DELEGATE AND TRIANGLES
 // here we apply the delegate at the end of 10 times of 10 data collection
             double[] selected_combinations = selected_combinations1;
             List<Integer> capacity = new ArrayList<>(delegate_capacity(Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1)));// exclude triangles
             // this loop is to change the AI task delegate for one combination: one by one
             // Part 1: this is to apply delegate
-            //      /* temp commented to just check tris delegate part after this
-            for (int i = 0; i < mInstance.mList.size(); i++) {// we have each list of digits such as 000 or 003 with size of tasks, so if 00 is te digit, the task count is 2
+           //fifo_heuristic(capacity); // this prioritizes AI model delegate to CPU. GPU, and NNAPI based on the AI index, eg, if capacity ary=[0.3,0,0.7], the first AI model is assigned to CPU
+           afinity_heuristic(capacity);
 
-                AiItemsViewModel taskView = mInstance.mList.get(i);// the first to the last task
-                int model = (taskView.getCurrentModel());
-                int device = taskView.getCurrentDevice();
-                // int new_device=heauristic(i,capacity);
-                int new_device = -1;
-                for (int j = 0; j < capacity.size(); j++)//  This is my FIFO heuristic function: up to three delegates we have
-                {
-                    if (capacity.get(j) != 0) {
-                        new_device = j;// use the first available device
-                        capacity.set(j, capacity.get(j) - 1);// update the capacity
-                        break;// be out of the loop
-                    }
+///*temp deactive to make sure of heuristic func works
 
-                }
-                if (device != new_device)// this means that the model should be updated
-                {
-                    mInstance.adapter.setMList(mInstance.mList);
-                    mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
-                   int finalI = i;
-                    int finalNew_device = new_device;
-                    mInstance.runOnUiThread(() ->
-                            mInstance.adapter.updateActiveModel(
-                                    model,
-                                    finalNew_device,
-                                    1,
-                                    taskView,
-                                    finalI
-                            ));
-                }
-                try {
-                    sleep(20);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }// this is to make sure the device is updated
-
-            }// for all AI models to apply its delegate
-            //     */
-            double nextTris = selected_combinations[selected_combinations.length - 1];
+            double nextTris = selected_combinations[selected_combinations.length - 1]*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
             //  Part 2:  start to apply the triangle count and OTDA
             try {
                 long time1 = System.nanoTime() / 1000000; //starting first loop
@@ -395,10 +480,14 @@ public class bayesian implements Runnable {
         startSceneTimer(currentIndex);// this has the loop of i=0 to i=3 in it
 
 
+
+    //    */
+
+
     }
 
     void startSceneTimer(int in) { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
-        CountDownTimer sceneTimer = new CountDownTimer(50000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
+        CountDownTimer sceneTimer = new CountDownTimer(20000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
 
             @Override
             public void onTick(long millisUntilFinished) {
@@ -414,11 +503,12 @@ public class bayesian implements Runnable {
                         .average()
                         .orElseThrow(() -> new IllegalArgumentException("List is empty"));
 
+                // this is to include fixed possible noise over the first 7 iterations
+                double reward =mInstance. avgq - (mInstance.reward_weight*average_AIRT);
+                if(mInstance.bayesian_iterations<=7)
+                    reward-=0.2;
 
-
-
-                double reward =mInstance. avgq - average_AIRT;
-                mInstance.avg_reward=reward;
+                mInstance.avg_reward=(float) (Math.round((float) (reward * 100))) / 100;
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
                 System.out.println("reward is "+ reward);
@@ -749,11 +839,16 @@ public class bayesian implements Runnable {
             {
                 AiItemsViewModel taskView=mInstance.mList.get(i);
                 // first find the best offline AI response Time = EXPECTED RESPONSE TIme
-                int indq = mInstance.excel_offlineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
+                int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
                 // excel file has all information for the AI inference NAME, Delegate, and time
-                double expected_time = mInstance.excel_offlineAIRT.get(indq);
+                double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
                 // find the actual response Time
-                double actual_rpT= taskView.getTot_rps();
+               // double actual_rpT= taskView.getTot_rps();
+
+                double[] t_h = mInstance.getResponseT(i);
+                double actual_rpT=t_h[0];
+                // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
+                //meanRt = t_h[0];
                 // calculate the latency
                 avg_AIlatencyPeriod+=(actual_rpT-expected_time);// this is because we want to have this value minimized
 
@@ -769,7 +864,7 @@ public class bayesian implements Runnable {
 // avg_AIperK is to calculate average of all AI model  response time  per period
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
             mInstance.avg_AIperK.add(avgAIltcy); //this is average of all AI response time at this period
-            if( mInstance.avg_AIperK.size()>8)/// we want to have the last updated values
+            if( mInstance.avg_AIperK.size()>max_cap)/// we want to have the last updated values
                 mInstance.avg_AIperK.remove(0);
             
             sb.append(",").append(mInstance.total_tris);
@@ -805,36 +900,6 @@ public class bayesian implements Runnable {
     
 
 
-//    public void send_reward_toserver(double reward){
-//
-//        try {
-//
-//            //@@@pc address
-//            Socket socket = new Socket("192.168.1.42", 4444);
-//            // Open output stream
-//            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-//            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-//            //send reward result
-//            //int reward=2000;
-//            String msg_toserver="sending_rewards:"+reward;
-//
-//            out.println(msg_toserver);
-//            //flush stream
-//            out.flush();
-//
-//            while (!((new String(in.readLine())).equals("File received"))) ;// when file is recieved, we close the socket
-//
-//            out.close();
-//        }
-//        catch (UnknownHostException e) {
-//            e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//
-//
-//    }
-    
 
     }
 

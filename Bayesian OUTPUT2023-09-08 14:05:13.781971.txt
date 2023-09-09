@@ -1,0 +1,2 @@
+NEW Bayeian Test 
+Best input combination: for iteration #0[0.37740413 0.16216963 0.52271197 0.85464779]Best reward:1.0

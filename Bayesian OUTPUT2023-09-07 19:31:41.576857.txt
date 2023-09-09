@@ -1,0 +1,4 @@
+NEW Bayeian Test 
+[[0.0, 0.7, 0.3, 26.53645924361328]] is sent, waiting for the reward ...Recieved reward : 0.6200000047683716
+[[0.3, 0.7, 0.0, 33.084201581891314]] is sent, waiting for the reward ...Recieved reward : 0.05
+[[0.0, 0.0, 1.0, 68.24841773431156]] is sent, waiting for the reward ...Recieved reward : 

@@ -60,6 +60,7 @@ public class balancer implements Runnable {
     double tMin[] ;
     int missCounter=3;//means at least 4 noises
    // int aiIndx;
+   TextView posText_re,posText_thr,posText_q,posText_mir;
 
 
     public balancer(MainActivity mInstance) {
@@ -80,6 +81,11 @@ public class balancer implements Runnable {
         //float candidate_obj[] = new float[total_obj];
         tMin = new double[objC];
 
+
+        posText_re= mInstance.findViewById(R.id.app_re);
+        posText_q= mInstance.findViewById(R.id.app_quality);
+        posText_thr= mInstance.findViewById(R.id.app_thr);
+        posText_mir= mInstance.findViewById(R.id.app_mir);
 
     }
 
@@ -146,11 +152,6 @@ public class balancer implements Runnable {
         // else{ // just collect data when algorithm was applied in the last period
 
 
-        double sum_currentWt = 0; // this is to calculate est_weights for AI models
-        double sum_baseWt = 0;
-        double sum_rohT_wi = 0;
-        double sum_rohD_wi = 0;
-        double sum_delta_wi = 0;
 
 // Train the H model for each AI task from line 127 to
 
@@ -192,26 +193,27 @@ public class balancer implements Runnable {
 
 
             if (aiIndx == 0) {
-                TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
-                posText.setText("RT1: " + String.valueOf(meanRt));
+               // TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
+               posText_re.setText("RT1: " + String.valueOf(meanRt));
             } else if (aiIndx == 1) {
 
-                TextView posText2 = mInstance.findViewById(R.id.rspT1);
-                posText2.setText("RT2: " + String.valueOf(meanRt));
+              //  TextView posText2 = mInstance.findViewById(R.id.rspT1);
+                posText_q.setText("RT2: " + String.valueOf(meanRt));
             }
 //
             else if (aiIndx == 2) {
-                TextView posText3 = mInstance.findViewById(R.id.rspT2);
-                posText3.setText("RT3: " + String.valueOf(meanRt));
+            //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
+                posText_thr.setText("RT3: " + String.valueOf(meanRt));
             } else if (aiIndx == 3) {
-                TextView posText4 = mInstance.findViewById(R.id.rspT3);
-                posText4.setText("RT4: " + String.valueOf(meanRt));
-            } else {
-                TextView posText5 = mInstance.findViewById(R.id.rspT4);
-                posText5.setText("RT56: " + String.valueOf(meanRt));
-
+            //    TextView posText4 = mInstance.findViewById(R.id.rspT3);
+                posText_mir.setText("RT4: " + String.valueOf(meanRt));
             }
+
+
         }
+
+        writequality();
+       // writeThr(meanThr, 0, false,0);// for the urrent period
     }
 
     public void run_old() {
@@ -323,29 +325,29 @@ public class balancer implements Runnable {
                         (double) Math.round((double) ( ((meanRt+  curAvg)/2) * 100)) / 100);
 
 
-            if(aiIndx==0)
-            {
-                TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
-                posText.setText( "RT1: " +String.valueOf( meanRt));
-            }
-            else if(aiIndx==1) {
-
-                TextView  posText2=   mInstance.findViewById(R.id.rspT1);
-                posText2.setText("RT2: " + String.valueOf(meanRt));
-            }
+//            if(aiIndx==0)
+//            {
+//                TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
+//                posText.setText( "RT1: " +String.valueOf( meanRt));
+//            }
+//            else if(aiIndx==1) {
 //
-            else if(aiIndx==2)
-            {    TextView  posText3=   mInstance.findViewById(R.id.rspT2);
-                posText3.setText("RT3: "+ String.valueOf( meanRt));}
-            else if(aiIndx==3) {
-                TextView  posText4=   mInstance.findViewById(R.id.rspT3);
-                posText4.setText("RT4: " + String.valueOf(meanRt));
-            }
-            else {
-                TextView  posText5=   mInstance.findViewById(R.id.rspT4);
-                posText5.setText("RT56: " + String.valueOf(meanRt));
-
-            }
+//                TextView  posText2=   mInstance.findViewById(R.id.rspT1);
+//                posText2.setText("RT2: " + String.valueOf(meanRt));
+//            }
+////
+//            else if(aiIndx==2)
+//            {    TextView  posText3=   mInstance.findViewById(R.id.rspT2);
+//                posText3.setText("RT3: "+ String.valueOf( meanRt));}
+//            else if(aiIndx==3) {
+//                TextView  posText4=   mInstance.findViewById(R.id.rspT3);
+//                posText4.setText("RT4: " + String.valueOf(meanRt));
+//            }
+//            else {
+//                TextView  posText5=   mInstance.findViewById(R.id.rspT4);
+//                posText5.setText("RT56: " + String.valueOf(meanRt));
+//
+//            }
 
 
 
@@ -663,7 +665,7 @@ public class balancer implements Runnable {
 
                 avg_msred_H+=meanH;
 
-                writeThr(meanRt, predRt, trainedRT,aiIndx,100*mape, meanH, pred_H, 100*perAI_mape);// It has predicted and real throughput of task AI[index]
+             //   writeThr(meanRt, predRt, trainedRT,aiIndx,100*mape, meanH, pred_H, 100*perAI_mape);// It has predicted and real throughput of task AI[index]
 
 
             //else
@@ -1318,39 +1320,73 @@ public class balancer implements Runnable {
         }
 
     }
-    public void writeThr(double realThr, double predThr, boolean trainedFlag,int aiIndx,double ai_acc,double meanH, double pred_H,double perAI_mape){ // AI throughput information for each task individually and response time for all models
+//    public void writeThr(double realThr, double predThr, boolean trainedFlag,int aiIndx,double ai_acc,double meanH, double pred_H,double perAI_mape){ // AI throughput information for each task individually and response time for all models
+//
+//        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+//        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+//        String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
+//
+//        StringBuilder sb = new StringBuilder();
+//        sb.append(dateFormat.format(new Date())); sb.append(',').append((aiIndx)).append(",");
+//        sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',').append(ai_acc).append(",");
+//        sb.append(mInstance.rohTLRt.get(aiIndx));sb.append(',').append(mInstance.rohDLRt.get(aiIndx));sb.append(',').append(mInstance.deltaLRt.get(aiIndx));sb.append(',');
+//        sb.append(mInstance.baseline_AIRt.get(aiIndx)* mInstance.des_Rt_weight);
+//        sb.append(','); sb.append(mInstance.des_Q).append(',');
+//        sb.append(mInstance.total_tris);
+//      //  sb.append(',').append( meanthr);// this is measured directly
+//        sb.append(','); sb.append(meanH).append(',').append(pred_H).append(',').append(perAI_mape);
+//
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+//
+//
+//        for (int i=0;i<mInstance.mList.size();i++)
+//        {
+//            AiItemsViewModel taskView=mInstance.mList.get(i);
+//            sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+//                    .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+//                    .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
+//
+//
+//        }
+//
+//
+//
+//
+//
+//            sb.append('\n');
+//            writer.write(sb.toString());
+//            System.out.println("done!");
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
+//    }
+
+
+    public void writeThr(double realThr, double predThr, boolean trainedFlag,double ai_acc){
+
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Throughput"+mInstance. fileseries+".csv";
-
         StringBuilder sb = new StringBuilder();
-        sb.append(dateFormat.format(new Date())); sb.append(',').append((aiIndx)).append(",");
+
+
+
+        sb.append(dateFormat.format(new Date())); sb.append(",,");
         sb.append(realThr);sb.append(',').append(predThr);sb.append(',').append(trainedFlag);sb.append(',').append(ai_acc).append(",");
-        sb.append(mInstance.rohTLRt.get(aiIndx));sb.append(',').append(mInstance.rohDLRt.get(aiIndx));sb.append(',').append(mInstance.deltaLRt.get(aiIndx));sb.append(',');
-        sb.append(mInstance.baseline_AIRt.get(aiIndx)* mInstance.des_Rt_weight);
+        sb.append(" , , ,");// for weights
+        // sb.append(mInstance.rohTL.get(aiIndx));sb.append(',').append(mInstance.rohDL.get(aiIndx));sb.append(',').append(mInstance.deltaL.get(aiIndx));sb.append(',');
+        sb.append(mInstance.des_Thr);
         sb.append(','); sb.append(mInstance.des_Q).append(',');
         sb.append(mInstance.total_tris);
-      //  sb.append(',').append( meanthr);// this is measured directly
-        sb.append(','); sb.append(meanH).append(',').append(pred_H).append(',').append(perAI_mape);
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+            for (AiItemsViewModel taskView :mInstance.mList) {
 
-
-        for (int i=0;i<mInstance.mList.size();i++)
-        {
-            AiItemsViewModel taskView=mInstance.mList.get(i);
-            sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
-                    .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-                    .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
-
-
-        }
-
-
-
-
-
+                sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+                        .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+                        .append(",").append(taskView.getInferenceT()).append(",").append(taskView.getOverheadT());
+            }
             sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");
@@ -1358,8 +1394,6 @@ public class balancer implements Runnable {
             System.out.println(e.getMessage());
         }
     }
-
-
     public void writeWeights( boolean ai_acc,int ai_indx){ // AI throughput information for each task individually and response time for all models
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");

@@ -3,63 +3,48 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_height="wrap_content"
     tools:context=".MainActivity">
 
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
-        android:layout_width="158dp"
+        android:layout_width="99dp"
         android:layout_height="wrap_content"
         android:theme="@style/AppTheme.AppBarOverlay">
 
         <TextView
-            android:id="@+id/dec_req"
+            android:id="@+id/app_thr"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="left"
-            android:text="@string/decimation_request"
+            android:text="T: "
             android:textColor="#BBDEFB" />
+
+
         <TextView
-            android:id="@+id/rspT"
+            android:id="@+id/app_re"
+            android:layout_width="101dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="left"
+            android:text="R: "
+            android:textColor="#BBDEFB" />
+
+        <TextView
+            android:id="@+id/app_quality"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="left"
-            android:text="ResponseT: "
+            android:text="Q: "
             android:textColor="#BBDEFB" />
 
         <TextView
-            android:id="@+id/rspT1"
-            android:layout_width="160dp"
+            android:id="@+id/app_mir"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="left"
-            android:text="ResponseT: "
+            android:text="MIR:  "
             android:textColor="#BBDEFB" />
-
-        <TextView
-            android:id="@+id/rspT2"
-            android:layout_width="158dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="left"
-            android:text="ResponseT: "
-            android:textColor="#BBDEFB" />
-
-        <TextView
-            android:id="@+id/rspT3"
-            android:layout_width="163dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="left"
-            android:text="ResponseT: "
-            android:textColor="#BBDEFB" />
-
-        <TextView
-            android:id="@+id/rspT4"
-            android:layout_width="163dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="left"
-            android:text="ResponseT: "
-            android:textColor="#BBDEFB" />
-
 
         <TextView
             android:id="@+id/objnum"
@@ -80,7 +65,7 @@
         android:id="@+id/include"
         layout="@layout/content_main"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="wrap_content" />
 
     <!--    <include-->
     <!--        android:id="@+id/include"-->
@@ -89,13 +74,6 @@
     <!--        android:layout_height="640dp"-->
     <!--        app:layout_anchor="@+id/include"-->
     <!--        app:layout_anchorGravity="center" />-->
-
-
-
-
-
-
-
 
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -1,0 +1,17 @@
+NEW Bayeian Test 
+[[0.3, 0.0, 0.7, 35.82947320818141]] is sent, waiting for the reward ...Recieved reward : 0.5400000214576721
+[[0.7, 0.3, 0.0, 76.15107858487407]] is sent, waiting for the reward ...Recieved reward : 0.15000000596046448
+[[0.0, 0.3, 0.7, 63.13242810999334]] is sent, waiting for the reward ...Recieved reward : 0.49000000953674316
+[[0.0, 0.3, 0.7, 68.59819005034984]] is sent, waiting for the reward ...Recieved reward : 0.5299999713897705
+[[0.7, 0.3, 0.0, 56.43807724195574]] is sent, waiting for the reward ...Recieved reward : 0.27000001072883606
+[[0.0, 0.0, 1.0, 66.61942099059041]] is sent, waiting for the reward ...Recieved reward : 0.4699999988079071
+[[0.0, 1.0, 0.0, 33.775050791124784]] is sent, waiting for the reward ...Recieved reward : 0.1899999976158142
+[[0.0, 0.0, 1.0, 36.13606056923908]] is sent, waiting for the reward ...Recieved reward : 0.5099999904632568
+[[0.7, 0.0, 0.3, 36.61421759754947]] is sent, waiting for the reward ...Recieved reward : 0.5
+[[1.0, 0.0, 0.0, 68.2470182872868]] is sent, waiting for the reward ...Recieved reward : 0.4300000071525574
+[[0.0, 0.0, 1.0, 70.1282480954935]] is sent, waiting for the reward ...Recieved reward : 0.6100000143051147
+[[0.0, 0.7, 0.3, 70.41348902675527]] is sent, waiting for the reward ...Recieved reward : 0.5199999809265137
+[[0.0, 0.0, 1.0, 71.2900322176471]] is sent, waiting for the reward ...Recieved reward : 0.5199999809265137
+[[0.0, 0.7, 0.3, 102.9502762556747]] is sent, waiting for the reward ...Recieved reward : 0.550000011920929
+[[1.0, 0.0, 0.0, 101.15923191475261]] is sent, waiting for the reward ...Recieved reward : -0.019999999552965164
+[[0.7, 0.0, 0.3, 70.0300705707394]] is sent, waiting for the reward ...Recieved reward : 0.47999998927116394

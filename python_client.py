@@ -2,7 +2,7 @@ import json
 import socket
 from GPyOpt.methods import BayesianOptimization
 import random
-
+import numpy as np
 '''
 def reward_function(x):
        # Calculate the reward based on the input combination x
@@ -15,6 +15,23 @@ def reward_function(x):
 import time
 
 # Get the current time in seconds since the epoch
+import datetime
+
+x = datetime.datetime.now()
+
+
+
+def quick_test(X):
+    #x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2],X[:, 3]
+    for i in range(0,3):
+      print( "x"+str(i+1)+": "+ str(X[0][i]))
+      print( "4x"+str(i+1)+": "+ str(X[0][i]*4))
+      print( "ROUND"+str(i+1)+": "+ str(round(X[0][i]*4)))
+    X_list = X.tolist()
+   
+    print( "input: "+ str(X_list))
+ 
+    return 1
 
 
 def objective( X):
@@ -55,7 +72,7 @@ def objective( X):
             received_data = client_socket.recv(1024).decode()
             print("Recieved reward : "+ str(received_data))
             
-            with open ("Bayesian OUTPUT.txt", "a")  as out:
+            with open ("Bayesian OUTPUT"+str(x)+".txt", "a")  as out:
                out.write(str(X_list)+" is sent, waiting for the reward ...")
                out.write("Recieved reward : "+ str(received_data))
 
@@ -81,32 +98,61 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
      #super(JavaRewardBayesianOptimization, self).__init__(reward_function,domain=domain,constraints = constraints)
    
     # runs the exploreation phase for 5 times!
-        super(JavaRewardBayesianOptimization, self).__init__(objective,domain=domain,constraints = constraints)
-                                                 
+       # super(JavaRewardBayesianOptimization, self).__init__(objective,domain=domain,constraints = constraints)
+       super(JavaRewardBayesianOptimization, self).__init__(quick_test,domain=domain,constraints = constraints)
+                                                   
                                
    
 
 
 
 
-space = [{'name': 'var_1', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
+
+'''
+    {'name': 'var_1', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
+      {'name': 'var_2', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
+     {'name': 'var_3', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
+''' 
+# for 5 splanes
+    #{'name': 'var_4', 'type': 'continuous', 'domain':(0.28,0.62), 'dimensionality' :1},# for 4 andies
+    #{'name': 'var_4', 'type': 'discrete', 'domain':  (0.435, 0.217, 0.143)}
+      
+'''
+    {'name': 'var_1', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
           {'name': 'var_2', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
          {'name': 'var_3', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
-         {'name': 'var_4', 'type': 'continuous', 'domain':(7.3,73), 'dimensionality' :1},# for 5 splanes
-        #{'name': 'var_4', 'type': 'continuous', 'domain':(0.28,0.62), 'dimensionality' :1},# for 4 andies
-        #{'name': 'var_4', 'type': 'discrete', 'domain':  (0.435, 0.217, 0.143)}
-          ]
+    '''
+    
+
 
 
 #problem = GPyOpt.methods.BayesianOptimization(reward_function, domain=space , constraints= [{'name': 'constr_1', 'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1) '}])
 
 
-with open ("Bayesian OUTPUT.txt", "w")  as out:
+with open ("Bayesian OUTPUT"+str(x)+".txt", "w")  as out:
     out.write("NEW Bayeian Test \n")
 
 
+
+#constraint2 = [{'name': 'var_4_constraint', 'constraint': var_4_constraint}]
+
+space = [     {'name': 'var_1', 'type': 'continuous', 'domain': [0,1]},
+     {'name': 'var_2', 'type': 'continuous', 'domain': [0,1]},
+     {'name': 'var_3', 'type': 'continuous', 'domain': [0,1]},
+     {'name': 'var_4', 'type': 'continuous', 'domain':(0.1,1), 'dimensionality' :1}]
+
+
 # Initialize the custom optimization class with the Java reward function
-problem = JavaRewardBayesianOptimization(domain=space,constraints= [{'name': 'constr_1', 'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1) '}])
+problem = JavaRewardBayesianOptimization(domain=space,constraints= [{'name': 'constr_1','constraint': 'x[:,0]+ x[:,1]+ x[:, 2] -1'},
+                                                          {'name': 'constr_2','constraint': '-x[:,0]- x[:,1]- x[:, 2] +0.999'}
+                                                          
+                                                          
+                                                                    ])
+
+                                                                     #'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1) '}])
+#,  {'name': 'constr_2', 'constraint': 'np.round(x[:,3],3)-x[:,3]'}
+ 
+
 
 
 '''problem = JavaRewardBayesianOptimizatio gos for exploring 5 different options and in the next lines we will run optimization
@@ -114,7 +160,7 @@ to exploit'''
 
     
 print("Initial exploration is finished!")
-max_iter  = 10
+max_iter  = 0
 problem.run_optimization(max_iter = max_iter)                                      
                 
 
@@ -134,7 +180,7 @@ print("Best reward:", best_reward)
 
 
     #, constraints=[{'name': 'constr_1', 'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1)'}])
-with open ("Bayesian OUTPUT.txt", "a")  as out:
+with open ("Bayesian OUTPUT"+str(x)+".txt", "a")  as out:
     out.write("Best input combination: for iteration #" +str(max_iter)+ str( best_input))
     out.write("Best reward:"+str( best_reward))
     

@@ -115,12 +115,12 @@ public class DelegateRequestRunnable implements Runnable {
                     boolean first = false;
 
                     int exploration_phase = 5;// initially 5 to explore 5 delegates on pyhon client
-                    int max_iteration=10;// we define it in python client
+                    int max_iteration=20;// we define it in python client
                     max_iteration+=exploration_phase;// shows when to stop this thread
 
 
                     read1 = socketInputStream1.read(buffer1);
-                    int iterations=0;
+//                    int iterations=0;
                     while (read1 == -1) // wait and listen
                         read1 = socketInputStream1.read(buffer1);
 
@@ -158,11 +158,11 @@ public class DelegateRequestRunnable implements Runnable {
                             //flush stream
                             out.flush();
                             exploration_phase -= 1;
-                            iterations+=1;
+                            modelRequest.activityMain.bayesian_iterations+=1;
 
                             modelRequest.activityMain.avg_reward=0; // restart the reWARD
 
-                            if(iterations==max_iteration)// we did apply all the exploration and exploitation from python client
+                            if(modelRequest.activityMain.bayesian_iterations==max_iteration)// we did apply all the exploration and exploitation from python client
                                 break;
 
                             if ( exploration_phase == 0)// break if that's not in the exploration phase or we have finished 5 times exploration

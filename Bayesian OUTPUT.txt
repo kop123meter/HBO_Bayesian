@@ -1,0 +1,27 @@
+NEW Bayeian Test 
+[[1.0, 0.0, 0.0, 81.61345545365518]] is sent, waiting for the reward ...Recieved reward : -0.47999998927116394
+[[0.0, 1.0, 0.0, 47.64003851180908]] is sent, waiting for the reward ...Recieved reward : -0.41999998688697815
+[[0.0, 0.3, 0.7, 29.211363771413335]] is sent, waiting for the reward ...Recieved reward : 0.3199999928474426
+[[0.3, 0.7, 0.0, 58.793373862690146]] is sent, waiting for the reward ...Recieved reward : -0.1899999976158142
+[[0.0, 0.0, 1.0, 15.156015795487765]] is sent, waiting for the reward ...Recieved reward : 0.5099999904632568
+[[0.0, 0.3, 0.7, 15.93939661976235]] is sent, waiting for the reward ...Recieved reward : 0.3499999940395355
+[[0.0, 0.0, 1.0, 13.58800568407602]] is sent, waiting for the reward ...Recieved reward : 0.49000000953674316
+[[1.0, 0.0, 0.0, 10.35500910875943]] is sent, waiting for the reward ...Recieved reward : -0.699999988079071
+[[0.0, 0.3, 0.7, 14.389305941901142]] is sent, waiting for the reward ...Recieved reward : 0.36000001430511475
+[[0.0, 0.0, 1.0, 26.47214366080189]] is sent, waiting for the reward ...Recieved reward : 0.5299999713897705
+[[1.0, 0.0, 0.0, 25.078043070972505]] is sent, waiting for the reward ...Recieved reward : -0.5799999833106995
+[[0.0, 0.0, 1.0, 27.21727293826341]] is sent, waiting for the reward ...Recieved reward : 0.5199999809265137
+[[0.0, 1.0, 0.0, 27.456447861749307]] is sent, waiting for the reward ...Recieved reward : -0.30000001192092896
+[[0.0, 0.0, 1.0, 30.831016368214176]] is sent, waiting for the reward ...Recieved reward : 0.6100000143051147
+[[0.0, 0.0, 1.0, 32.21813074276955]] is sent, waiting for the reward ...Recieved reward : 0.5400000214576721
+[[1.0, 0.0, 0.0, 31.446202063455278]] is sent, waiting for the reward ...Recieved reward : -0.5799999833106995
+[[0.0, 0.0, 1.0, 30.182227984628923]] is sent, waiting for the reward ...Recieved reward : 0.5299999713897705
+[[0.0, 0.0, 1.0, 34.69421126446315]] is sent, waiting for the reward ...Recieved reward : 0.5799999833106995
+[[0.0, 0.3, 0.7, 36.92019272763332]] is sent, waiting for the reward ...Recieved reward : 0.36000001430511475
+[[0.0, 0.0, 1.0, 102.99737880314856]] is sent, waiting for the reward ...Recieved reward : 0.6399999856948853
+[[0.0, 0.0, 1.0, 101.25647903476474]] is sent, waiting for the reward ...Recieved reward : 0.7400000095367432
+[[0.0, 1.0, 0.0, 101.62340902944902]] is sent, waiting for the reward ...Recieved reward : -0.23999999463558197
+[[0.0, 0.0, 1.0, 100.21111898023803]] is sent, waiting for the reward ...Recieved reward : 0.7200000286102295
+[[0.0, 0.0, 1.0, 98.11903053169596]] is sent, waiting for the reward ...Recieved reward : 0.699999988079071
+[[0.0, 0.3, 0.7, 95.42831833017772]] is sent, waiting for the reward ...Recieved reward : 0.5400000214576721
+Best input combination: for iteration #20[  0.           0.           1.         101.25647903]Best reward:-0.7400000095367432

@@ -20,8 +20,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.media.Image;
 import android.os.Handler;
 import android.os.Looper;
@@ -106,6 +106,10 @@ import static java.lang.Thread.sleep;
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
 
+
+
+    int bayesian_iterations=0;
+
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
     // on onTracking is called. Needed for DynamicBitmapSource
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
@@ -117,12 +121,16 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
    // private static MainActivity Instance = new MainActivity();
     //private static MainActivity Instance = new com.arcore.MixedAIAR.MainActivity();
 
+    double reward_weight=0.01;
+
     String bayesian_delegate="";
 
     int deleg_req=0;
 boolean oneTimeAccess=true;// to send image to server
     private boolean isTracking;
     private boolean isHitting;
+
+    boolean survey=false; // this is for the survey experiments
 
    //  baseRenderable renderArray[] = new baseRenderable[obj_count];
     List<baseRenderable> renderArray =  new ArrayList<baseRenderable>();
@@ -148,7 +156,7 @@ boolean oneTimeAccess=true;// to send image to server
 
     Map <Integer, Float> candidate_obj;
     //float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
-    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.1f,0.05f};
+    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f,0.1f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
   //  boolean datacol=false;
     boolean trainedTris = false;
@@ -199,12 +207,13 @@ boolean oneTimeAccess=true;// to send image to server
     // List<LinkedHashMultimap<Double, Double>> thr_models= new ArrayList<>();
 //    Multimap<Double, Double> hm = LinkedHashMultimap.create();
 
+    int mir_active_count=0;
     int thr_miss_counter1=0;
     double last_tris=0;
     //$$$$$$$$$$$$$$
     double des_Q= 0.7; //# this is avg desired Q
     double des_Thr = 0; // 0.65*throughput; in line 2063,
-    double des_thr_weight=0.45;
+    double des_thr_weight=0.7;
     double des_Rt_weight=1/des_thr_weight;// for response time, 1.5x is equal to 50% increase in response time or 50% decrease in throughput?
     List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // LinkedHashMultimap to keep order of insersion to hold list of response time
     List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
@@ -259,7 +268,7 @@ boolean oneTimeAccess=true;// to send image to server
     AiRecyclerviewAdapter adapter;// added by nil
     RecyclerView recyclerView_aiSettings;
     private String currentModel = null;
-     boolean decAll  = true; // older name :referenceObjectSwitchCheck
+     boolean decAll  = false; // older name :referenceObjectSwitchCheck
  //   boolean usecash=true;// should be true for the tests
     boolean usecash=false;// either downloads from the edge or uses cash
     private boolean autoPlace = false;// older name multipleSwitchCheck
@@ -279,12 +288,12 @@ boolean oneTimeAccess=true;// to send image to server
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
-    private int scenarioTickLength = 40000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 22000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
     //value to make sure tris change from object addition will not affect data collection in balancer.java (it collects data of recent tris)
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();
     private String currentTaskConfig = null;
-    private int taskConfigTickLength = 3000;
+    private int taskConfigTickLength = 40000;
          //   35000;
     private int pauseLength = 10000;
 
@@ -342,9 +351,15 @@ boolean oneTimeAccess=true;// to send image to server
     int baseline_index=0;// index of all objects ratio of the coarse_ratio array
     List<List<Integer>> combinations = new ArrayList<>();
             //Arrays.asList(new List[]{new ArrayList<>()});
-     List<String> excel_offlineAIname = new ArrayList<>();
-    List<String> excel_offlineAIdelg = new ArrayList<>();
-    List<Double> excel_offlineAIRT = new ArrayList<>();
+     List<String> excel_BestofflineAIname = new ArrayList<>();
+    List<String> excel_BestofflineAIdelg = new ArrayList<>();
+    List<Double> excel_BestofflineAIRT = new ArrayList<>();
+
+    List<AIModel> curModels = new ArrayList<>();
+    List<AIModel> cpuModels = new ArrayList<>();// each of these lists contain tht Ai models sorted based on the afinity
+    List<AIModel> gpuModels = new ArrayList<>();
+    List<AIModel> nnapiModels = new ArrayList<>();
+    List<AIModel> models = new ArrayList<>();// This contains all models proceseed in offline mode
 
     List<String> quality_log = new ArrayList<>();
     List<String> time_log = new ArrayList<>();
@@ -381,7 +396,7 @@ boolean oneTimeAccess=true;// to send image to server
     //for bayesian
     List<Double> avg_AIperK = new ArrayList<>();
 
-     boolean activate_b =true;
+     boolean activate_b =false;
      boolean sleepmode=false;
     ///prediction - Nil/Saloni
     private ArrayList<Float> timeLog = new ArrayList<>();
@@ -437,7 +452,7 @@ boolean oneTimeAccess=true;// to send image to server
             Queue<Integer> tempIDArray = tempModelRequest.getSimilarRequestIDArray();
             if (tempModelRequest.req != "delegate") // means we have decimation req
             {
-                if (decAll == true) {//baseline 2
+                if (decAll == true) {//baseline 2 , activate_b is the temporary switch I use to have the option for individual decimation
                     int ind = tempModelRequest.getID();
                     //  renderArray[ind].redraw(ind);
                     renderArray.get(ind).redraw(ind);
@@ -859,7 +874,7 @@ boolean oneTimeAccess=true;// to send image to server
             }
             });
 
-                    buttonPushAiTask.setOnClickListener(new View.OnClickListener() {
+     buttonPushAiTask.setOnClickListener(new View.OnClickListener() {// add AI task
             public void onClick(View view) {
                 // get num of ai tasks from textView
                 int numAiTasks = Integer.parseInt(textNumOfAiTasks.getText().toString());
@@ -880,7 +895,7 @@ boolean oneTimeAccess=true;// to send image to server
         });
 
 
-        buttonPopAiTask.setOnClickListener(new View.OnClickListener() {
+        buttonPopAiTask.setOnClickListener(new View.OnClickListener() {// remove AI task
             public void onClick(View view) {
                 // get num of ai tasks from textView
                 int numAiTasks = Integer.parseInt(textNumOfAiTasks.getText().toString());
@@ -900,24 +915,32 @@ boolean oneTimeAccess=true;// to send image to server
             }
         });
 
+        // this is when we turn the AI models ON for data collection
         switchToggleStream.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
                     /** Check for null classifiers.
                      *  This will not let you start the stream if any are found
                      */
+                    // This is to create the list of M*N offline analyzed data where M is count of current models and N is delegate
+                    for (int id=0;id<mList.size();id++) {// if we have all modls of similar type , we need to add an id for it
+                        AiItemsViewModel taskView = mList.get(id);
+                        String modlName=taskView.getModels().get(taskView.getCurrentModel());// the name of running model
+                        for (AIModel model : models) {
+                            if (model.name.equals(modlName)) {
+                                model.assignID(id);// this is for huristic function in bayesian class to make sure we don't remove the tasks wt the same name, instead we use ID
+                                curModels.add(model);
+                            }
+                        }
 
-//                    double  rohT=-0.06 ;
-//                    double rohD=0.0001;
-//                    double delta=66.92;
 
-                   rsp_models.clear();
-                    thr_models.clear();
-//                    trisRe=LinkedHashMultimap.create();
+//                        PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(curModels);// to make sure current models are sorted based on their avg infTime
 
-                //    trisMeanDisk=( ArrayListMultimap.create());
-       //             ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();
-                    for (AiItemsViewModel taskView : mList) { // up to the count of AI models we add values to lists below for parameters and slopes and baseline-throughput
+
+                        rsp_models.clear();
+                        thr_models.clear();
+
+                        // up to the count of AI models we add values to lists below for parameters and slopes and baseline-throughput
                         tasks.append(",").append(taskView.getModels().get(taskView.getCurrentModel()));
                         rsp_models.add( ArrayListMultimap.create()); // for each model we create a map of tris_thr that we had in MIR
                         tParamList.add( ArrayListMultimap.create());
@@ -926,12 +949,6 @@ boolean oneTimeAccess=true;// to send image to server
                         // be OK pnce we know what is the first key (tris) added for thr_model and we use it to remove the older data from other hashmaps even if they are not in order
                         // for each model we create a map of tris_thr that we had in MIR
                         thParamList.add( ArrayListMultimap.create()); //  ArrayListMultimap only guarantees to keep the insertion order for values within a key, not key order
-
-
-
-                       // thParamList.add( ArrayListMultimap.create());
-                       // tParamList.add( ArrayListMultimap.create());
-
                         rohDL.add(rohD);// the weight  for throughput modeling
                         rohTL.add(rohT);
                         deltaL.add(delta);
@@ -948,9 +965,6 @@ boolean oneTimeAccess=true;// to send image to server
                         hAI_acc.add(false);
                         conseq_error.add(0);
                     }
-
-
-
 
                     boolean noNullModelRunner = true;
                     for (int i = 0; i < mList.size(); i++) {
@@ -1019,18 +1033,23 @@ boolean oneTimeAccess=true;// to send image to server
         //////////////////////////////////////////////////////////////
 
 
-
-        // AR //
-
-
-       // Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-       // setSupportActionBar(toolbar);
         TextView posText1 = (TextView) findViewById(R.id.objnum);
         posText1.setText("obj_num: " + 0);
 
 
-//        TextView posText2 = (TextView) findViewById(R.id.thr);
-//        posText2.setText("Throughput: " );
+        TextView posText_app_thr = (TextView) findViewById(R.id.app_thr);
+        posText_app_thr.setText("T: " );
+
+        TextView posText_app_re = (TextView) findViewById(R.id.app_re);
+        posText_app_re.setText("R: " );
+
+        TextView posText_app_quality = (TextView) findViewById(R.id.app_quality);
+        posText_app_quality.setText("Q: " );
+
+        TextView posText_app_mir = (TextView) findViewById(R.id.app_mir);
+        posText_app_mir.setText("MIR: 0" );
+
+
 
         //create the file to store user score data
         dateFile = new File(getExternalFilesDir(null),
@@ -1154,7 +1173,7 @@ boolean oneTimeAccess=true;// to send image to server
 //            System.out.println(e.getMessage());
 //        }
 
-/*
+
          currentFolder = getExternalFilesDir(null).getAbsolutePath();
          FILEPATH = currentFolder + File.separator +"Throughput"+ fileseries+".csv";
 
@@ -1214,7 +1233,7 @@ boolean oneTimeAccess=true;// to send image to server
             System.out.println(e.getMessage());
         }
 
-*/
+
 
 
         currentFolder = getExternalFilesDir(null).getAbsolutePath();
@@ -1226,11 +1245,11 @@ boolean oneTimeAccess=true;// to send image to server
             sbb.append(',');
             sbb.append("Model1").append(',').append("Device1").append(',').append("Actual_RT1").append(',').append("Expected_RT1");
 
-            sbb.append(',').append("Model2").append(',').append(',').append("Device2").append("Actual_RT2").append(',').append("Expected_RT2");
+            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Actual_RT2").append(',').append("Expected_RT2");
             sbb.append(',');
 
             sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3");
-            sbb.append("Tris").append(',').append("avgQ").append(',').append("avgLatency");// the last is accross all models
+            sbb.append(',').append("Tris").append(',').append("avgQ").append(',').append("avgLatency");// the last is accross all models
 //            .append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
          sbb.append('\n');
             writer.write(sbb.toString());
@@ -1262,50 +1281,50 @@ boolean oneTimeAccess=true;// to send image to server
 //        }
 
 
+
+//
+//        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+//        FILEPATH = currentFolder + File.separator + "RE"+ fileseries+".csv";
+//
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+//
+//            StringBuilder sbb = new StringBuilder();
+//            sbb.append("time");
+//            sbb.append(',');
+//            sbb.append("re_Real");
+//            sbb.append(',');
+//            sbb.append("re_pred");
+//            sbb.append(',');
+//            sbb.append("trainedRe");
+//            sbb.append(',');
+//            sbb.append("curTris");
+//            sbb.append(',');
+//            sbb.append("nextTris");
+//            sbb.append(',');
+//            sbb.append("Algorithm_Tris");
+//            sbb.append(',');
+//            sbb.append("Recalculated Tris");
+//            sbb.append(',');
+//            sbb.append("pAR");
+//            sbb.append(',');
+//            sbb.append("pAI");
+//            sbb.append(',');
+//            sbb.append("TwoModels_Accuracy");
+//            sbb.append(',');
+//            sbb.append("tot_tris");
+//            sbb.append(',');
+//            sbb.append("Average_Quality");
+//            sbb.append(',');
+//            sbb.append("Algorithm_Duration");
+//            sbb.append('\n');
+//            writer.write(sbb.toString());
+//            System.out.println("done!");
+//
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
+
 /*
-
-        currentFolder = getExternalFilesDir(null).getAbsolutePath();
-        FILEPATH = currentFolder + File.separator + "RE"+ fileseries+".csv";
-
-        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
-
-            StringBuilder sbb = new StringBuilder();
-            sbb.append("time");
-            sbb.append(',');
-            sbb.append("re_Real");
-            sbb.append(',');
-            sbb.append("re_pred");
-            sbb.append(',');
-            sbb.append("trainedRe");
-            sbb.append(',');
-            sbb.append("curTris");
-            sbb.append(',');
-            sbb.append("nextTris");
-            sbb.append(',');
-            sbb.append("Algorithm_Tris");
-            sbb.append(',');
-            sbb.append("Recalculated Tris");
-            sbb.append(',');
-            sbb.append("pAR");
-            sbb.append(',');
-            sbb.append("pAI");
-            sbb.append(',');
-            sbb.append("TwoModels_Accuracy");
-            sbb.append(',');
-            sbb.append("tot_tris");
-            sbb.append(',');
-            sbb.append("Average_Quality");
-            sbb.append(',');
-            sbb.append("Algorithm_Duration");
-            sbb.append('\n');
-            writer.write(sbb.toString());
-            System.out.println("done!");
-
-        } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
-        }
-
-
         currentFolder = getExternalFilesDir(null).getAbsolutePath();
         FILEPATH = currentFolder + File.separator + "Weights"+ fileseries+".csv";
 
@@ -1338,50 +1357,108 @@ boolean oneTimeAccess=true;// to send image to server
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
         }
-
-
 */
 
-//        currentFolder = getExternalFilesDir(null).getAbsolutePath();
-//        FILEPATH = currentFolder + File.separator + "Quality"+ fileseries+".csv";
-//
-//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
-//
-//            StringBuilder sbb = new StringBuilder();
-//            sbb.append("time");
-//            sbb.append(',');
-//            sbb.append("objectname");
-//            sbb.append(',');
+
+
+        currentFolder = getExternalFilesDir(null).getAbsolutePath();
+        FILEPATH = currentFolder + File.separator + "Quality"+ fileseries+".csv";
+
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("time");
+            sbb.append(',');
+            sbb.append("objectname");
+            sbb.append(',');
+            sbb.append("distance");
 //            sbb.append("sensitivity");
-//            sbb.append(',');
-//            sbb.append("decimation_ratio");
-//            sbb.append(',');
-//            sbb.append("quality");
+            sbb.append(',');
+            sbb.append("decimation_ratio");
+            sbb.append(',');
+            sbb.append("quality");
+
+            sbb.append('\n');
+            writer.write(sbb.toString());
+            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
+        try {// te recieve the AI offline analysis on respone time
+
+            double tfactor = 10000;
+            InputStream inputStream = getResources().getAssets().open("StaticAIinference.csv");//this includes all AIs not just the best, we use it for our heuristic function
+            InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+            BufferedReader br = new BufferedReader(inputStreamReader);
+            String line = "";
+            line = br.readLine();
+
+            while ((line = br.readLine()) != null) {
+                // use comma as separator
+                String[] cols = line.split(",");
+                models.add(new AIModel(cols[1], cols[2], Double.parseDouble(cols[3])));
+
+            }
+
+
+
+            for (AIModel model : models) {
+                if (model.delegate.equals("CPU")) {
+                    cpuModels.add(model);
+                } else if (model.delegate.equals("GPU")) {
+                    gpuModels.add(model);
+                } else if (model.delegate.equals("NNAPI")) {
+                    nnapiModels.add(model);
+                }
+            }
+
+            Comparator<AIModel> comparator = Comparator.comparingDouble(model -> model.avgInfTime);
+
+            Collections.sort(cpuModels, comparator);
+            Collections.sort(gpuModels, comparator);
+            Collections.sort(nnapiModels, comparator);
+
+//            curModels.add(cpuModels);
+//            curModels.add(gpuModels);
+//            curModels.add(nnapiModels);
+
+            System.out.println("CPU Models (sorted by Avg_infTime):");
+//            for (AIModel model : cpuModels) {
+//                System.out.println(model.name + " - " + model.avgInfTime);
+//            }
 //
-//            sbb.append('\n');
-//            writer.write(sbb.toString());
-//            System.out.println("done!");
+//            System.out.println("\nGPU Models (sorted by Avg_infTime):");
+//            for (AIModel model : gpuModels) {
+//                System.out.println(model.name + " - " + model.avgInfTime);
+//            }
 //
-//        } catch (FileNotFoundException e) {
-//            System.out.println(e.getMessage());
-//        }
+//            System.out.println("\nNNAPI Models (sorted by Avg_infTime):");
+//            for (AIModel model : nnapiModels) {
+//                System.out.println(model.name + " - " + model.avgInfTime);
+//            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
 
         try {// te recieve the AI offline analysis on respone time
 
             double tfactor=10000;
-            InputStream inputStream = getResources().getAssets().open("StaticBestAIinference.csv");
-
+            InputStream inputStream = getResources().getAssets().open("StaticBestAIinference.csv");// this includes the best afinity, cause we use it to calculate the average latency (the expectedAI inferece includes the best response time)
             InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-
             BufferedReader br = new BufferedReader(inputStreamReader);
             String line = "";
             line = br.readLine();
+            List<AIModel> models = new ArrayList<>();
             while ((line = br.readLine()) != null) {
                 // use comma as separator
                 String[] cols = line.split(",");
-                excel_offlineAIname.add((String)(cols[1]));
-                excel_offlineAIdelg.add((String)(cols[2]));
-                excel_offlineAIRT.add(Double.parseDouble(cols[3]));
+                excel_BestofflineAIname.add((String)(cols[1]));
+                excel_BestofflineAIdelg.add((String)(cols[2]));
+                excel_BestofflineAIRT.add(Double.parseDouble(cols[3]));
 
             }
 
@@ -1390,6 +1467,7 @@ boolean oneTimeAccess=true;// to send image to server
         } catch (IOException e) {
             e.printStackTrace();
         }
+
 
 
 
@@ -2133,13 +2211,17 @@ boolean oneTimeAccess=true;// to send image to server
             }
             });
 
-
+// This is only for the offline analysis
         Button offAnalyz = (Button) findViewById(R.id.offlineAnalysis);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
         offAnalyz.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
                 bayesian bys= new bayesian(MainActivity.this);
-                bys.offlineAIdCol();
+
+                //tmp deactive to check the heuristic function:
+               //  bys.offlineAIdCol();
+              double [] test_dlg=new double[]{0.3,0.3,0.3,3000};
+              bys.apply_delegate_tris(test_dlg ,0);
 
             }
         });
@@ -2153,6 +2235,13 @@ boolean oneTimeAccess=true;// to send image to server
 
 
                 bayesian bys= new bayesian(MainActivity.this);
+
+                // temp to this the translation function
+                double [] test_dlg=new double[]{0.44,0.4,0.14};
+                bys. delegate_capacity(test_dlg);
+                // temp to this the translation function
+
+
 //                bys.apply_delegate_tris();
 
                /* @@@@@@@@ Dont remove this code:  this is  to test AI delegate combination
@@ -2254,7 +2343,7 @@ boolean oneTimeAccess=true;// to send image to server
                             }
                         };
 
-                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 2000) {
+                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 25000) {
                             // this is to automate adding objects to the screen
                             @Override
                             public void onTick(long millisUntilFinished) {
@@ -2302,8 +2391,18 @@ boolean oneTimeAccess=true;// to send image to server
                                     float xOffset = Float.parseFloat(cols[1]);
                                     float yOffset = Float.parseFloat(cols[2]);
                                     double original_tris = excel_tris.get(excelname.indexOf(currentModel));
+
+                                    //**** this is temp for survey
+                                    if(survey==true)
+                                    {renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris/10));
+
+                                    Uri objUri =Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" +  renderArray.get(objectCount).fileName  + "0.1.sfb"));
+                                    addObject(objUri, renderArray.get(objectCount), xOffset, yOffset);}//
+                                   //**** this is temp for survey
+                                    //This line should be uncommented after survey experiment
+                                    else{
                                     renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
-                                    addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);//
+                                     addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);}//
 
                                 } catch (IOException e) {
                                     e.printStackTrace();
@@ -2812,57 +2911,24 @@ boolean oneTimeAccess=true;// to send image to server
 
 
                             {
-/*
-///nil test multimap to see insertion ordr is reserved or not
-                                Multimap<Double, Double> hm = LinkedHashMultimap.create();
-
-                                Multimap<Double, Double> hm2 =  ArrayListMultimap.create();
-                                // putting elements
-                                hm.put(0d, 1000d);
-                                hm.put(0d, 1d);
-                                hm.put(400d, 40d);
-                                hm.put(200d, 20d);
-                                hm.put(0d, 100d);
-                                hm.put(200d, 2000d);
-
-                                hm2.put(0d, 1000d);
-                                hm2.put(0d, 1d);
-                                hm2.put(400d, 40d);
-                                hm2.put(200d, 20d);
-                                hm2.put(0d, 100d);
-                                hm2.put(200d, 2000d);
-
-                                // printing LinkedHashMap
-
-                                double firstK=Iterables.getFirst( hm.keys(), null);
-                                double lastKey= Iterables.getLast( hm.keys(), null);// to get last key in hashmap
-                                double secondVal=Iterables.get(hm.get(200d),1); // to get any index of value set of a key
-
-                                List<Double> test= hm.get(1d).stream().collect(Collectors.toList());
-                                double avg= hm.get(1d).stream().mapToDouble(a -> a).average().getAsDouble();
-                                hm.removeAll(firstK);
-                                hm.removeAll(lastKey);
-                                for (Map.Entry<Double, Double> entry :
-                                        hm.entries()) {
-                                    System.out.println(entry.getKey() + " => "
-                                            + ": " + entry.getValue());
-                                }*/
-                                /// nill test
-
-                                new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
-
+                                /// this is for data collection bayesian
+                               new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
+// this is for MIr
+                              // new Mir(MainActivity.this).run();
+//
                             }
 
-                            else
-                                new Mir(MainActivity.this).run();
 
-                            /* was  for MIR
-                            else  if(alg=="2")
-                                    new baseline_thr(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
-                            else
-                                new baseline(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
-*/
+
+//                             was  for MIR
+//                            else  if(alg=="2")
+//                                    new baseline_thr(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
+//                            else
+//                                new baseline(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
+
                         }
+                        else
+                            new survey(MainActivity.this).run();
 
                     }
 
@@ -4520,8 +4586,15 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
         time_log.add(objectCount,  dateFormat.format(new Date()).toString() );
 
+        if (survey==true)
+            ratioArray.add(objectCount, 0.1F);
+        /******* temp for survey
+         *
+         */
+        else
+         ratioArray.add(objectCount, 1F);
 
-        ratioArray.add(objectCount, 1F);
+
         objectCount++;
 
 
