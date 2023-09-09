@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+This is to test the delegate translation from the continious values to dicrete
+I have implemented it to my Java app
 Created on Fri Sep  8 17:02:49 2023
 
 @author: niloofar
