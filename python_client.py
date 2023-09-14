@@ -1,3 +1,6 @@
+'''This is the main python client that has bayesian'''
+
+
 import json
 import socket
 from GPyOpt.methods import BayesianOptimization
@@ -11,6 +14,7 @@ def reward_function(x):
        reward= (x1+x2 )*x3
        #reward= get_result_element(input_data,  [x1,x2,x3,x4])
        return (reward*-1)
+   
 '''
 import time
 
@@ -19,6 +23,10 @@ import datetime
 
 x = datetime.datetime.now()
 
+with open ("Bayesian OUTPUT"+str(x)+".csv", "w")  as out:
+    out.write(",cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward \n")
+    
+num_tasks=5
 
 
 def quick_test(X):
@@ -31,17 +39,26 @@ def quick_test(X):
    
     print( "input: "+ str(X_list))
  
-    return 1
+    return X[0][2]
 
 
 def objective( X):
+        translatedU=[0,0,0,0]
+        translatedU[0:3]=translate_delegate_usage(X[0][0:3])
+        translatedU[3]=(X[0][3])
+    
         # Convert X to a list (assuming X is a numpy array)
-        X_list = X.tolist()
+        X_list =[]
+        X_list.append( list(translatedU))
+        
+        #old version
+        nontranslated_X_list = X.tolist()
 
         # Prepare data to send to the Java server
         data = {
            "python_client"
             : 
+                #translatedU
                 X_list[0]
         }
 
@@ -54,8 +71,9 @@ def objective( X):
         # Connect to the Java server
         #host = 'localhost'  # Replace with the IP or hostname of your Java server
         #port = 12345        # Replace with the port number on which your Java server is listening
-
+       
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+            
             client_socket.connect(('127.0.0.1', 4444))
             #connected = client_socket.recv(1024).decode()
             #print("Recieved! "+ str(connected))
@@ -63,22 +81,55 @@ def objective( X):
             
             client_socket.sendall(json_data.encode()+ b'\n') ##'\n' is a must Add a newline character very important@@@@ this is correct
            
-            
-            print(  str(X_list)+" is sent, waiting for the reward ...")
+            print(  str(nontranslated_X_list[0])+" is sent, waiting for the reward ...")
+            print(  " delegate is translated to", str(X_list[0]))
           
            
             #Receive the reward value from the Java server
-            #print(" Is receiving! ")
             received_data = client_socket.recv(1024).decode()
             print("Recieved reward : "+ str(received_data))
-            
-            with open ("Bayesian OUTPUT"+str(x)+".txt", "a")  as out:
-               out.write(str(X_list)+" is sent, waiting for the reward ...")
-               out.write("Recieved reward : "+ str(received_data))
-
-    
-
+         
+            with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+               out.write(str(nontranslated_X_list[0])+","+str(X_list[0])+","+str(received_data))
+        
+        #received_data=X_list[0][2]
         return (float(received_data)*-1) # this should pass the reward function from java server after calculating the mean quality and average AI inference response time
+
+
+
+
+
+def translate_delegate_usage(x):
+    percentage_vector =x
+    #np.array([x1,x2,x3])
+    N = num_tasks  # Replace with your desired target sum
+
+    # Scale the percentages to integers based on their proportion
+    scaled_values = (percentage_vector  * N).astype(int)
+
+    # Adjust the values to ensure they sum up to N
+    remainder = N - np.sum(scaled_values)
+
+    # Distribute the remainder evenly among the values
+
+
+
+    if remainder > 0:
+        
+        sorted_indices = np.argsort(percentage_vector)[::-1]
+        sorted_percentages = percentage_vector[sorted_indices]
+
+
+    # Allocate integers to the devices with the highest percentages
+        for i in range(N):
+           scaled_values[sorted_indices[i]] += 1
+
+           remainder-=1
+           if remainder<= 0:
+               break
+          
+    float_output = [float(x) for x in scaled_values]        
+    return float_output
 
 
 class JavaRewardBayesianOptimization(BayesianOptimization):
@@ -98,8 +149,8 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
      #super(JavaRewardBayesianOptimization, self).__init__(reward_function,domain=domain,constraints = constraints)
    
     # runs the exploreation phase for 5 times!
-       # super(JavaRewardBayesianOptimization, self).__init__(objective,domain=domain,constraints = constraints)
-       super(JavaRewardBayesianOptimization, self).__init__(quick_test,domain=domain,constraints = constraints)
+       super(JavaRewardBayesianOptimization, self).__init__( f=objective,domain=domain,constraints = constraints,acquisition_type ='EI')
+       #super(JavaRewardBayesianOptimization, self).__init__( f=quick_test,domain=domain,constraints = constraints,acquisition_type ='EI')
                                                    
                                
    
@@ -129,8 +180,6 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
 #problem = GPyOpt.methods.BayesianOptimization(reward_function, domain=space , constraints= [{'name': 'constr_1', 'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1) '}])
 
 
-with open ("Bayesian OUTPUT"+str(x)+".txt", "w")  as out:
-    out.write("NEW Bayeian Test \n")
 
 
 
@@ -139,7 +188,7 @@ with open ("Bayesian OUTPUT"+str(x)+".txt", "w")  as out:
 space = [     {'name': 'var_1', 'type': 'continuous', 'domain': [0,1]},
      {'name': 'var_2', 'type': 'continuous', 'domain': [0,1]},
      {'name': 'var_3', 'type': 'continuous', 'domain': [0,1]},
-     {'name': 'var_4', 'type': 'continuous', 'domain':(0.1,1), 'dimensionality' :1}]
+     {'name': 'var_4', 'type': 'continuous', 'domain':(0.12,1), 'dimensionality' :1}]
 
 
 # Initialize the custom optimization class with the Java reward function
@@ -160,7 +209,7 @@ to exploit'''
 
     
 print("Initial exploration is finished!")
-max_iter  = 0
+max_iter  = 15
 problem.run_optimization(max_iter = max_iter)                                      
                 
 
@@ -172,15 +221,47 @@ best_reward = problem.fx_opt
 #upper confidence bounds by default has a good  convergence rate
 
 
-print("Best input combination: for iteration #" +str(max_iter), best_input)
+print("Best input combination: for iteration count #" +str(max_iter), best_input)
 print("Best reward:", best_reward)
+with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+    out.write( str( best_input) +","+str( best_reward)+"\n")
+''''This is the application of the best input to our app after the max trial'''
+
+translatedU=[0,0,0,0]
+translatedU[0:3]=translate_delegate_usage(best_input[0:3])
+translatedU[3]=(best_input[3])
+
+X_list =[]
+X_list.append( list(translatedU))
 
 
+        # Prepare data to send to the Java server
+data = {
+           "python_client"
+            : 
+                #translatedU
+                X_list[0]
+}
 
+        # Convert data to JSON string
+json_data = json.dumps(data)
 
-
-    #, constraints=[{'name': 'constr_1', 'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1)'}])
-with open ("Bayesian OUTPUT"+str(x)+".txt", "a")  as out:
-    out.write("Best input combination: for iteration #" +str(max_iter)+ str( best_input))
-    out.write("Best reward:"+str( best_reward))
-    
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+            
+            client_socket.connect(('127.0.0.1', 4444))
+            #connected = client_socket.recv(1024).decode()
+            #print("Recieved! "+ str(connected))
+            
+            
+            client_socket.sendall(json_data.encode()+ b'\n') ##'\n' is a must Add a newline character very important@@@@ this is correct
+          
+            print(  " delegate is translated to", str(X_list[0]))
+          
+           
+            #Receive the reward value from the Java server
+            received_data = client_socket.recv(1024).decode()
+            print("Recieved reward : "+ str(received_data))
+         
+            with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+               out.write(str(best_input[0])+","+str(X_list[0])+","+str(received_data))
+                

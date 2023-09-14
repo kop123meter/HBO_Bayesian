@@ -170,17 +170,24 @@ public class balancer implements Runnable {
 
             double predRt = 0;
 
-            double[] t_h = mInstance.getResponseT(aiIndx);
-            // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
-            meanRt = t_h[0];
-            meanThr = t_h[1];
-
-            while (meanThr > 400 ||meanThr < 0.5) // we wanna get a correct value
-            { t_h=mInstance.getResponseT(aiIndx);
-                meanThr = t_h[1];
+                double[] t_h = mInstance.getResponseT(aiIndx);
                 meanRt = t_h[0];
-            }
+                meanThr = t_h[1];
 
+                while (meanThr > 500 ||meanThr < 0.5) // we wanna get a correct value
+                { t_h=mInstance.getResponseT(aiIndx);
+                    meanThr = t_h[1];
+                    meanRt = t_h[0];
+                }
+
+//            else {
+//
+//
+//            }
+
+            /*
+
+*/
 
             double curAvg= mInstance.avg_reponseT.get(aiIndx);
 
@@ -216,6 +223,7 @@ public class balancer implements Runnable {
        // writeThr(meanThr, 0, false,0);// for the urrent period
     }
 
+    @SuppressLint("SuspiciousIndentation")
     public void run_old() {
 
         boolean accmodel = true;// all AI throughput trained models and RE are accurate

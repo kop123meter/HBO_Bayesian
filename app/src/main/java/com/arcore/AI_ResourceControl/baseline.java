@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 import static java.lang.Math.abs;
 
-public class baseline implements Runnable {
+public class baseline implements Runnable {// baseline for MIR
 
 
     private final MainActivity mInstance;

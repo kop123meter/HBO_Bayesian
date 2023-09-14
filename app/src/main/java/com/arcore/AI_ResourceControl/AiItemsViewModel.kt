@@ -26,6 +26,7 @@ class AiItemsViewModel {
 
         "model_metadata"// gesture detection
         )
+    var iD=0
     val devices = listOf("CPU", "GPU", "NNAPI")
     var collector : BitmapCollector? = null
     var classifier: ImageClassifier? = null

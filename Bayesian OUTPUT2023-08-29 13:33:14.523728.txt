@@ -1,1 +1,0 @@
-Best input combination: for iteration #20[ 0.          0.          1.         62.40433563]Best reward:-0.4399129812637965

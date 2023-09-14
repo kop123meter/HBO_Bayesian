@@ -21,7 +21,6 @@ import java.util.concurrent.CompletableFuture;
 
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.media.Image;
 import android.os.Handler;
 import android.os.Looper;
@@ -288,8 +287,10 @@ boolean oneTimeAccess=true;// to send image to server
 
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
-    private int scenarioTickLength = 22000;// should be always odd/even based on XMIR decision period -> so if dec_p=2, here we select an odd
-    //value to make sure tris change from object addition will not affect data collection in balancer.java (it collects data of recent tris)
+    //private int scenarioTickLength = 22000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 3000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
+
+
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();
     private String currentTaskConfig = null;
@@ -815,16 +816,6 @@ boolean oneTimeAccess=true;// to send image to server
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //1- way MyPythonRunner myPythonRunner = new MyPythonRunner();
-        //2- way myPythonRunner.runPythonCode();
-        //OptimizationExample oe=new OptimizationExample();
-       // oe.main(null);
-// 3d way:
-       /// ServerThread serverThread= new ServerThread();
-        //serverThread.run();
-
-////////////////
-
 
         ////////////////
         // python bridge
@@ -839,6 +830,9 @@ boolean oneTimeAccess=true;// to send image to server
 
 //        for(int i = 0; i<20; i++) {
         mList.add(new AiItemsViewModel());
+        int last_index=mList.size();
+        mList.get(last_index-1).setID(last_index);
+
         avg_reponseT.add(0d);
 //        }
         // Define the recycler view that holds the AI settings cards
@@ -886,6 +880,8 @@ boolean oneTimeAccess=true;// to send image to server
                     // update num of AI tasks
                     textNumOfAiTasks.setText(String.format("%d", numAiTasks));
                     mList.add(new AiItemsViewModel());
+                    int last_index=mList.size();
+                    mList.get(last_index-1).setID(last_index);
                     avg_reponseT.add(0d);
                     adapter.setMList(mList);
                     recyclerView_aiSettings.setAdapter(adapter);
@@ -923,20 +919,28 @@ boolean oneTimeAccess=true;// to send image to server
                      *  This will not let you start the stream if any are found
                      */
                     // This is to create the list of M*N offline analyzed data where M is count of current models and N is delegate
+
                     for (int id=0;id<mList.size();id++) {// if we have all modls of similar type , we need to add an id for it
                         AiItemsViewModel taskView = mList.get(id);
-                        String modlName=taskView.getModels().get(taskView.getCurrentModel());// the name of running model
+                        String mdl_name=taskView.getModels().get(taskView.getCurrentModel());// the name of running model
+                        int cur_count=0;
                         for (AIModel model : models) {
-                            if (model.name.equals(modlName)) {
-                                model.assignID(id);// this is for huristic function in bayesian class to make sure we don't remove the tasks wt the same name, instead we use ID
-                                curModels.add(model);
+                           if (model.name.equals(mdl_name))
+                           {
+                               AIModel copy_model = new AIModel(model);// this is to make sure there is a new reference to the model we wanna use
+                               copy_model.assignID(taskView.getID());// this is for huristic function in bayesian class to make sure we don't remove the tasks wt the same name, instead we use ID
+                                curModels.add(copy_model);
+                               cur_count+=1;// up to the count of hardwares( here three) we assign
+
                             }
+                            if(cur_count==3)
+                                break;
                         }
 
 
 //                        PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(curModels);// to make sure current models are sorted based on their avg infTime
 
-
+/*
                         rsp_models.clear();
                         thr_models.clear();
 
@@ -964,6 +968,9 @@ boolean oneTimeAccess=true;// to send image to server
                         //msr_weights.add(0d);
                         hAI_acc.add(false);
                         conseq_error.add(0);
+                        */
+
+
                     }
 
                     boolean noNullModelRunner = true;
@@ -1010,6 +1017,7 @@ boolean oneTimeAccess=true;// to send image to server
 
 //                        }
                     }
+                    curModels.clear();
                     source.pauseStream();
 
                 }
@@ -1249,7 +1257,7 @@ boolean oneTimeAccess=true;// to send image to server
             sbb.append(',');
 
             sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3");
-            sbb.append(',').append("Tris").append(',').append("avgQ").append(',').append("avgLatency");// the last is accross all models
+            sbb.append(',').append("Tris").append(',').append("avgQ").append(',').append("avgLatency").append(',').append("iteration");// the last is accross all models
 //            .append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
          sbb.append('\n');
             writer.write(sbb.toString());
@@ -1389,7 +1397,9 @@ boolean oneTimeAccess=true;// to send image to server
         try {// te recieve the AI offline analysis on respone time
 
             double tfactor = 10000;
-            InputStream inputStream = getResources().getAssets().open("StaticAIinference.csv");//this includes all AIs not just the best, we use it for our heuristic function
+            //String phoneData="(s22)";
+            String phoneData="";
+            InputStream inputStream = getResources().getAssets().open("StaticAIinference"+phoneData+".csv");//this includes all AIs not just the best, we use it for our heuristic function
             InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
             BufferedReader br = new BufferedReader(inputStreamReader);
             String line = "";
@@ -1399,6 +1409,7 @@ boolean oneTimeAccess=true;// to send image to server
                 // use comma as separator
                 String[] cols = line.split(",");
                 models.add(new AIModel(cols[1], cols[2], Double.parseDouble(cols[3])));
+
 
             }
 
@@ -2226,7 +2237,16 @@ boolean oneTimeAccess=true;// to send image to server
             }
         });
 
+// This is the static algorithm For comparison with Bayesian
+        Button staticAlgo_forBayes = (Button) findViewById(R.id.staticAlg);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        offAnalyz.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
 
+             baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
+                bfb.staticDelegate();
+
+            }
+        });
 
 /// bayesian test : you need to run three AI tasks for this test
         Button bt = (Button) findViewById(R.id.bayesian);
@@ -2235,15 +2255,23 @@ boolean oneTimeAccess=true;// to send image to server
 
 
                 bayesian bys= new bayesian(MainActivity.this);
-
+/*
                 // temp to this the translation function
                 double [] test_dlg=new double[]{0.44,0.4,0.14};
                 bys. delegate_capacity(test_dlg);
                 // temp to this the translation function
+*/
+//                // temp to this the afinity_heuristic function
+//                List<Integer> test_dlg=Arrays.asList(2,0,1);
+//                bys.     afinity_heuristic(test_dlg);
+                // temp to this the translation function
+
+////
+                //bys.staticAlgorithm();
+                /// to test static algorithm
 
 
 //                bys.apply_delegate_tris();
-
                /* @@@@@@@@ Dont remove this code:  this is  to test AI delegate combination
                 int delegate_count=3;
                List<Integer> ct = new ArrayList<>();
@@ -2262,6 +2290,8 @@ boolean oneTimeAccess=true;// to send image to server
                 //  combinations_copy = new ArrayList<>(combinations);
                 combinations_copy = combinations.stream().collect(Collectors.toList());
 */
+
+                /* Don't remove this code
                 /// each timer checks for one combination of AI delegate @@@ we need to restart the avg responseT value when ever the combination changes
                 CountDownTimer sceneTimer = new CountDownTimer(Long.MAX_VALUE, 10000) { // this is to automate adding objects to the screen
                     @Override
@@ -2280,6 +2310,8 @@ boolean oneTimeAccess=true;// to send image to server
                     public void onFinish() {
                     }
                 }.start();
+
+                */
             }
 
 
@@ -2343,7 +2375,7 @@ boolean oneTimeAccess=true;// to send image to server
                             }
                         };
 
-                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 25000) {
+                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) {
                             // this is to automate adding objects to the screen
                             @Override
                             public void onTick(long millisUntilFinished) {
@@ -2418,7 +2450,7 @@ boolean oneTimeAccess=true;// to send image to server
                             }
                         };
                         final boolean[] startObject = {false};
-                        taskTimer = new CountDownTimer(Long.MAX_VALUE, taskConfigTickLength) {
+                        taskTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) {
                             @Override
                             public void onTick(long millisUntilFinished) {
 
@@ -2446,6 +2478,10 @@ boolean oneTimeAccess=true;// to send image to server
 
                                         AiItemsViewModel taskView = new AiItemsViewModel();
                                         mList.add(taskView);
+                                        int last_index=mList.size();
+                                       taskView.setID(last_index);
+
+
                                         avg_reponseT.add(0d);// per ai task we have avgRT
 
                                         adapter.setMList(mList);
@@ -3056,10 +3092,10 @@ boolean oneTimeAccess=true;// to send image to server
             mList.get(i).setInferenceT(meaninfT);// mean inference time of each model
             mList.get(i).setOverheadT(meanoverheadT); // overhead of each  model
             //mList.get(i).setPureInfT(meanPureinf);
-            mList.get(i).setTot_rps(meanRT);
+            mList.get(i).setTot_rps((double) Math.round((double)  meanRT * 100)/ 100);
         }
 
-        double[] rT_thr= new double[]{ (double) Math.round((double)  meanRT * 100) / 100,meanthr,acc};
+        double[] rT_thr= new double[]{ meanRT ,meanthr,acc};
 
 
 

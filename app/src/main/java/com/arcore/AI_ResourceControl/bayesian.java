@@ -19,7 +19,6 @@ package com.arcore.AI_ResourceControl;
  import java.io.File;
  import java.io.FileOutputStream;
  import java.io.PrintWriter;
- import java.util.Arrays;
 
 
  import java.io.FileNotFoundException;
@@ -50,7 +49,8 @@ import static java.lang.Math.min;
  public class bayesian implements Runnable {
 
     private final MainActivity mInstance;
-
+     double meanRt = 0;
+     double meanThr = 0;
     int binCap=7;
     List<Integer> offline_dev=new ArrayList<>(Arrays.asList(0, 1, 2));// get the first device
     float ref_ratio=0.5f;
@@ -284,11 +284,11 @@ import static java.lang.Math.min;
 
        return  capacity;
    }
-
+// I don't this function to avoid over heating the phone with this computation, instead I add the functio nin the python client
      public List<Integer> delegate_capacity(double []selected_combinations) { // this function is to calculate the capacity of each delegate based on the continuos input % usage/ percentage usage
          int task_num = mInstance.mList.size();
          double[] percentageVector = {selected_combinations[0], selected_combinations[1], selected_combinations[2]};
-         int N = 3;  // Replace with your desired target sum
+
 
          Integer[] sortedIndices = new Integer[percentageVector.length];
          for (int i = 0; i < percentageVector.length; i++) {
@@ -300,13 +300,13 @@ import static java.lang.Math.min;
          List<Integer> scaledValues = new ArrayList<>();
 
          for (int i = 0; i < percentageVector.length; i++) {
-             scaledValues.add((int) (percentageVector[i] * N));
+             scaledValues.add((int) (percentageVector[i] * task_num));
          }
          // Adjust the values to ensure they sum up to N
-         int remainder = N - scaledValues.stream().mapToInt(Integer::intValue).sum();
+         int remainder = task_num - scaledValues.stream().mapToInt(Integer::intValue).sum();
 
          // Distribute the remainder evenly among the values
-         for (int i = 0; i < N; i++) {
+         for (int i = 0; i < task_num; i++) {
              int index = sortedIndices[i];
              scaledValues.set(index, scaledValues.get(index) + 1);
              remainder--;
@@ -383,7 +383,8 @@ import static java.lang.Math.min;
             AIModel assignedModel = sortedCurModels.poll();
             int bestDlg=assignedModel.delegate;
             for (AiItemsViewModel item : copyAiItems) {
-                if (item.getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
+                if (item.getID()==assignedModel.getID()){
+           //     getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
                     taskView = item;
 
                     break;
@@ -443,9 +444,19 @@ import static java.lang.Math.min;
         // FIRST APPLY YHE DELEGATE AND TRIANGLES
 // here we apply the delegate at the end of 10 times of 10 data collection
             double[] selected_combinations = selected_combinations1;
-            List<Integer> capacity = new ArrayList<>(delegate_capacity(Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1)));// exclude triangles
-            // this loop is to change the AI task delegate for one combination: one by one
-            // Part 1: this is to apply delegate
+            // I commented below to receive the correct discrete from python, ht ereason is here cimputation s make the phone hot
+
+            //List<Integer> capacity = new ArrayList<>(delegate_capacity(Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1)));// exclude triangles
+
+        // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
+        List<Integer> capacity = new ArrayList();
+
+        for (double value : selected_combinations) {
+            capacity.add((int) value); // Cast each element of A to an integer
+        }
+
+        capacity.remove(3); // remove the triangle
+
            //fifo_heuristic(capacity); // this prioritizes AI model delegate to CPU. GPU, and NNAPI based on the AI index, eg, if capacity ary=[0.3,0,0.7], the first AI model is assigned to CPU
            afinity_heuristic(capacity);
 
@@ -456,7 +467,7 @@ import static java.lang.Math.min;
             try {
                 long time1 = System.nanoTime() / 1000000; //starting first loop
                 // nextTris=0.435;
-                odraAlg(nextTris);// this is OTDA algorithm
+                otdaAlg(nextTris);// this is OTDA algorithm
                 //odraAlg(nextTris);// this is OTDA algorithm
 
                 long time2 = System.nanoTime() / 1000000;
@@ -506,7 +517,7 @@ import static java.lang.Math.min;
                 // this is to include fixed possible noise over the first 7 iterations
                 double reward =mInstance. avgq - (mInstance.reward_weight*average_AIRT);
                 if(mInstance.bayesian_iterations<=7)
-                    reward-=0.2;
+                    reward-=0.12;
 
                 mInstance.avg_reward=(float) (Math.round((float) (reward * 100))) / 100;
               //  send_thread connectionThread = new send_thread(reward);
@@ -645,7 +656,7 @@ import static java.lang.Math.min;
         sceneTimer.start();
     }
 */
-    float odraAlg(double tUP) throws InterruptedException {
+    float otdaAlg(double tUP) throws InterruptedException {
 
         objC=mInstance.objectCount;
         double []tMin = new double[objC];
@@ -824,6 +835,9 @@ import static java.lang.Math.min;
         }
     }
 
+
+
+
     public void writeRT( ){ // this is to collect the response time of all AIS after change in the AI device
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
@@ -843,10 +857,15 @@ import static java.lang.Math.min;
                 // excel file has all information for the AI inference NAME, Delegate, and time
                 double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
                 // find the actual response Time
-               // double actual_rpT= taskView.getTot_rps();
 
-                double[] t_h = mInstance.getResponseT(i);
-                double actual_rpT=t_h[0];
+                meanRt = mInstance.mList.get(i).getTot_rps();
+                //double[] t_h = mInstance.getResponseT(i);
+
+                while (meanRt==0) // we wanna get a correct value
+                    meanRt= mInstance.mList.get(i).getTot_rps();
+
+                double actual_rpT=meanRt;
+
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
                 //meanRt = t_h[0];
                 // calculate the latency
@@ -869,7 +888,7 @@ import static java.lang.Math.min;
             
             sb.append(",").append(mInstance.total_tris);
             sb.append(",").append(mInstance.avgq);
-            sb.append(",").append( avgAIltcy);
+            sb.append(",").append( avgAIltcy).append(",").append( mInstance.bayesian_iterations);
 
             sb.append('\n');
             writer.write(sb.toString());

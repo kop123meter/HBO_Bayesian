@@ -1,0 +1,30 @@
+time,AI_name,Delegate,Avg_infTime
+,segmentor,CPU,58.9750003814697
+,segmentor,GPU,18.8500003814697
+,segmentor,NNAPI,33
+,MN v2 1.0 Q 224,CPU,18
+,MN v2 1.0 Q 224,GPU,16
+,MN v2 1.0 Q 224,NNAPI,7
+,MN v1 1.0 Q 224,CPU,21
+,MN v1 1.0 Q 224,GPU,17
+,MN v1 1.0 Q 224,NNAPI,6.8
+,efficientdet-lite0,CPU,68
+,efficientdet-lite0,GPU,72
+,mobilenetDetv1,CPU,39
+,mobilenetDetv1,GPU,38
+,mobilenetDetv1,NNAPI,13
+,efficientclass-lite0,CPU,29
+,efficientclass-lite0,GPU,28
+,efficientclass-lite0,NNAPI,10
+,inception_v1_224_quant,CPU,36
+,inception_v1_224_quant,GPU,28
+,inception_v1_224_quant,NNAPI,8
+,mobilenetClassv1,CPU,28
+,mobilenetClassv1,GPU,26
+,mobilenetClassv1,NNAPI,9.5
+,deeplabv3,CPU,46
+,deeplabv3,GPU,45
+,deeplabv4,NNAPI,27
+,model_metadata,CPU,14
+,model_metadata,GPU,12.7
+,model_metadata,NNAPI,18

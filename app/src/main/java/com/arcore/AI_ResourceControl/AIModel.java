@@ -9,6 +9,14 @@ class AIModel implements Comparable<AIModel>  {
     double avgInfTime;
     int id;
 
+    public AIModel(AIModel other) {
+        this.name = other.name;
+        this.delegate =  other.delegate;
+        this.avgInfTime= other.avgInfTime;
+        this.id =  other.id;
+
+    }
+
     public AIModel( String name, String delgt, double avgInfTime) {
 
         this.name = name;
@@ -33,7 +41,10 @@ class AIModel implements Comparable<AIModel>  {
 
         this.id=assigned_id;
     }
+    public int getID(){
 
+        return this.id;
+    }
     @Override
     public int compareTo(AIModel other) {
         // Compare based on avgInfTime
