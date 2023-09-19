@@ -173,7 +173,7 @@ class AiRecyclerviewAdapter(
 
         //  nil updated paril 2023 to see if crash is gone
         itemsView.collector?.pauseCollect()
-        sleep(80)
+        sleep(60)
 
 
         // Do not update if there is no change /

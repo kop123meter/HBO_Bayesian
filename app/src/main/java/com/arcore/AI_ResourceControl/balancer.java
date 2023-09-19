@@ -164,11 +164,9 @@ public class balancer implements Runnable {
 
         // mInstance.trisMeanDisk.put(totTris, pred_meanD); //one-time correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 // this gets above bincap sooner than the rest of lists, so, we need to keep the size not more than 5
-        double aiMaxError = 0.1;
+
         int Ai_count = mInstance.mList.size();
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
-
-            double predRt = 0;
 
                 double[] t_h = mInstance.getResponseT(aiIndx);
                 meanRt = t_h[0];
@@ -179,25 +177,15 @@ public class balancer implements Runnable {
                     meanThr = t_h[1];
                     meanRt = t_h[0];
                 }
-
-//            else {
-//
-//
-//            }
-
-            /*
-
-*/
-
+        /*
             double curAvg= mInstance.avg_reponseT.get(aiIndx);
-
             if(curAvg==0d)// this is the inital value
                 mInstance.avg_reponseT.set(aiIndx, meanRt  );
             else
                 mInstance.avg_reponseT.set(aiIndx,
                         //( meanRt+  curAvg)/2);
                         (double) Math.round((double) ( ((meanRt+  curAvg)/2) * 100)) / 100);
-
+*/
 
             if (aiIndx == 0) {
                // TextView posText = (TextView) mInstance.findViewById(R.id.rspT);

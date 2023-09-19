@@ -1,8 +1,12 @@
 **This is for running the server
 java -cp ./ server.ARServer server.ServerThread
 
+java -cp ./ server.TwoClientsServer
+
 **this is for compiling the java files (only needed if changes to the server files are made)
 javac -d . ServerThread.java ARServer.java
+javac -d . TwoClientsServer.java
+
 
 ./AR_Decimation_Python.sh 0.5 ./input/andy/andy.obj
 
@@ -14,3 +18,4 @@ java -cp ./ server.ARServer server.offloading
 
 //compile
 javac -d . offloading.java ARServer.java
+

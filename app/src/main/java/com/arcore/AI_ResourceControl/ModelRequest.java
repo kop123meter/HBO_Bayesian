@@ -23,7 +23,7 @@ public class ModelRequest {
     private float cache;
     String delegate;
     public double[] all_delegates = new double[30];
-    public List<double[]> delg_list = new ArrayList<>();
+  //  public List<double[]> delg_list = new ArrayList<>();
     String req="decimate";// this is to connect to the server to receive delegate and triangle count
     //private List<Float> cacheratio ;
 
@@ -39,6 +39,7 @@ public class ModelRequest {
         this.similarRequestIDArray = new LinkedBlockingQueue<Integer>();
         this.similarRequestIDArray.add(this.ID);
         this.cache=cr;
+        req="decimate";
         //this.cacheratio=new ArrayList<>(cacheratio) ;
     }
 

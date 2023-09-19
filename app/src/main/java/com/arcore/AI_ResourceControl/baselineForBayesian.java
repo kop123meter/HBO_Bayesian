@@ -1,6 +1,12 @@
 
 package com.arcore.AI_ResourceControl;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -11,9 +17,11 @@ import java.util.stream.Collectors;
 import static java.lang.Math.abs;
 import static java.lang.Thread.sleep;
 
+import android.os.CountDownTimer;
+
 public class baselineForBayesian implements Runnable {// baseline for MIR
 
-
+    int max_cap=5;
     private final MainActivity mInstance;
     float ref_ratio=0.5f;
     int objC;
@@ -24,17 +32,19 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
     double [][]fProfit;
     double [][] tRemainder;
     int [][] track_obj;
-    int sleepTime=15;
+    int sleepTime=10;
 
-
-
-
+    double bys_Avgltcy= 62.3790;
+    double avgLatency=0;// this is for the baseline average latency
+    float selectedRatio=1;// gained from binary search
+    boolean swichBaseline =false; //this to make sure the first baseline (mach quality is done to then revert the objects a=to their original ratio and use binary search for matching the average latencies
+    double perc_error=1;
 
     public baselineForBayesian(MainActivity mInstance) {
 
         this.mInstance = mInstance;
 
-
+        bys_Avgltcy= mInstance.bayesian1_bestLcty;
 
 
     }
@@ -43,10 +53,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
     public void run() {
 
 
-
-
-
-    }//run
+            }//run
 
 
     public int findDevice(String deviceName){
@@ -65,32 +72,25 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
     }
 
     // this is to  match the trinagles Ratio with the HBO (our solution)
-    public void staticMatchTris(double tUPRatio){
+    public void staticMatchTrisRatio(double tUPRatio) throws InterruptedException {
+        selectedRatio=(float)tUPRatio;// first we run baseline 1
         ///// here is to just adjust the quality of objects:
-
         double nextTris = tUPRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
         //  Part 2:  start to apply the triangle count and OTDA
         try {
-            long time1 = System.nanoTime() / 1000000; //starting first loop
-            // nextTris=0.435;
+           // long time1 = System.nanoTime() / 1000000; //starting first loop
             otdaAlg(nextTris);// this is OTDA algorithm
-            //odraAlg(nextTris);// this is OTDA algorithm
 
-            long time2 = System.nanoTime() / 1000000;
-            // long t2 = System.nanoTime() / 1000000;
-            mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
-            // mInstance.t_loop2 = t2 - t1;
-            mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
-
-            if (nextTris != mInstance.total_tris && !mInstance.decTris.contains(mInstance.total_tris)) // if next tris is lower than total tris we have decimation
-                mInstance.decTris.add(mInstance.total_tris);// add new total triangle count in the decimated list
-
-        } catch (InterruptedException e) {
+                    }
+        catch (InterruptedException e) {
             e.printStackTrace();
         }
         mInstance.avgq = calculateMeanQuality();
+      //  swichBaseline =!swichBaseline;// when first baseline is finished it will be true, and for the second baseline it becomes false
 
-    }
+            oneCycleWriteRT(tUPRatio);// this is to have the data collected for the same triangle ratio of bayesian
+
+           }
 
     public void staticDelegate(){// this is the baseline that always assigns each task to its best based on the static analysis
 
@@ -120,14 +120,306 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
                         ));
             }
             try {
-                sleep(10);
+                sleep(40);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }// this is to make sure the device is updated
-
-
         }
 
+
+    }
+
+    public void oneCycleWriteRT(double tUp){
+
+        CountDownTimer sceneTimer = new CountDownTimer(12000, 2000) {//is  better (50000, 5000) {
+
+            @Override
+            public void onTick(long millisUntilFinished) {
+                perc_error = (double) (Math.round((double) (abs(avgLatency - bys_Avgltcy) * 100) / bys_Avgltcy)) / 100;
+                writeRT();// this is to check wether we are close to average latency match?
+             }
+            @Override
+            public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
+                    // selectedRatio=1d;
+//                     staticMatchTrisRatio(1d);
+                mInstance.total_tris =0;
+                for (int i =0;i<mInstance.objectCount;i++)
+                {// to avoid null pointer error
+                    mInstance.ratioArray.set(i, 1f);
+                    int finalI = i;
+                    mInstance.runOnUiThread(() -> mInstance.renderArray.get(finalI).decimatedModelRequest(mInstance.ratioArray.get(finalI), finalI, false));
+                    mInstance.total_tris = mInstance.total_tris + (mInstance.renderArray.get(finalI).orig_tris);// total = total + 0.8*objtris
+                    try {
+                        Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                selectedRatio=1;
+                    matchAvgLatency();
+
+
+
+            }
+
+        }.start();
+
+    }
+
+/*
+    public void matchAvgLatency() throws InterruptedException {// this is the cycle of writing latency data of static algorithm to the file
+
+        mInstance.total_tris =0;
+        for (int i =0;i<mInstance.objectCount;i++)
+        {// to avoid null pointer error
+            mInstance.ratioArray.set(i, 1f);
+            int finalI = i;
+            mInstance.runOnUiThread(() -> mInstance.renderArray.get(finalI).decimatedModelRequest(mInstance.ratioArray.get(finalI), finalI, false));
+            mInstance.total_tris = mInstance.total_tris + (mInstance.renderArray.get(finalI).orig_tris);// total = total + 0.8*objtris
+            Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+        }
+
+        final double[] left = {0};
+        final double[] right = {1};
+
+        CountDownTimer sceneTimer = new CountDownTimer(27000, 3000) {//is  better (50000, 5000) {
+
+            @Override
+            public void onTick(long millisUntilFinished) {
+                writeRT();// this is to check wether we are close to average latency match?
+
+                perc_error = (double) (Math.round((double) (abs(avgLatency - bys_Avgltcy) * 100) / bys_Avgltcy)) / 100;
+
+                if(perc_error <0.1 || selectedRatio<0.05){// cause we cannot decimate objects below 5%
+                    this.cancel();
+                    return;
+                }
+
+
+            }
+            @Override
+            public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
+
+                if(selectedRatio!=1) {// this is because we don't want to change the initial indexes, but the index change is done after the first round trial
+                    // Your onFinish logic for the current index here
+                    if (avgLatency < bys_Avgltcy)
+                        left[0] = selectedRatio;
+                    else
+                        right[0] = selectedRatio;
+
+                }
+                if(left[0]<=right[0]) {
+                    mInstance.avg_AIperK.clear();// restart data collection when we change triangle count
+                    avgLatency=0;
+                    selectedRatio = left[0] + ((right[0] - left[0]) / 2);// selectedRatio is MID the selected triangle count ratio for binary search
+
+                    double nextTris = selectedRatio * mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
+                    //  Part 2:  start to apply the triangle count and OTDA
+                    try {
+                        //long time1 = System.nanoTime() / 1000000; //starting first loop
+                        otdaAlg(nextTris);// this is OTDA algorithm
+
+                        // long t2 = System.nanoTime() / 1000000;
+                        // mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
+
+                    }
+
+                    catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }}
+                try {
+                    sleep(2000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                mInstance.avgq = calculateMeanQuality();
+                this.start();
+            }
+
+        };
+
+        sceneTimer.start();
+
+    }*/
+
+
+
+    public void matchAvgLatency()  {// this is the cycle of writing latency data of static algorithm to the file
+
+
+        final int[] index = {0};
+
+        CountDownTimer sceneTimer = new CountDownTimer(20000, 2000) {//is  better (50000, 5000) {
+
+            @Override
+            public void onTick(long millisUntilFinished) {
+                writeRT();// this is to check wether we are close to average latency match?
+
+                perc_error = (double) (Math.round((double) (abs(avgLatency - bys_Avgltcy) * 100) / bys_Avgltcy)) / 100;
+
+                if(perc_error <0.1 || selectedRatio ==0.05){// cause we cannot decimate objects below 5%
+                    this.cancel();
+                    return;
+                }
+
+
+            }
+            @Override
+            public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
+                index[0] +=1;
+                selectedRatio=coarse_Ratios[index[0]];
+                decimateall(selectedRatio);
+                mInstance.avgq = calculateMeanQuality();
+                this.start();
+            }
+
+        };
+        sceneTimer.start();
+    }
+
+
+    public void decimateall(float ratio){
+
+        mInstance.total_tris =0;
+        //  Part 2:  start to apply the triangle count and OTDA
+
+        for (int i =0;i<mInstance.objectCount;i++)
+        {// to avoid null pointer error
+
+            mInstance.ratioArray.set(i, ratio);
+            int finalI = i;
+            mInstance.runOnUiThread(() -> mInstance.renderArray.get(finalI).decimatedModelRequest(mInstance.ratioArray.get(finalI), finalI, false));
+            mInstance.total_tris = mInstance.total_tris + (mInstance.ratioArray.get(i) *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
+            try {
+                Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    public void staticAlg(double Tratio) throws InterruptedException // this is when we match the qualities and then latency
+    {
+        staticDelegate();
+////        I want to expand staticDelegate here so that when it is done, we go for staticMatchTrisRatio
+//        // here is to assign delegates
+//        for (int i=0;i<mInstance.mList.size();i++) {
+//            AiItemsViewModel taskView = mInstance.mList.get(i);
+//            // first find the best offline AI response Time = EXPECTED RESPONSE TIme
+//            int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
+//            // excel file has all information for the AI inference NAME, Delegate, and time
+//            String bestDelg = mInstance.excel_BestofflineAIdelg.get(indq);
+//            int model= (taskView.getCurrentModel());
+//            int device=taskView.getCurrentDevice();
+//            int new_device=findDevice(bestDelg);
+//            if(device!=new_device)// this means that the model should be updated
+//            {
+//                mInstance.adapter.setMList(mInstance.mList);
+//                mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+//                int finalI = i;
+//                mInstance.runOnUiThread(() ->
+//                        mInstance. adapter.updateActiveModel(
+//                                model,
+//                                new_device,
+//                                1,
+//                                taskView,
+//                                finalI
+//                        ));
+//            }
+//            try {
+//                sleep(40);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }// this is to make sure the device is updated
+//        }
+
+        selectedRatio=(float)Tratio;// first we run baseline 1
+        staticMatchTrisRatio(Tratio);
+    }
+
+
+
+
+
+// returns true if the percentage error is below 20% otherwise it's false
+    public void writeRT( ){ // this is to collect the response time of all AIS after changing triangle count each time
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "Static_dataCollection"+mInstance.fileseries+".csv";
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(dateFormat.format(new Date()));
+
+        double avg_AIlatencyPeriod=0;// this is to calculate sum of each AI model response time per period
+
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+            for (int i=0;i<mInstance.mList.size();i++)
+            {
+                AiItemsViewModel taskView=mInstance.mList.get(i);
+                // first find the best offline AI response Time = EXPECTED RESPONSE TIme
+                int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
+                // excel file has all information for the AI inference NAME, Delegate, and time
+                double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
+                // find the actual response Time
+                double meanRt= mInstance.mList.get(i).getTot_rps();
+                //double[] t_h = mInstance.getResponseT(i);
+                while (meanRt==0) // we wanna get a correct value
+                    meanRt= mInstance.mList.get(i).getTot_rps();
+                double actual_rpT=meanRt;
+                // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
+                //meanRt = t_h[0];
+                // calculate the latency
+                avg_AIlatencyPeriod+=(actual_rpT-expected_time);// this is because we want to have this value minimized
+
+////********** bellow line is for the function of finding the offline Response time which I already did,I changed it to calculate the latency
+                ///   avg_AIlatencyPeriod=actual_rpT;
+
+                sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+                        .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+                        .append(",").append(actual_rpT) .append(",").append(expected_time);
+                //.append( mInstance.avg_reponseT.get(i));
+            }
+
+            double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+            boolean isempty=mInstance.avg_AIperK.isEmpty();
+            if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
+            {
+                if (avgAIltcy < 1.4 * avgLatency) // this is to remove possible noises
+                    mInstance.avg_AIperK.add(avgAIltcy); //this is average of all AI response time at this period
+            }
+            else
+                mInstance.avg_AIperK.add(avgAIltcy);
+
+
+           // mInstance.avg_AIperK.add(avgAIltcy); //this is average of all AI response time at this period
+          //  if( mInstance.avg_AIperK.size()>max_cap)/// we want to have the last updated values
+         //       mInstance.avg_AIperK.remove(0);
+            if( mInstance.avg_AIperK.size()>max_cap)/// we want to have the last updated values
+                mInstance.avg_AIperK.remove(0);
+
+
+            if(isempty ==false)
+                avgLatency = mInstance.avg_AIperK.stream()
+                    .mapToDouble(Double::doubleValue)
+                    .average()
+                    .orElseThrow(() -> new IllegalArgumentException("List is empty"));
+
+
+            sb.append(",").append(mInstance.total_tris);
+            sb.append(",").append(mInstance.avgq);
+            sb.append(",").append( avgAIltcy).append(",").append(avgLatency).append(",").append( bys_Avgltcy).append(",").append( perc_error).append(",").append( selectedRatio);
+            sb.append('\n');
+            writer.write(sb.toString());
+            System.out.println("done!");
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
+
+
+       // return percenT_error;// if large enough,this means still we are not closed to the right total triangle count ratio
 
     }
 

@@ -6,28 +6,23 @@ import socket
 from GPyOpt.methods import BayesianOptimization
 import random
 import numpy as np
-'''
-def reward_function(x):
-       # Calculate the reward based on the input combination x
-       # Replace this with your actual reward calculation
-       x1, x2, x3,x4 = x[:, 0], x[:, 1], x[:, 2], x[:, 3],
-       reward= (x1+x2 )*x3
-       #reward= get_result_element(input_data,  [x1,x2,x3,x4])
-       return (reward*-1)
-   
-'''
+import matplotlib.pyplot as plt
+
 import time
 
 # Get the current time in seconds since the epoch
 import datetime
 
-x = datetime.datetime.now()
+
+current_time= datetime.datetime.now()
+x = current_time.strftime("%H:%M")
+print(x)
+counter=0
 
 with open ("Bayesian OUTPUT"+str(x)+".csv", "w")  as out:
     out.write(",cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward \n")
     
-num_tasks=5
-
+num_tasks=6
 
 def quick_test(X):
     #x1, x2, x3, x4 = X[:, 0], X[:, 1], X[:, 2],X[:, 3]
@@ -43,6 +38,9 @@ def quick_test(X):
 
 
 def objective( X):
+    
+        global counter
+        counter+=1
         translatedU=[0,0,0,0]
         translatedU[0:3]=translate_delegate_usage(X[0][0:3])
         translatedU[3]=(X[0][3])
@@ -65,8 +63,7 @@ def objective( X):
         #data2 = X_list[0]
      
         # Convert data to JSON string
-        json_data = json.dumps(data)
-        
+        json_data = json.dumps(data)       
 
         # Connect to the Java server
         #host = 'localhost'  # Replace with the IP or hostname of your Java server
@@ -81,9 +78,9 @@ def objective( X):
             
             client_socket.sendall(json_data.encode()+ b'\n') ##'\n' is a must Add a newline character very important@@@@ this is correct
            
-            print(  str(nontranslated_X_list[0])+" is sent, waiting for the reward ...")
+            print(  str(counter)+": "+str(nontranslated_X_list[0])+" is sent, waiting for the reward ...")
             print(  " delegate is translated to", str(X_list[0]))
-          
+      
            
             #Receive the reward value from the Java server
             received_data = client_socket.recv(1024).decode()
@@ -94,9 +91,6 @@ def objective( X):
         
         #received_data=X_list[0][2]
         return (float(received_data)*-1) # this should pass the reward function from java server after calculating the mean quality and average AI inference response time
-
-
-
 
 
 def translate_delegate_usage(x):
@@ -111,7 +105,6 @@ def translate_delegate_usage(x):
     remainder = N - np.sum(scaled_values)
 
     # Distribute the remainder evenly among the values
-
 
 
     if remainder > 0:
@@ -154,11 +147,6 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
                                                    
                                
    
-
-
-
-
-
 '''
     {'name': 'var_1', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
       {'name': 'var_2', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
@@ -166,21 +154,9 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
 ''' 
 # for 5 splanes
     #{'name': 'var_4', 'type': 'continuous', 'domain':(0.28,0.62), 'dimensionality' :1},# for 4 andies
-    #{'name': 'var_4', 'type': 'discrete', 'domain':  (0.435, 0.217, 0.143)}
-      
-'''
-    {'name': 'var_1', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
-          {'name': 'var_2', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
-         {'name': 'var_3', 'type': 'discrete', 'domain': (0, 0.3, 0.7, 1)},
-    '''
     
 
-
-
 #problem = GPyOpt.methods.BayesianOptimization(reward_function, domain=space , constraints= [{'name': 'constr_1', 'constraint': 'np.abs(x[:, 0] + x[:, 1] +x[:, 2] - 1) '}])
-
-
-
 
 
 #constraint2 = [{'name': 'var_4_constraint', 'constraint': var_4_constraint}]
@@ -188,7 +164,7 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
 space = [     {'name': 'var_1', 'type': 'continuous', 'domain': [0,1]},
      {'name': 'var_2', 'type': 'continuous', 'domain': [0,1]},
      {'name': 'var_3', 'type': 'continuous', 'domain': [0,1]},
-     {'name': 'var_4', 'type': 'continuous', 'domain':(0.12,1), 'dimensionality' :1}]
+     {'name': 'var_4', 'type': 'continuous', 'domain':(0.051,1), 'dimensionality' :1}]
 
 
 # Initialize the custom optimization class with the Java reward function
@@ -202,8 +178,6 @@ problem = JavaRewardBayesianOptimization(domain=space,constraints= [{'name': 'co
 #,  {'name': 'constr_2', 'constraint': 'np.round(x[:,3],3)-x[:,3]'}
  
 
-
-
 '''problem = JavaRewardBayesianOptimizatio gos for exploring 5 different options and in the next lines we will run optimization
 to exploit'''
 
@@ -213,8 +187,6 @@ max_iter  = 15
 problem.run_optimization(max_iter = max_iter)                                      
                 
 
-problem.plot_acquisition()
-problem.plot_convergence()
 best_input = problem.x_opt
 best_reward = problem.fx_opt
 
@@ -231,15 +203,17 @@ translatedU=[0,0,0,0]
 translatedU[0:3]=translate_delegate_usage(best_input[0:3])
 translatedU[3]=(best_input[3])
 
-X_list =[]
-X_list.append( list(translatedU))
 
+X_list =[]
+X_list2 =[]
+X_list2.append( list(translatedU))
+X_list.append( list([best_reward*-1]))
 
         # Prepare data to send to the Java server
 data = {
            "python_client"
             : 
-                #translatedU
+             
                 X_list[0]
 }
 
@@ -248,20 +222,25 @@ json_data = json.dumps(data)
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             
-            client_socket.connect(('127.0.0.1', 4444))
-            #connected = client_socket.recv(1024).decode()
-            #print("Recieved! "+ str(connected))
-            
-            
+            client_socket.connect(('127.0.0.1', 4444))         
             client_socket.sendall(json_data.encode()+ b'\n') ##'\n' is a must Add a newline character very important@@@@ this is correct
           
             print(  " delegate is translated to", str(X_list[0]))
           
-           
+            '''
             #Receive the reward value from the Java server
             received_data = client_socket.recv(1024).decode()
             print("Recieved reward : "+ str(received_data))
-         
+            '''
             with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
-               out.write(str(best_input[0])+","+str(X_list[0])+","+str(received_data))
+               out.write(str(best_input[0])+","+str(X_list2[0]))
+               #+","+str(received_data))
                 
+ 
+            
+#plt_acquisition(problem,filename='acquisition_plot')
+#problem.plot_acquisition(filename='acquisition_plot')
+
+
+# Plot convergence and save as a .png file
+problem.plot_convergence(filename='convergence_plot')

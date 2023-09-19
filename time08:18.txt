@@ -1,0 +1,4 @@
+Execution time for reward: -3.863 : 22247 milliseconds 
+Execution time for reward: -3.979 : 21917 milliseconds 
+Execution time for reward: -0.977 : 21601 milliseconds 
+Execution time for reward: -11.064 : 23140 milliseconds 

@@ -150,17 +150,17 @@ public class ModelRequestManager {
                 }
             else { // nil added on July 2023
 
-                Iterator delIterator = dlgRequestList.iterator();
-                if (modelRequest.req!=null && modelRequest.req == "delegate") {// this is to send reward to client python
+                //Iterator delIterator = dlgRequestList.iterator();
+                if (modelRequest.req!=null && modelRequest.req .equals( "delegate")) {// this is to send reward to client python
 
-                    while (delIterator.hasNext()) {
-                        ModelRequest tempRequest = (ModelRequest) delIterator.next();
-                        if ( modelRequest.getID() != tempRequest.getID()) {
-                            Log.d("ModelRequest", "MATCHING ID " + tempRequest.getID());
-                            tempRequest.addIDToArray(modelRequest.getID());
-                            return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
-                        }
-                    }
+//                    while (delIterator.hasNext()) {
+//                        ModelRequest tempRequest = (ModelRequest) delIterator.next();
+//                        if ( modelRequest.getID() != tempRequest.getID()) {
+//                            Log.d("ModelRequest", "MATCHING ID " + tempRequest.getID());
+//                            tempRequest.addIDToArray(modelRequest.getID());
+//                            return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
+//                        }
+//                    }
 
                     dlgRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
@@ -170,8 +170,8 @@ public class ModelRequestManager {
                     Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance));
 
                 }
-                else { // this is to decimate model
-
+                else if( modelRequest.req!=null && modelRequest.req .equals("decimate")){ // this is to decimate model
+                    /*
                     Iterator requestIterator = mRequestList.iterator();
                     while (requestIterator.hasNext()) {
                         ModelRequest tempRequest = (ModelRequest) requestIterator.next();
@@ -182,8 +182,6 @@ public class ModelRequestManager {
                             int current_ser_freq = modelRequest.getMainActivityWeakReference().get().Server_reg_Freq.get(modelRequest.getID());// to avoid repatative similar req by similar obj type
                             if (modelRequest.getPercentageReduction() != 1 && modelRequest.getPercentageReduction() != modelRequest.getCache())
                                 modelRequest.getMainActivityWeakReference().get().Server_reg_Freq.set(modelRequest.getID(), current_ser_freq - 1);
-                            //if(tempRequest.getID()!= modelRequest.getID())// avoid repeatative req for same obj and same reduction ratio
-                            //  repeatedRequestList.add(modelRequest);
                             return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
                         }
 
@@ -191,7 +189,7 @@ public class ModelRequestManager {
                             // means that we have already a request but we changed it so remove that
                             mRequestList.remove(tempRequest);
 
-                    }
+                    }*/
 
 
                     mRequestList.offer(modelRequest);

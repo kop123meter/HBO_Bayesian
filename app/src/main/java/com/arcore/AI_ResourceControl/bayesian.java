@@ -47,18 +47,18 @@ import static java.lang.Math.min;
  import android.os.CountDownTimer;
 
  public class bayesian implements Runnable {
-
+     double avgLatency=0;// this is for the baseline average latency
     private final MainActivity mInstance;
      double meanRt = 0;
      double meanThr = 0;
-    int binCap=7;
+
     List<Integer> offline_dev=new ArrayList<>(Arrays.asList(0, 1, 2));// get the first device
     float ref_ratio=0.5f;
     int objC;
 //    double sensitivity[] ;
 ////    float objquality[];
 //    double tris_share[];
-     int max_cap=6;
+     int max_cap=5;
     Map <Integer, Double> candidate_obj;
     float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f,0.1f,0.05f};
         //    0.05f};
@@ -66,10 +66,13 @@ import static java.lang.Math.min;
     double [][]fProfit;
     double [][] tRemainder;
     int [][] track_obj;
-    int sleepTime=15;
+    int sleepTime=10;
      List<String> modelsToAssign= new ArrayList<>();
   //  double tMin[] ;
     int missCounter=3;//means at least 4 noises
+
+     int curIteration=0;
+
     public List<double[]> listOfArrays = new ArrayList<>();
     public bayesian(MainActivity mInstance) {
 
@@ -229,7 +232,7 @@ import static java.lang.Math.min;
             ///test I'm working on this as of now
             // this is to apply 3 diff delegates to an AI task and each time
             // collect 5 period of AI inference data and at the end calculate the average and write it to
-            CountDownTimer sceneTimer = new CountDownTimer(20000, 2000) {//is  better (50000, 5000) {
+            CountDownTimer sceneTimer = new CountDownTimer(60000, 3000) {//is  better (50000, 5000) {
                 @Override
                 public void onTick(long millisUntilFinished) {
                     writeRT(); // // this is to collect the response time of an AI after change in the AI delegate
@@ -353,7 +356,7 @@ import static java.lang.Math.min;
                         ));
             }
             try {
-                sleep(20);
+                sleep(40);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }// this is to make sure the device is updated
@@ -373,12 +376,9 @@ import static java.lang.Math.min;
         copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
         List<AiItemsViewModel> copyAiItems = new ArrayList<>();
         copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
-
         int delegatedM=mInstance.mList.size();// num of current tasks
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
-
         while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
-
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
             int bestDlg=assignedModel.delegate;
@@ -386,13 +386,10 @@ import static java.lang.Math.min;
                 if (item.getID()==assignedModel.getID()){
            //     getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
                     taskView = item;
-
                     break;
                 }
             }
             int tasksIndx = mInstance.mList.indexOf(taskView);
-
-
             if(capacity.get(bestDlg) !=0)// you can easily assing the task and update delgate
             {
                 delegatedM-=1;
@@ -421,15 +418,10 @@ import static java.lang.Math.min;
                     e.printStackTrace();
                 }// this is to make sure the device is updated
                 sortedCurModels.removeIf(modl -> modl.id==(assignedModel.id));
-
             }
-
             else{// capacity is zero , so remove all AIs from sorted list with the same capacity index
                 sortedCurModels.removeIf(modl -> modl.delegate.equals(bestDlg));
-
             }
-
-
         }
 
 
@@ -438,7 +430,7 @@ import static java.lang.Math.min;
 
 
 
-    public void apply_delegate_tris(double []selected_combinations1, int ind) {
+    public void apply_delegate_tris(double []selected_combinations1) {
 
            mInstance.avg_AIperK.clear();// restart data collection
         // FIRST APPLY YHE DELEGATE AND TRIANGLES
@@ -447,6 +439,30 @@ import static java.lang.Math.min;
             // I commented below to receive the correct discrete from python, ht ereason is here cimputation s make the phone hot
 
             //List<Integer> capacity = new ArrayList<>(delegate_capacity(Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1)));// exclude triangles
+
+        double selectedTRatio= selected_combinations[selected_combinations.length - 1];
+        double nextTris =selectedTRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
+        curIteration=mInstance.curBysIters;
+        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
+
+        //  Part 2:  start to apply the triangle count and OTDA
+        try {
+            long time1 = System.nanoTime() / 1000000; //starting first loop
+            // nextTris=0.435;
+            otdaAlg(nextTris);// this is OTDA algorithm
+            //odraAlg(nextTris);// this is OTDA algorithm
+            long time2 = System.nanoTime() / 1000000;
+            // long t2 = System.nanoTime() / 1000000;
+            mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
+            // mInstance.t_loop2 = t2 - t1;
+            mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        mInstance.avgq = calculateMeanQuality();
+        // end
+
 
         // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
         List<Integer> capacity = new ArrayList();
@@ -458,47 +474,73 @@ import static java.lang.Math.min;
         capacity.remove(3); // remove the triangle
 
            //fifo_heuristic(capacity); // this prioritizes AI model delegate to CPU. GPU, and NNAPI based on the AI index, eg, if capacity ary=[0.3,0,0.7], the first AI model is assigned to CPU
-           afinity_heuristic(capacity);
+         //  afinity_heuristic(capacity); I expand the function afinity_heuristic here instead because we wanna have both aI and triangle count adjustment done sequentially
+        List<AIModel> copuCurModels = new ArrayList<>();
+        copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
+        List<AiItemsViewModel> copyAiItems = new ArrayList<>();
+        copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
+        int delegatedM=mInstance.mList.size();// num of current tasks
+        PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
+        while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
+            AiItemsViewModel taskView = null;
+            AIModel assignedModel = sortedCurModels.poll();
+            int bestDlg=assignedModel.delegate;
+            for (AiItemsViewModel item : copyAiItems) {
+                if (item.getID()==assignedModel.getID()){
+                    //     getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
+                    taskView = item;
+                    break;
+                }
+            }
+            int tasksIndx = mInstance.mList.indexOf(taskView);
+            if(capacity.get(bestDlg) !=0)// you can easily assing the task and update delgate
+            {
+                delegatedM-=1;
+                capacity.set(bestDlg, capacity.get(bestDlg)-1);
+                copyAiItems.remove(taskView);
+                // assign the task
+                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
+                {
+                    mInstance.adapter.setMList(mInstance.mList);
+                    mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+                    int finalI = tasksIndx;
+                    int finalNew_device = bestDlg;
+                    AiItemsViewModel finalTaskView = taskView;
+                    mInstance.runOnUiThread(() ->
+                            mInstance.adapter.updateActiveModel(
+                                    finalTaskView.getCurrentModel() ,
+                                    finalNew_device,
+                                    1,
+                                    finalTaskView,
+                                    finalI// this is the index of mlist
+                            ));
+                }
+                try {
+                    sleep(40);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }// this is to make sure the device is updated
+                sortedCurModels.removeIf(modl -> modl.id==(assignedModel.id));
+            }
+            else{// capacity is zero , so remove all AIs from sorted list with the same capacity index
+                sortedCurModels.removeIf(modl -> modl.delegate.equals(bestDlg));
+            }
+        }
+
+      //  I expand the function afinity_heuristic here instead because we wanna have both aI and triangle count adjustment done sequentially
 
 ///*temp deactive to make sure of heuristic func works
 
-            double nextTris = selected_combinations[selected_combinations.length - 1]*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
-            //  Part 2:  start to apply the triangle count and OTDA
-            try {
-                long time1 = System.nanoTime() / 1000000; //starting first loop
-                // nextTris=0.435;
-                otdaAlg(nextTris);// this is OTDA algorithm
-                //odraAlg(nextTris);// this is OTDA algorithm
 
-                long time2 = System.nanoTime() / 1000000;
-                // long t2 = System.nanoTime() / 1000000;
-                mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
-                // mInstance.t_loop2 = t2 - t1;
-                mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
-
-                if (nextTris != mInstance.total_tris && !mInstance.decTris.contains(mInstance.total_tris)) // if next tris is lower than total tris we have decimation
-                    mInstance.decTris.add(mInstance.total_tris);// add new total triangle count in the decimated list
-
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            mInstance.avgq = calculateMeanQuality();
-            // end
-
-
-        int currentIndex = 0;
         // Start the timer for COLLECTING DATA OF ai INFERENCE
-        startSceneTimer(currentIndex);// this has the loop of i=0 to i=3 in it
+        startSceneTimer();// this has the loop of i=0 to i=3 in it
 
-
-
-    //    */
 
 
     }
 
-    void startSceneTimer(int in) { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
-        CountDownTimer sceneTimer = new CountDownTimer(20000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
+    void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
+        CountDownTimer sceneTimer = new CountDownTimer(24000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
 
             @Override
             public void onTick(long millisUntilFinished) {
@@ -509,17 +551,22 @@ import static java.lang.Math.min;
             public void onFinish() {
 
                 // Your onFinish logic for the current index here
-                double average_AIRT = mInstance.avg_AIperK.stream()
-                        .mapToDouble(Double::doubleValue)
-                        .average()
-                        .orElseThrow(() -> new IllegalArgumentException("List is empty"));
+//                avgLatency = mInstance.avg_AIperK.stream()
+//                        .mapToDouble(Double::doubleValue)
+//                        .average()
+//                        .orElseThrow(() -> new IllegalArgumentException("List is empty"));
 
+                avgLatency= (double) (Math.round((double) (avgLatency * 100))) / 100;
                 // this is to include fixed possible noise over the first 7 iterations
-                double reward =mInstance. avgq - (mInstance.reward_weight*average_AIRT);
-                if(mInstance.bayesian_iterations<=7)
-                    reward-=0.12;
+                double reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
+                reward=(double) (Math.round((double) (reward * 1000))) / 1000;
+                if(mInstance.curBysIters <6)
+                    reward-=0.15;
 
-                mInstance.avg_reward=(float) (Math.round((float) (reward * 100))) / 100;
+                mInstance.avg_reward=reward;
+                mInstance.bysRewardsLog.set(curIteration,reward);
+                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
+
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
                 System.out.println("reward is "+ reward);
@@ -532,9 +579,9 @@ import static java.lang.Math.min;
 
     public void apply_delegate_trismANUAL(double []selected_combinations1, int ind) { // THIS TRIGGERS startSceneTimermAUNUAL
 
-        int currentIndex = 0;
+
         // Start the timer for the first index
-        startSceneTimer(currentIndex);// this has the loop of i=0 to i=3 in it
+        startSceneTimer();// this has the loop of i=0 to i=3 in it
 
 
     }
@@ -882,13 +929,27 @@ import static java.lang.Math.min;
 
 // avg_AIperK is to calculate average of all AI model  response time  per period
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
-            mInstance.avg_AIperK.add(avgAIltcy); //this is average of all AI response time at this period
+            boolean isempty=mInstance.avg_AIperK.isEmpty();
+            if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
+            {
+                if (avgAIltcy < 1.4 * avgLatency) // this is to remove possible noises
+                    mInstance.avg_AIperK.add(avgAIltcy); //this is average of all AI response time at this period
+            }
+            else
+                 mInstance.avg_AIperK.add(avgAIltcy);
+
             if( mInstance.avg_AIperK.size()>max_cap)/// we want to have the last updated values
                 mInstance.avg_AIperK.remove(0);
-            
+
+            if(isempty==false)
+                 avgLatency = mInstance.avg_AIperK.stream()
+                    .mapToDouble(Double::doubleValue)
+                    .average()
+                    .orElseThrow(() -> new IllegalArgumentException("List is empty"));
+
             sb.append(",").append(mInstance.total_tris);
             sb.append(",").append(mInstance.avgq);
-            sb.append(",").append( avgAIltcy).append(",").append( mInstance.bayesian_iterations);
+            sb.append(",").append( avgAIltcy).append(",").append(avgLatency).append(",").append( mInstance.curBysIters);
 
             sb.append('\n');
             writer.write(sb.toString());

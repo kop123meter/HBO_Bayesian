@@ -1,0 +1,21 @@
+Execution time for reward: -0.668 : 21143 milliseconds 
+Execution time for reward: -1.5799999999999998 : 21191 milliseconds 
+Execution time for reward: -0.399 : 21810 milliseconds 
+Execution time for reward: -0.65 : 20990 milliseconds 
+Execution time for reward: -1.5759999999999998 : 20991 milliseconds 
+Execution time for reward: -0.321 : 21254 milliseconds 
+Execution time for reward: 0.121 : 21156 milliseconds 
+Execution time for reward: -0.388 : 20720 milliseconds 
+Execution time for reward: -0.382 : 20715 milliseconds 
+Execution time for reward: -0.341 : 20819 milliseconds 
+Execution time for reward: -0.409 : 20607 milliseconds 
+Execution time for reward: -0.587 : 21011 milliseconds 
+Execution time for reward: -0.376 : 20955 milliseconds 
+Execution time for reward: -0.489 : 20921 milliseconds 
+Execution time for reward: -0.428 : 20955 milliseconds 
+Execution time for reward: -0.603 : 21228 milliseconds 
+Execution time for reward: -0.972 : 21317 milliseconds 
+Execution time for reward: -0.579 : 21479 milliseconds 
+Execution time for reward: -0.657 : 20864 milliseconds 
+Execution time for reward: -0.494 : 20788 milliseconds 
+Execution time for reward: File received : 209 milliseconds 

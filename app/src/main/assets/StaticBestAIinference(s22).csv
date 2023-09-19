@@ -1,0 +1,11 @@
+time,AI_name,Delegate,Avg_infTime
+2023-08-17,segmentor,GPU,18.8500003814697
+2023-08-17,MN v2 1.0 Q 224,NNAPI,7
+2023-08-17,MN v1 1.0 Q 224,NNAPI,6.8
+2023-08-17,efficientdet-lite0,CPU,68
+2023-08-17,mobilenetDetv1,NNAPI,13
+2023-08-17,efficientclass-lite0,NNAPI,10
+2023-08-17,inception_v1_224_quant,NNAPI,8
+2023-08-17,mobilenetClassv1,NNAPI,9.5
+2023-08-17,deeplabv3,NNAPI,27
+2023-08-17,model_metadata,GPU,12.7
