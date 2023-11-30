@@ -1,4 +1,6 @@
-'''This is the main python client that has bayesian
+'''
+@@ This code has the function of automate HBO trigger and connects with Java server/client correctly
+This is the main python client that has bayesian
 
 You need to change "num_tasks" and "max_iter" here and also reflct the changes in two other codes:
     1-TwoClientsServer_new  of the Java code
