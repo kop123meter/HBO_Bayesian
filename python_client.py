@@ -19,6 +19,7 @@ x = current_time.strftime("%H:%M")
 print(x)
 counter=0
 
+
 with open ("Bayesian OUTPUT"+str(x)+".csv", "w")  as out:
     out.write(",cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward \n")
     
@@ -164,7 +165,7 @@ class JavaRewardBayesianOptimization(BayesianOptimization):
 space = [     {'name': 'var_1', 'type': 'continuous', 'domain': [0,1]},
      {'name': 'var_2', 'type': 'continuous', 'domain': [0,1]},
      {'name': 'var_3', 'type': 'continuous', 'domain': [0,1]},
-     {'name': 'var_4', 'type': 'continuous', 'domain':(0.051,1), 'dimensionality' :1}]
+     {'name': 'var_4', 'type': 'continuous', 'domain':(0.05,1), 'dimensionality' :1}]
 
 
 # Initialize the custom optimization class with the Java reward function

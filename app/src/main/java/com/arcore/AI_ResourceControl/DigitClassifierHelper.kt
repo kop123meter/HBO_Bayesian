@@ -34,6 +34,7 @@ class DigitClassifierHelper(
     var currentDelegate: Int = 0,
     val context: Context,
     val fileseries: String,
+    var modelname: String="mnist.tflite"
   //  val digitClassifierListener: DigitClassifierListener?
 ) {
 
@@ -89,9 +90,10 @@ class DigitClassifierHelper(
             Log.e(TAG, "TFLite failed to load model with error: " + e.message)
         }
     }
-//    fun  modelUsed() :String {
-//        modelName
-//    }
+
+    fun  modelUsed() :String {
+       return modelname
+    }
     fun  deviceUsed() :String {
         if(currentDelegate==0)
             return "CPU"

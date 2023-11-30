@@ -26,9 +26,8 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
     float ref_ratio=0.5f;
     int objC;
     Map <Integer, Double> candidate_obj;
-    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f,0.1f,0.05f};
-    //    0.05f};
-    //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
+    float []coarse_Ratios=new float[]{1f,0.8f, 0.7f , 0.5f,0.3f, 0.2f};
+
     double [][]fProfit;
     double [][] tRemainder;
     int [][] track_obj;
@@ -77,10 +76,10 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
         ///// here is to just adjust the quality of objects:
         double nextTris = tUPRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
         //  Part 2:  start to apply the triangle count and OTDA
-        try {
-           // long time1 = System.nanoTime() / 1000000; //starting first loop
-            otdaAlg(nextTris);// this is OTDA algorithm
+       // tmpDecimate(0.4f); for one baseline experiment
 
+        try {
+          otdaRevised(nextTris);// this is OTDA algorithm
                     }
         catch (InterruptedException e) {
             e.printStackTrace();
@@ -88,7 +87,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
         mInstance.avgq = calculateMeanQuality();
       //  swichBaseline =!swichBaseline;// when first baseline is finished it will be true, and for the second baseline it becomes false
 
-            oneCycleWriteRT(tUPRatio);// this is to have the data collected for the same triangle ratio of bayesian
+            oneCycleWriteRT();// this is to have the data collected for the same triangle ratio of bayesian
 
            }
 
@@ -129,9 +128,48 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
 
     }
 
-    public void oneCycleWriteRT(double tUp){
 
-        CountDownTimer sceneTimer = new CountDownTimer(12000, 2000) {//is  better (50000, 5000) {
+
+
+    public void allNNAPI(){// this is the baseline4 that always assigns taska to NNAPI
+
+        for (int i=0;i<mInstance.mList.size();i++) {
+            AiItemsViewModel taskView = mInstance.mList.get(i);
+            int model= (taskView.getCurrentModel());
+            int device=taskView.getCurrentDevice();
+            int new_device=2;
+            if(device!=new_device)// this means that the model should be updated
+            {
+                mInstance.adapter.setMList(mInstance.mList);
+                mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+                int finalI = i;
+                mInstance.runOnUiThread(() ->
+                        mInstance. adapter.updateActiveModel(
+                                model,
+                                new_device,
+                                1,
+                                taskView,
+                                finalI
+                        ));
+            }
+            try {
+                sleep(40);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }// this is to make sure the device is updated
+        }
+        oneCycleWriteRT();
+
+    }
+
+
+
+    public void oneCycleWriteRT(){
+
+        long time=12000;
+        if(mInstance.bys_baseline1_2==false)
+            time=20000;
+        CountDownTimer sceneTimer = new CountDownTimer(time, 2000) {//is  better (50000, 5000) {
 
             @Override
             public void onTick(long millisUntilFinished) {
@@ -140,26 +178,26 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
              }
             @Override
             public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
-                    // selectedRatio=1d;
-//                     staticMatchTrisRatio(1d);
-                mInstance.total_tris =0;
-                for (int i =0;i<mInstance.objectCount;i++)
-                {// to avoid null pointer error
-                    mInstance.ratioArray.set(i, 1f);
-                    int finalI = i;
-                    mInstance.runOnUiThread(() -> mInstance.renderArray.get(finalI).decimatedModelRequest(mInstance.ratioArray.get(finalI), finalI, false));
-                    mInstance.total_tris = mInstance.total_tris + (mInstance.renderArray.get(finalI).orig_tris);// total = total + 0.8*objtris
-                    try {
-                        Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+
+                if(mInstance.bys_baseline1_2==true)// since we use the above function for all baselines, we dont' need to run matchAvgLatency for some baselines
+                {
+                    mInstance.total_tris = 0;
+                    for (int i = 0; i < mInstance.objectCount; i++) {// to avoid null pointer error
+                        mInstance.ratioArray.set(i, 1f);
+                        int finalI = i;
+                        mInstance.runOnUiThread(() -> mInstance.renderArray.get(finalI).decimatedModelRequest(mInstance.ratioArray.get(finalI), finalI, false));
+                        mInstance.total_tris = mInstance.total_tris + (mInstance.renderArray.get(finalI).orig_tris);// total = total + 0.8*objtris
+                        try {
+                            Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
                     }
-                }
 
-                selectedRatio=1;
+                    selectedRatio = 1;
+
                     matchAvgLatency();
-
-
+                }
 
             }
 
@@ -180,7 +218,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
             Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
         }
 
-        final double[] left = {0};
+        final double[] left = {0.05};
         final double[] right = {1};
 
         CountDownTimer sceneTimer = new CountDownTimer(27000, 3000) {//is  better (50000, 5000) {
@@ -247,10 +285,11 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
 
     public void matchAvgLatency()  {// this is the cycle of writing latency data of static algorithm to the file
 
-
+        final double[] left = {0.05};
+        final double[] right = {1};
         final int[] index = {0};
 
-        CountDownTimer sceneTimer = new CountDownTimer(20000, 2000) {//is  better (50000, 5000) {
+        CountDownTimer sceneTimer = new CountDownTimer(14000, 2000) {//is  better (50000, 5000) {
 
             @Override
             public void onTick(long millisUntilFinished) {
@@ -258,19 +297,55 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
 
                 perc_error = (double) (Math.round((double) (abs(avgLatency - bys_Avgltcy) * 100) / bys_Avgltcy)) / 100;
 
-                if(perc_error <0.1 || selectedRatio ==0.05){// cause we cannot decimate objects below 5%
+            }
+            @Override
+            public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
+
+
+                if(perc_error <0.05 || selectedRatio ==0.05){// cause we cannot decimate objects below 5%
                     this.cancel();
                     return;
                 }
 
-
-            }
-            @Override
-            public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
                 index[0] +=1;
                 selectedRatio=coarse_Ratios[index[0]];
-                decimateall(selectedRatio);
-                mInstance.avgq = calculateMeanQuality();
+               // decimateall(selectedRatio);
+                double nextTris = selectedRatio*mInstance.orgTrisAllobj;
+                try {
+                    otdaRevised(nextTris);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+/*
+                if(selectedRatio!=1) {// this is because we don't want to change the initial indexes, but the index change is done after the first round trial
+                    // Your onFinish logic for the current index here
+                    if (avgLatency < bys_Avgltcy)
+                        left[0] = selectedRatio;
+                    else
+                        right[0] = selectedRatio;
+
+                }
+                if(left[0]<=right[0]) {
+                    mInstance.avg_AIperK.clear();// restart data collection when we change triangle count
+                    avgLatency = 0;
+                    selectedRatio = (float) (left[0] + ((right[0] - left[0]) / 2));// selectedRatio is MID the selected triangle count ratio for binary search
+
+                    double nextTris = selectedRatio * mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
+                    //  Part 2:  start to apply the triangle count and OTDA
+                    try {
+                        //long time1 = System.nanoTime() / 1000000; //starting first loop
+                        otdaRevised(nextTris);// this is OTDA algorithm
+
+                        // long t2 = System.nanoTime() / 1000000;
+                        // mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
+
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }*/
+
+
+                    mInstance.avgq = calculateMeanQuality();
                 this.start();
             }
 
@@ -371,14 +446,16 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
                 //meanRt = t_h[0];
                 // calculate the latency
-                avg_AIlatencyPeriod+=(actual_rpT-expected_time);// this is because we want to have this value minimized
+                avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;//normalized over curr time this is because we want to have this value minimized
+
+                //avg_AIlatencyPeriod+=(actual_rpT-expected_time);// this is because we want to have this value minimized
 
 ////********** bellow line is for the function of finding the offline Response time which I already did,I changed it to calculate the latency
                 ///   avg_AIlatencyPeriod=actual_rpT;
 
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-                        .append(",").append(actual_rpT) .append(",").append(expected_time);
+                        .append(",").append(actual_rpT) .append(",").append(expected_time).append(",").append(actual_rpT-expected_time);
                 //.append( mInstance.avg_reponseT.get(i));
             }
 
@@ -423,10 +500,29 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
 
     }
 
+    public void tmpDecimate(float ratio){
 
+        mInstance.total_tris =0;
+        //  Part 2:  start to apply the triangle count and OTDA
 
-    float otdaAlg(double tUP) throws InterruptedException {
+        for (int i =0;i<=2;i+=2)// just for indexes 0 and 2
+        {// to avoid null pointer error
 
+            mInstance.ratioArray.set(i, ratio);
+            int finalI = i;
+            mInstance.runOnUiThread(() -> mInstance.renderArray.get(finalI).decimatedModelRequest(mInstance.ratioArray.get(finalI), finalI, false));
+            mInstance.total_tris = mInstance.total_tris + (mInstance.ratioArray.get(i) *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
+            try {
+                Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    float otdaRevised(double tUP) throws InterruptedException {// this considers everytime all objects have the highest ratio cause bayesian choices are independant of each other
+// don't want the last bayesian change affect the sensitivity of objects
         objC=mInstance.objectCount;
         double []tMin = new double[objC];
         double [] sensitivity = new double[objC];
@@ -434,6 +530,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
         fProfit= new double[objC][coarse_Ratios.length];
         tRemainder= new double[objC][coarse_Ratios.length];
         track_obj= new int[objC][coarse_Ratios.length];
+        tUP=tUP+0.1;// it's 1000 tris added to make sure for max goes all 1
 
 
         candidate_obj = new HashMap<>();
@@ -443,7 +540,8 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
         for (int ind = 0; ind < mInstance.objectCount; ind++) {
 
             sum_org_tris += mInstance.renderArray.get(ind).orig_tris;// this will ne used to cal min of tris needed at each row (object) in bellow
-            float r1 = mInstance.ratioArray.get(ind); // current object decimation ratio
+            // float r1 = mInstance.ratioArray.get(ind); // current object decimation ratio
+            float r1 =1;
             float curtris =(float) mInstance.renderArray.get(ind).orig_tris * r1;
             float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
             int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(ind).fileName);// search in excel file to find the name of current object and get access to the index of current object
@@ -499,6 +597,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
 
                 if (i == key && tUP >= mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]) { // the first object in the candidate list
                     fProfit[i][j] = quality;// Fα(i),j ←Qα(i),j -> i is alpha i
+
                     tRemainder[i][j] = tUP - (mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]);
                 } else //  here is the dynamic programming section
                     for (int s = 0; s < coarse_Ratios.length; s++) {
@@ -530,22 +629,29 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
                 j=maxindex;
             }
 
+
         //restart tot_tris:
         mInstance.total_tris =0;
         for (int i : sortedcandidate_obj.keySet())
         {// to avoid null pointer error
-            // mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)));// total =total -1*objtris
 
-            mInstance.ratioArray.set(i, coarse_Ratios[j]);
-            mInstance.runOnUiThread(() -> mInstance.renderArray.get(i).decimatedModelRequest(mInstance.ratioArray.get(i), i, false));
-            mInstance.total_tris = mInstance.total_tris + (mInstance.ratioArray.get(i) *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
-            // mInstance.trisDec.put(mInstance.total_tris,true);
+            mInstance.total_tris = mInstance.total_tris + (coarse_Ratios[j] *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
+
+            if(mInstance.ratioArray.get(i)!=coarse_Ratios[j]) {
+                mInstance.ratioArray.set(i, coarse_Ratios[j]);
+                mInstance.runOnUiThread(() -> mInstance.renderArray.get(i).decimatedModelRequest(mInstance.ratioArray.get(i), i, false));
+                Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+            }
+
             j = track_obj[i][j];
-            Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+
         }
         return (float)mInstance.total_tris; // this returns the total algorithm triangle count
 
     }
+
+
+
 
 
     private static Map<Integer, Double> sortByValue(Map<Integer, Double> unsortMap, final boolean order)

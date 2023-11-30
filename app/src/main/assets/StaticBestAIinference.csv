@@ -9,3 +9,5 @@ time,AI_name,Delegate,Avg_infTime
 2023-08-17 16:55:56:938,mobilenetClassv1,NNAPI,10.4137499332428
 2023-08-17 16:56:45:287,deeplabv3,CPU,85.5837507247925
 2023-08-17 16:58:46:893,model_metadata,GPU,18.1600003242493
+2023-08-17 16:58:46:894,ssd_mobilenet_v1_1_metadata_1,NNAPI,7.5
+2023-08-17 16:58:46:895,mnist,GPU,4.2

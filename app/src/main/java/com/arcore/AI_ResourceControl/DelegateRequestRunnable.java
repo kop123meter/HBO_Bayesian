@@ -13,6 +13,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 /**
+ * if you wanna test hbo vs baselines, make baseline1_2 flag true
  * This class is to communicate with java server, it requests the suggested delegate and triangle count, then sends a msg to the
  * activity main and applies the delegates by calling the background thread named Bayesian and function  bys.apply_delegate_tris(selected_combinations);
  *      Communication with server running on a thread
@@ -36,6 +37,7 @@ public class DelegateRequestRunnable implements Runnable {
     static final int DOWNLOAD_STARTED = 2;
     static final int DOWNLOAD_COMPLETE = 3;
 
+    boolean baseline1_2=false;// when we wanna run bayesian + two baselines we set this true here and in the activity main
 
     //download chunk size, make sure to match on server thread
     private final int BUFFER_SIZE = 160000;
@@ -75,39 +77,30 @@ public class DelegateRequestRunnable implements Runnable {
                 }
 
                 try {
-
-
                     //@@@pc address
+                    modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
+
                     Socket socket = new Socket("192.168.1.42", 4444);
                     // Open output stream
                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-///* nill temp commented aug10,2023 to check just recieving mode of java
-                    //#### send request for input to server
-//                    String msg_toserver="delegate_req";// this works perfectly for when we have the input writtten to python_client.txt
-//
-//                     msg_toserver="directly_req";// this is to test if we can get directly the msg from server
-//
-//                    out.println(msg_toserver);
-//                    //flush stream
-//                    out.flush();
-                    //#### send request for input to server
-//*/
-//this code is to  //#### recieve  input of delegate and triangles from server
-                    //File new_file = new File(context.getExternalFilesDir(null), "delegate.txt"+modelRequest.activityMain.fileseries);
-                   // FileOutputStream fout = new FileOutputStream(new_file);
 
+                    ///nill test to trigger HBO-> we write a code to python server and then activate it
+                    out.println("activate");
+                    //flush stream
+                    out.flush();
+
+
+                    ////
                     BufferedInputStream socketInputStream1;
                     socketInputStream1 = new BufferedInputStream(socket.getInputStream());
                     byte[] buffer1 = new byte[BUFFER_SIZE];
                     int read1;
                     int totalRead1 = 0;
                     long startTime2 = System.currentTimeMillis();
-                    boolean first = false;
 
                     int exploration_phase = modelRequest.activityMain.exploration_phase;// initially 5 to explore 5 delegates on pyhon client
                     int max_iteration=modelRequest.activityMain.max_iteration;// we define it in python client 15 iterations and the last applying the best
-
 
                     read1 = socketInputStream1.read(buffer1);
 //                    int iterations=0;
@@ -117,18 +110,15 @@ public class DelegateRequestRunnable implements Runnable {
 
                     // this is just for the exploration phase , it recieves all the
 //                    if (phase.equals("exploration")){
+                   // out = new PrintWriter(socket.getOutputStream(), true);
                     while (read1 != -1) {//the msg is ready from the python client
                             String message = new String(buffer1, 0, read1);
                             // you need to gain the msg either from file stored in java_cleint.txt or the direct msg from java that comes from python client
                             long startTime = System.currentTimeMillis();
                             //  fout.write(buffer1, 0, read1);
 
-
-
-                            //   modelRequest.delg_list.add(doubleArray);
-
-                            if (modelRequest.activityMain.curBysIters < max_iteration){// this is for all bayesian trials
-
+                            //if (modelRequest.activityMain.curBysIters < max_iteration-1){// this is for all bayesian trials - before Dec 2023
+                            if (modelRequest.activityMain.curBysIters < max_iteration){ // we already include a +1 in activity main to account for the last application of the best input (after a cycle of bayesian)
                                 String[] elements = message.substring(19, message.length() - 3).split(",");
                                 // Create a double array to store the converted elements
                                 double[] doubleArray = new double[elements.length];
@@ -155,7 +145,7 @@ public class DelegateRequestRunnable implements Runnable {
                             modelRequest.activityMain.avg_reward = 0; // restart the reWARD
 
                                  }
-                            else{// // this is afeter finishing bayesian => this is to achieve the index of best delegate from bayesian
+                            else if(baseline1_2){// // this is afeter finishing bayesian to run baseline1 and 2 => this is to achieve the index of best delegate from bayesian
                                 Log.d("Bayesian Msg", ": " + message + " milliseconds");
                                 String elements = message.substring(19, message.length() - 3);
                                 Log.d("Bayesian ary", ": " + elements + " milliseconds");
@@ -170,6 +160,8 @@ public class DelegateRequestRunnable implements Runnable {
                               modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
                                 modelRequest.activityMain.curBysIters += 1;
                             }
+                            else
+                                break;// this is for other baselines
                             //it's max_iteration+1 cause we have max_iteration+1 Msgs from python client => want to receive the last msg of the best reward to obtain the Tratio and Avglatency data for the baseline
                             if(modelRequest.activityMain.curBysIters ==max_iteration+1)// we did apply all the exploration and exploitation from python client
                                 break;
@@ -182,10 +174,6 @@ public class DelegateRequestRunnable implements Runnable {
                                 read1 = socketInputStream1.read(buffer1);
 
                         }
-//                }
-
-
-
 
 
                     long endTime2 = System.currentTimeMillis();
@@ -194,25 +182,26 @@ public class DelegateRequestRunnable implements Runnable {
                     //fout.flush();
 
                     // tell server that file is received so it doesn't close connection
-                    PrintWriter outM = new PrintWriter(socket.getOutputStream(), true);
-                    outM.println("File received");
+//                    PrintWriter outM = new PrintWriter(socket.getOutputStream(), true);
+//                    outM.println("File received");
 
 
 //added from model req manager
 //         nill moved above           Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
 //                    msg.obj = modelRequest;
 
-                    outM.flush();
+//                    outM.flush();
                     // close all the streams
                    // fout.close();
                     socketInputStream1.close();
-                    outM.close();
+//                    outM.close();
                     in.close();
                     //fout.close();
                     out.close();
                     socket.close();
 
 //                    modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
+
 
                     ModelRequestManager.dlgRequestList.remove(modelRequest);
 
@@ -241,6 +230,27 @@ public class DelegateRequestRunnable implements Runnable {
     }
     }//run
 
+
+    public void decimateall(float ratio){
+
+        modelRequest.activityMain.total_tris =0;
+        //  Part 2:  start to apply the triangle count and OTDA
+
+        for (int i =0;i<modelRequest.activityMain.objectCount;i++)
+        {// to avoid null pointer error
+
+            modelRequest.activityMain.ratioArray.set(i, ratio);
+            int finalI = i;
+            modelRequest.activityMain.runOnUiThread(() -> modelRequest.activityMain.renderArray.get(finalI).decimatedModelRequest(modelRequest.activityMain.ratioArray.get(finalI), finalI, false));
+            modelRequest.activityMain.total_tris = modelRequest.activityMain.total_tris + (modelRequest.activityMain.ratioArray.get(i) *  modelRequest.activityMain.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
+            try {
+                Thread.sleep(7);// added to prevent the crash happens while redrawing all the objects at the same time
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
 
     public void send_reward_toserver(double reward){
 

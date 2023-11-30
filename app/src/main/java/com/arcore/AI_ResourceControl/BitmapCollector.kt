@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
+import org.tensorflow.lite.examples.digitclassification.DigitClassifierHelper
 import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
 import java.io.File
 
@@ -30,7 +31,8 @@ class BitmapCollector(
     var objectDetector: ObjectDetectorHelper?,
     var newClassifier: ImageClassifierHelper?,
     var imgSegmentation: ImageSegmentationHelper?,
-    var gestureClas: GestureClassifierHelper?
+    var gestureClas: GestureClassifierHelper?,
+    var digitClas: DigitClassifierHelper?
 
 ): ViewModel() {
 
@@ -149,7 +151,7 @@ class BitmapCollector(
                     }
 
 
-                    if (newClassifier?.modelUsed()  =="inception_v1_224_quant.tflite" )
+                    if (newClassifier?.modelUsed()  =="inception_v1_224_quant.tflite"  )
                     {
                         bitmap=Bitmap.createScaledBitmap(bitmap!!, 229, 229, true) //229
                     }
@@ -200,7 +202,8 @@ class BitmapCollector(
                     else if (gestureClas!=null)
                         gestureClas?.classify(bitmap!!,90)
 
-
+                   else if (digitClas!=null)
+                       digitClas?.classify(bitmap!!)
 
                     end = System.nanoTime()/1000000
                     InferenceTime = end-start

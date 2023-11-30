@@ -9,6 +9,7 @@ import android.widget.*
 import android.widget.AbsListView.CHOICE_MODE_SINGLE
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.delay
+import org.tensorflow.lite.examples.digitclassification.DigitClassifierHelper
 import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
 import java.io.IOException
 import java.lang.Thread.sleep
@@ -181,7 +182,7 @@ class AiRecyclerviewAdapter(
             && deviceIndex == itemsView.currentDevice
             && numThreads == itemsView.currentNumThreads
             && ( itemsView.classifier != null   || itemsView.newclassifier != null  || itemsView.objectDetector != null||
-                    itemsView.imgSegmentation != null|| itemsView.gestureClas != null  || itemsView.segm != null)
+                    itemsView.imgSegmentation != null|| itemsView.gestureClas != null  || itemsView.segm != null || itemsView.digitClas != null)
 
         ) {
             return
@@ -254,7 +255,7 @@ class AiRecyclerviewAdapter(
                // itemsView.models[3]->itemsView.classifier=ImageClassifier_Inception_V1_Quantized_224(activity)
 //                itemsView.models[4]->itemsView.classifier=ImageClassifierQuantizedMobileNetV1_25_0_128(activity)
 //                itemsView.models[5]->itemsView.classifier=ImageClassifier_mnasnet_05_224(activity)
-//                itemsView.models[6]->itemsView.classifier=ImageClassifier_Inception_V4_Quantized_299(activity)
+                //itemsView.models[2]->itemsView.classifier=ImageClassifier_Inception_V4_Quantized_299(activity)
 //                itemsView.models[7]->itemsView.classifier=ImageClassifier_Inception_v4_Float_299(activity)
 //                itemsView.models[8]->itemsView.classifier=ImageClassifier_MobileNet_V2_Float_224(activity)
 
@@ -362,6 +363,23 @@ class AiRecyclerviewAdapter(
         //***************** for Gesture Classification
 
 
+        try {
+            when(model) {
+                itemsView.models[10]->
+                {itemsView.digitClas= DigitClassifierHelper( context = mainActivity,fileseries = mainActivity.fileseries )
+                    itemsView.digitClas?.clearDigitClassifier()
+                }
+            }
+        } catch (e: IOException) {
+            Log.d(
+                "Custom Adapter",
+                "Failed to load",
+                e
+            )
+            itemsView.digitClas = null
+        }
+
+        //***************** for digit Classification
 
         if (itemsView.classifier != null) {
             itemsView.classifier?.fileseries = mainActivity.fileseries
@@ -393,7 +411,8 @@ class AiRecyclerviewAdapter(
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.gestureClas?.clearGestureClassifier()
 
-
+                itemsView.digitClas?.currentDelegate=0
+                itemsView.digitClas?.clearDigitClassifier()
 
             }
             itemsView.devices[1]-> {
@@ -415,6 +434,9 @@ class AiRecyclerviewAdapter(
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.gestureClas?.clearGestureClassifier()
 
+                itemsView.digitClas?.currentDelegate=1
+                itemsView.digitClas?.clearDigitClassifier()
+
             }
             itemsView.devices[2]-> {
 
@@ -435,6 +457,10 @@ class AiRecyclerviewAdapter(
                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
                 itemsView.gestureClas?.clearGestureClassifier()
 
+                itemsView.digitClas?.currentDelegate=2
+                itemsView.digitClas?.clearDigitClassifier()
+
+
             }
 
 
@@ -451,9 +477,12 @@ class AiRecyclerviewAdapter(
         itemsView.gestureClas?.numThreads= threads // NEW object classification
         itemsView.gestureClas?.clearGestureClassifier()
 
+        itemsView.digitClas?.numThreads= threads // NEW object classification
+        itemsView.digitClas?.clearDigitClassifier()
 
         // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
-        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier,itemsView.segm ,position, activity, mainActivity,itemsView.objectDetector,itemsView.newclassifier, itemsView.imgSegmentation, itemsView.gestureClas)
+        itemsView.collector = BitmapCollector(streamSource, itemsView.classifier,itemsView.segm ,position, activity, mainActivity,
+            itemsView.objectDetector,itemsView.newclassifier, itemsView.imgSegmentation, itemsView.gestureClas, itemsView.digitClas)
         if (switchToggleStream.isChecked) {
             itemsView.collector!!.startCollect()
         }
@@ -493,7 +522,10 @@ class AiRecyclerviewAdapter(
                    "Model: ${itemsView.gestureClas?.modelUsed()}\n" +
                    "Device: ${itemsView.gestureClas?.deviceUsed()}"
 
-
+       else if(itemsView.digitClas!=null)
+           holder.textAiInfo.text = "Digit Classifier \n"+ "Threads: ${itemsView.digitClas?.numThreads}\n" +
+                   "Model: ${itemsView.digitClas?.modelUsed()}\n" +
+                   "Device: ${itemsView.digitClas?.deviceUsed()}"
 
     }
 }

@@ -96,7 +96,7 @@ import static java.lang.Thread.sleep;
   see if we can update AR capabilities -- find out pointer operation (why will it not draw past 2 meters or whateverz
   update menu popups for simplified files -- thumbnails have to be 64x64
   compare anchor and hit position in place object
-
+bes
 */
 
 
@@ -107,12 +107,15 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
     int exploration_phase = 5;// initially 5 to explore 5 delegates on pyhon client
-    int max_iteration=15+exploration_phase;
+    int iteration=1;// num of iterations after exploration
+    int max_iteration=iteration+exploration_phase+1;// was 15+ originally => last +1 is for applying the best reward
     int curBysIters =0;
     List<Double> bysTratioLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
     List<Double> bysRewardsLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));//holds log of bayesian rewards for each iteration
     List<Double> bysAvgLcyLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
 
+
+    boolean bys_baseline1_2=true;// this controls if we wanna test baseline1-2 match Q and match latency to compaere with bayesian
 
 
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
@@ -126,8 +129,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
    // private static MainActivity Instance = new MainActivity();
     //private static MainActivity Instance = new com.arcore.MixedAIAR.MainActivity();
 
-    double reward_weight=0.02;
-
+    double reward_weight=2.5; //was 0.02 before for non normalized vals
+    double last_latencyInstanceN =0;// keeps the latency of AI1 instance to check the noises in bayesian class
     String bayesian_delegate="";
 
     int deleg_req=0;
@@ -247,8 +250,8 @@ boolean oneTimeAccess=true;// to send image to server
     ListMultimap<Double, List<Double>> reParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Double, List<Double>> reParamListMir =ArrayListMultimap.create();
 
-    double bayesian1_bestTR=  0.23438647;// for scenario9 Config9 the  triangle ratio for the winner case
-    double bayesian1_bestLcty= 33.03; // the corresponding latency
+    double bayesian1_bestTR= 0.7292209;// for scenario9 Config9 the  triangle ratio for the winner case
+    double bayesian1_bestLcty= 0.68; // the corresponding latency
     //double bayesian1_bestLcty= 10.379083129247;
 
     int lastConscCounter=0; // counts the number of consecutive change in tris count, if we reach 5 we will change the tris
@@ -486,6 +489,7 @@ boolean oneTimeAccess=true;// to send image to server
 
       else if(tempModelRequest.req.equals( "baseline")){
 
+                avg_AIperK.clear();
                 baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
                // bfb.staticAlg(bayesian1_bestTR);
 
@@ -501,46 +505,19 @@ boolean oneTimeAccess=true;// to send image to server
       else if(tempModelRequest.req.equals( "delegate"))
       {
 // this is for delegate req
-
+          avg_AIperK.clear();
                 bayesian bys = new bayesian(MainActivity.this);
-//                for (int i = 0; i < 2; i++){// last index should be the length of allDelegates coming fom the python client
+                if(bys_baseline1_2)
                     bys.apply_delegate_tris(tempModelRequest.all_delegates);
-                  /* temp removed to avoid non-sequentional applying delegate- here it just applies the last delegate (last index i)
-
-                    // this to be added at the end of apply_delg function for data collecton
-                    CountDownTimer sceneTimer = new CountDownTimer(Long.MAX_VALUE, 10000) {
-                    int counter = 10;
-
-                    // this is to automate adding objects to the screen
-                    @Override
-                    public void onTick(long millisUntilFinished) {
-
-                        bys.writeRT();
-                        counter--;// to have this 10 times
-                        if (counter == 1) // should add this somewhere to stop collecting data after 15 times?
-                        {// calculate reward
-                            double average_AIRT = avg_AIperK.stream()
-                                    .mapToDouble(Float::doubleValue)
-                                    .average()
-                                    .orElseThrow(() -> new IllegalArgumentException("List is empty"));
-
-                            double reward = avgq - average_AIRT;
-                            send_thread connectionThread = new send_thread(reward);
-                            connectionThread.start();
-                            this.cancel();
-                        }
-                        // else if(counter<0)// we cannot cancle and send to the server at the same time. it kills the second process
-                        //   this.cancel();
-
+                else// we do baseline 3 which is to just apply delegate from bayesian without triangle count change
+                {
+                    List<Integer> capacity = new ArrayList();
+                    for (double value : tempModelRequest.all_delegates) {
+                        capacity.add((int) value); // Cast each element of A to an integer
                     }
+                   bys.afinity_heuristic(capacity);
 
-                    @Override
-                    public void onFinish() {
-                    }
-                }.start();*/
-
-//            }// for i =0 to index
-            //bayesian_delegate=tempModelRequest.delegate;
+                }
         }
 
     }
@@ -971,7 +948,7 @@ boolean oneTimeAccess=true;// to send image to server
                         if (mList.get(i).getClassifier()==null && mList.get(i).getObjectDetector()==null
                                 && mList.get(i).getNewclassifier()==null
                                 && mList.get(i).getGestureClas()==null && mList.get(i).getSegm()==null
-                        && mList.get(i).getImgSegmentation()==null
+                        && mList.get(i).getImgSegmentation()==null     && mList.get(i).getDigitClas()==null
                         ) { // we have three different models now
                             noNullModelRunner = false;
                         }
@@ -1090,6 +1067,7 @@ boolean oneTimeAccess=true;// to send image to server
 
        // givenUsingTimer_whenSchedulingTaskOnce_thenCorrect();
         //new filewrite(MainActivity.this).run();
+        getCpuPer();
 
         StringBuilder sb = new StringBuilder();
 
@@ -1101,44 +1079,15 @@ boolean oneTimeAccess=true;// to send image to server
         }
 
 
-//        String currentFolder = getExternalFilesDir(null).getAbsolutePath();
-//        String FILEPATH = currentFolder + File.separator + "CPU_Mem_"+ fileseries+".csv";
-//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
-//
-//            StringBuilder sbb = new StringBuilder();
-//
-//           sbb.append( "time,7m,PID,USER,PR,NI,VIRT,[RES],SHR,S,%CPU,%MEM,TIME,ARGS");
-//
-//
-//            sbb.append('\n');
-//            writer.write(sbb.toString());
-//
-//            System.out.println("done!");
-//
-//        } catch (FileNotFoundException e) {
-//            System.out.println(e.getMessage());
-//        }
-
-
         String currentFolder = getExternalFilesDir(null).getAbsolutePath();
-        String  FILEPATH = currentFolder + File.separator + "GPU_Usage_"+ fileseries+".csv";
+        String FILEPATH = currentFolder + File.separator + "CPU_Mem_"+ fileseries+".csv";
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
 
             StringBuilder sbb = new StringBuilder();
-            sbb.append("time2");
-            sbb.append(',');
-            sbb.append("tris");
-            sbb.append(',');
-            sbb.append("gpu");
-            sbb.append(',');
-            sbb.append("distance"); //sbb.append(',');  sbb.append("serv_req");
-            sbb.append(',');
-            sbb.append("lastobj");
-            sbb.append(',');
-            sbb.append("objectCount,");
-            sbb.append( "7m,PID,USER,PR,NI,VIRT,[RES],SHR,S,%CPU,%MEM,TIME,ARGS");
-            sbb.append(',');
-            sbb.append("cpu_freq,");
+
+           sbb.append( "time,7m,PID,USER,PR,NI,VIRT,[RES],SHR,S,%CPU,%MEM,TIME,ARGS");
+
+
             sbb.append('\n');
             writer.write(sbb.toString());
 
@@ -1147,6 +1096,35 @@ boolean oneTimeAccess=true;// to send image to server
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
         }
+
+
+//        String currentFolder = getExternalFilesDir(null).getAbsolutePath();
+//        String  FILEPATH = currentFolder + File.separator + "GPU_Usage_"+ fileseries+".csv";
+//        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+//
+//            StringBuilder sbb = new StringBuilder();
+//            sbb.append("time2");
+//            sbb.append(',');
+//            sbb.append("tris");
+//            sbb.append(',');
+//            sbb.append("gpu");
+//            sbb.append(',');
+//            sbb.append("distance"); //sbb.append(',');  sbb.append("serv_req");
+//            sbb.append(',');
+//            sbb.append("lastobj");
+//            sbb.append(',');
+//            sbb.append("objectCount,");
+//            sbb.append( "7m,PID,USER,PR,NI,VIRT,[RES],SHR,S,%CPU,%MEM,TIME,ARGS");
+//            sbb.append(',');
+//            sbb.append("cpu_freq,");
+//            sbb.append('\n');
+//            writer.write(sbb.toString());
+//
+//            System.out.println("done!");
+//
+//        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+//        }
 
 //         currentFolder = getExternalFilesDir(null).getAbsolutePath();
 //          FILEPATH = currentFolder + File.separator + "CHECK_avg_Latency"+ fileseries+".csv";
@@ -1237,19 +1215,19 @@ boolean oneTimeAccess=true;// to send image to server
 */
 
 
-        currentFolder = getExternalFilesDir(null).getAbsolutePath();
-        FILEPATH = currentFolder + File.separator +"Bayesian_dataCollection"+ fileseries+".csv";
+         currentFolder = getExternalFilesDir(null).getAbsolutePath();
+         FILEPATH = currentFolder + File.separator +"Bayesian_dataCollection"+ fileseries+".csv";
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
 //date, thr, tris, model, device, thread
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("Model1").append(',').append("Device1").append(',').append("Actual_RT1").append(',').append("Expected_RT1");
+            sbb.append("Model1").append(',').append("Device1").append(',').append("Actual_RT1").append(',').append("Expected_RT1").append(',').append("Latency1");
 
-            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Actual_RT2").append(',').append("Expected_RT2");
+            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Actual_RT2").append(',').append("Expected_RT2").append(',').append("Latency2");
             sbb.append(',');
 
-            sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3");
+            sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3").append(',').append("Latency3");
             sbb.append(',').append("Tris").append(',').append("avgQ").append(',').append("avgPeriodLatency").append(',').append("avgLatency").append(',').append("iteration");// the last is accross all models
 //            .append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
          sbb.append('\n');
@@ -1269,12 +1247,12 @@ boolean oneTimeAccess=true;// to send image to server
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("Model1").append(',').append("Device1").append(',').append("Actual_RT1").append(',').append("Expected_RT1");
+            sbb.append("Model1").append(',').append("Device1").append(',').append("Actual_RT1").append(',').append("Expected_RT1").append(',').append("Latency1");
 
-            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Actual_RT2").append(',').append("Expected_RT2");
+            sbb.append(',').append("Model2").append(',').append("Device2").append(',').append("Actual_RT2").append(',').append("Expected_RT2").append(',').append("Latency2");
             sbb.append(',');
 
-            sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3");
+            sbb.append("Model3").append(',').append("Device3").append(',').append("Actual_RT3").append(',').append("Expected_RT3").append(',').append("Latency3");
             sbb.append(',').append("Tris").append(',').append("avgQ").append(',').append("avgPeriodLatency").append(',').append("avgLatency").append(',')
                     .append("BayesianavgLatency").append(',').append("percentageError").append(',').append("selectedTRatio");// the last is accross all models
 //            .append(',').append("Device5").append(',').append("Thread5").append(',').append("Task_Throughput5");
@@ -2247,7 +2225,7 @@ boolean oneTimeAccess=true;// to send image to server
         Button offAnalyz = (Button) findViewById(R.id.offlineAnalysis);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
         offAnalyz.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
-
+                avg_AIperK.clear();
                 bayesian bys= new bayesian(MainActivity.this);
 
                 //tmp deactive to check the heuristic function:
@@ -2263,24 +2241,24 @@ boolean oneTimeAccess=true;// to send image to server
         staticForBayes.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
-                baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
+             ///    This is to run baseline 1 and 2 for match latency
+              baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
+              if(bys_baseline1_2)  {
+
                 bfb.staticDelegate();
-               // bfb.staticAlg(bayesian1_bestTR);
-//                try {
-//                    bfb.staticMatchTrisRatio(bayesian1_bestTR);// baseline 1
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
-                // /* baseline2
-               // bfb.staticDelegate();
                 try {
                     bfb.staticMatchTrisRatio(bayesian1_bestTR);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
-                }
-                bfb.matchAvgLatency();
+                }}
 
-              //  */
+              else{ // baseline 4
+
+                  bfb.allNNAPI();
+
+              }
+
+
             }
         });
 
@@ -2289,10 +2267,22 @@ boolean oneTimeAccess=true;// to send image to server
         bt.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
-
+                avg_AIperK.clear();
                 bayesian bys= new bayesian(MainActivity.this);
-                double [] test_dlg=new double[]{1.0, 0.0, 2.0,0.5};
-                bys.apply_delegate_tris(test_dlg );
+//                try {
+//                    bys.otdaRevised(0.2*orgTrisAllobj);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+
+                double [] test_dlg=new double[]{3.0, 2.0, 1.0, 0.6116331503770043};
+                        //{1.0, 0.0, 2.0,0.5};
+                try {
+                    bys.otdaRevised(test_dlg[test_dlg.length-1]*orgTrisAllobj);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+               // bys.apply_delegate_tris(test_dlg );
 /*
                 // temp to this the translation function
                 double [] test_dlg=new double[]{0.44,0.4,0.14};
@@ -2994,7 +2984,7 @@ boolean oneTimeAccess=true;// to send image to server
 
                             {
                                 /// this is for data collection bayesian
-                               new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
+                       new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
 // this is for MIr
                               // new Mir(MainActivity.this).run();
 //
@@ -4987,6 +4977,7 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
 
     @SuppressLint("SuspiciousIndentation")
+
     private void getCpuPer() { //for single process
 
         String currentFolder = getExternalFilesDir(null).getAbsolutePath();
@@ -4994,54 +4985,64 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
 
+        Timer  t = new Timer();
+
+        t.scheduleAtFixedRate(
+
+                new TimerTask() {
+                    //        TimerTask task = new TimerTask() {
+                    public void run() {
+
+                        float cpuPer = 0;
+                        try {
+
+                            String[] cmd = {"top", "-d", "6"};// this is for google pixel 7  top -n 1
+                            //  String[] cmd = {"top", "-m", "10"};// this is for google pixel 7 continious reading
+                            // String[] cmd = {"top", "-s", "6"};// this is for galaxy s10
+                            //{"top", "-n", "1"};
+
+                            Process process = Runtime.getRuntime().exec(cmd);
+                            BufferedReader stdInput = new BufferedReader(new
+                                    InputStreamReader(process.getInputStream()));
+
+                            String s = null;
+                            while ((s = stdInput.readLine()) != null)
+                                if(s.contains("com.arcore.AI_+") ){
+                                    //|| s.contains("%MEM")){
+
+                                    try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+
+                                        while(s.contains("  "))
+                                            s = s.replaceAll("  "," ");
+
+                                        s = s.replaceAll(" ",",");
+
+                                        writer.write( dateFormat.format(new Date())+"," +s + "\n");
+
+                                        System.out.println("done!");
 
 
-        float cpuPer = 0;
-        try {
 
-            String[] cmd = {"top", "-s", "6"};
-                    //{"top", "-n", "1"};
+                                    } catch (FileNotFoundException e) {
+                                        System.out.println(e.getMessage());
+                                    }
 
-            Process process = Runtime.getRuntime().exec(cmd);
-            BufferedReader stdInput = new BufferedReader(new
-                    InputStreamReader(process.getInputStream()));
+                                    break; // get out of the loop-> avoids infinite loop
 
-
-            String s = null;
-            while ((s = stdInput.readLine()) != null)
-                if(s.contains("com.arcore.Mix") ){
-                    //|| s.contains("%MEM")){
-
-                try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
-
-                    while(s.contains("  "))
-                        s = s.replaceAll("  "," ");
-
-                    s = s.replaceAll(" ",",");
+                                }
 
 
-
-                    writer.write( dateFormat.format(new Date())+"," +s + "\n");
-
-                    System.out.println("done!");
-
-
-
-                } catch (FileNotFoundException e) {
-                    System.out.println(e.getMessage());
-                }
-
-                break; // get out of the loop-> avoids infinite loop
-
-            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        // return cpuPer;
+                    }
 
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-       // return cpuPer;
-    }
-
+                },
+                0,      // run first occurrence immediatetly
+                2000);
+    };
 
 
 

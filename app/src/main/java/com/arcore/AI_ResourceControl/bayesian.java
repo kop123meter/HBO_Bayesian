@@ -51,7 +51,7 @@ import static java.lang.Math.min;
     private final MainActivity mInstance;
      double meanRt = 0;
      double meanThr = 0;
-
+        boolean isnoisy=false;
     List<Integer> offline_dev=new ArrayList<>(Arrays.asList(0, 1, 2));// get the first device
     float ref_ratio=0.5f;
     int objC;
@@ -60,7 +60,7 @@ import static java.lang.Math.min;
 //    double tris_share[];
      int max_cap=5;
     Map <Integer, Double> candidate_obj;
-    float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f,0.1f,0.05f};
+    float []coarse_Ratios=new float[]{1f,0.8f, 0.7f , 0.5f,0.3f, 0.2f};
         //    0.05f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
     double [][]fProfit;
@@ -232,7 +232,8 @@ import static java.lang.Math.min;
             ///test I'm working on this as of now
             // this is to apply 3 diff delegates to an AI task and each time
             // collect 5 period of AI inference data and at the end calculate the average and write it to
-            CountDownTimer sceneTimer = new CountDownTimer(60000, 3000) {//is  better (50000, 5000) {
+            CountDownTimer sceneTimer = new CountDownTimer(10000, 5000){
+                    //oroginal was this (60000, 3000) {//is  better (50000, 5000) {
                 @Override
                 public void onTick(long millisUntilFinished) {
                     writeRT(); // // this is to collect the response time of an AI after change in the AI delegate
@@ -413,7 +414,7 @@ import static java.lang.Math.min;
                             ));
                 }
                 try {
-                    sleep(10);
+                    sleep(30);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }// this is to make sure the device is updated
@@ -424,6 +425,7 @@ import static java.lang.Math.min;
             }
         }
 
+        startSceneTimer();// this has the loop of i=0 to i=3 in it
 
         }// function
 
@@ -433,6 +435,7 @@ import static java.lang.Math.min;
     public void apply_delegate_tris(double []selected_combinations1) {
 
            mInstance.avg_AIperK.clear();// restart data collection
+           mInstance.last_latencyInstanceN =0;
         // FIRST APPLY YHE DELEGATE AND TRIANGLES
 // here we apply the delegate at the end of 10 times of 10 data collection
             double[] selected_combinations = selected_combinations1;
@@ -445,25 +448,6 @@ import static java.lang.Math.min;
         curIteration=mInstance.curBysIters;
         mInstance.bysTratioLog.set(curIteration,selectedTRatio );
 
-        //  Part 2:  start to apply the triangle count and OTDA
-        try {
-            long time1 = System.nanoTime() / 1000000; //starting first loop
-            // nextTris=0.435;
-            otdaAlg(nextTris);// this is OTDA algorithm
-            //odraAlg(nextTris);// this is OTDA algorithm
-            long time2 = System.nanoTime() / 1000000;
-            // long t2 = System.nanoTime() / 1000000;
-            mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
-            // mInstance.t_loop2 = t2 - t1;
-            mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
-
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        mInstance.avgq = calculateMeanQuality();
-        // end
-
-
         // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
         List<Integer> capacity = new ArrayList();
 
@@ -475,6 +459,7 @@ import static java.lang.Math.min;
 
            //fifo_heuristic(capacity); // this prioritizes AI model delegate to CPU. GPU, and NNAPI based on the AI index, eg, if capacity ary=[0.3,0,0.7], the first AI model is assigned to CPU
          //  afinity_heuristic(capacity); I expand the function afinity_heuristic here instead because we wanna have both aI and triangle count adjustment done sequentially
+
         List<AIModel> copuCurModels = new ArrayList<>();
         copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
         List<AiItemsViewModel> copyAiItems = new ArrayList<>();
@@ -516,7 +501,7 @@ import static java.lang.Math.min;
                             ));
                 }
                 try {
-                    sleep(40);
+                    sleep(30);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }// this is to make sure the device is updated
@@ -527,7 +512,27 @@ import static java.lang.Math.min;
             }
         }
 
-      //  I expand the function afinity_heuristic here instead because we wanna have both aI and triangle count adjustment done sequentially
+
+        //  Part 2:  start to apply the triangle count and OTDA
+        try {
+            long time1 = System.nanoTime() / 1000000; //starting first loop
+            // nextTris=0.435;
+            otdaRevised(nextTris);// this is OTDA algorithm
+            //odraAlg(nextTris);// this is OTDA algorithm
+            long time2 = System.nanoTime() / 1000000;
+            // long t2 = System.nanoTime() / 1000000;
+            mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
+            // mInstance.t_loop2 = t2 - t1;
+            mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        mInstance.avgq = calculateMeanQuality();
+        // end
+
+
+        //  I expand the function afinity_heuristic here instead because we wanna have both aI and triangle count adjustment done sequentially
 
 ///*temp deactive to make sure of heuristic func works
 
@@ -540,7 +545,8 @@ import static java.lang.Math.min;
     }
 
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
-        CountDownTimer sceneTimer = new CountDownTimer(24000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
+       // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
+        CountDownTimer sceneTimer = new CountDownTimer(12000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
 
             @Override
             public void onTick(long millisUntilFinished) {
@@ -549,20 +555,23 @@ import static java.lang.Math.min;
 
             @Override
             public void onFinish() {
-
-                // Your onFinish logic for the current index here
-//                avgLatency = mInstance.avg_AIperK.stream()
-//                        .mapToDouble(Double::doubleValue)
-//                        .average()
-//                        .orElseThrow(() -> new IllegalArgumentException("List is empty"));
-
-                avgLatency= (double) (Math.round((double) (avgLatency * 100))) / 100;
+                avgLatency= (double) (Math.round((double) (avgLatency * 1000))) / 1000;
                 // this is to include fixed possible noise over the first 7 iterations
-                double reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
-                reward=(double) (Math.round((double) (reward * 1000))) / 1000;
-                if(mInstance.curBysIters <6)
-                    reward-=0.15;
+                double reward=0;
 
+                if(mInstance.bys_baseline1_2)// this is for HBO compared to the frist two baselines
+                 reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
+
+                else // this is for baseline #3 without triangle count change
+                    reward=- (avgLatency);// I don't use weight here becuase there is no use
+
+                reward=(double) (Math.round((double) (reward * 10000))) / 10000;
+                if(mInstance.curBysIters ==0)
+                    reward-=0.15;
+                else
+                    if(mInstance.curBysIters <4 )
+                    reward-=0.15;
+                    //reward-=0.15;
                 mInstance.avg_reward=reward;
                 mInstance.bysRewardsLog.set(curIteration,reward);
                 mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
@@ -703,8 +712,8 @@ import static java.lang.Math.min;
         sceneTimer.start();
     }
 */
-    float otdaAlg(double tUP) throws InterruptedException {
-
+    float otdaRevised(double tUP) throws InterruptedException {// this considers everytime all objects have the highest ratio cause bayesian choices are independant of each other
+// don't want the last bayesian change affect the sensitivity of objects
         objC=mInstance.objectCount;
         double []tMin = new double[objC];
         double [] sensitivity = new double[objC];
@@ -721,7 +730,8 @@ import static java.lang.Math.min;
         for (int ind = 0; ind < mInstance.objectCount; ind++) {
 
             sum_org_tris += mInstance.renderArray.get(ind).orig_tris;// this will ne used to cal min of tris needed at each row (object) in bellow
-            float r1 = mInstance.ratioArray.get(ind); // current object decimation ratio
+           // float r1 = mInstance.ratioArray.get(ind); // current object decimation ratio
+            float r1 =1;
             float curtris =(float) mInstance.renderArray.get(ind).orig_tris * r1;
             float r2 = ref_ratio * r1; // wanna compare obj level of sensitivity to see if we decimate object more -> to (ref *curr) ratio, would the current object hurt more than the other ones?
             int indq = mInstance.excelname.indexOf(mInstance.renderArray.get(ind).fileName);// search in excel file to find the name of current object and get access to the index of current object
@@ -777,6 +787,7 @@ import static java.lang.Math.min;
 
                 if (i == key && tUP >= mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]) { // the first object in the candidate list
                     fProfit[i][j] = quality;// Fα(i),j ←Qα(i),j -> i is alpha i
+
                     tRemainder[i][j] = tUP - (mInstance.renderArray.get(i).getOrg_tris() * coarse_Ratios[j]);
                 } else //  here is the dynamic programming section
                     for (int s = 0; s < coarse_Ratios.length; s++) {
@@ -808,19 +819,23 @@ import static java.lang.Math.min;
                 j=maxindex;
             }
 
+
         //restart tot_tris:
         mInstance.total_tris =0;
         for (int i : sortedcandidate_obj.keySet())
         {// to avoid null pointer error
-           // mInstance.total_tris = mInstance.total_tris - (mInstance.ratioArray.get(i) * (mInstance.o_tris.get(i)));// total =total -1*objtris
 
-            mInstance.ratioArray.set(i, coarse_Ratios[j]);
-            mInstance.runOnUiThread(() -> mInstance.renderArray.get(i).decimatedModelRequest(mInstance.ratioArray.get(i), i, false));
-            mInstance.total_tris = mInstance.total_tris + (mInstance.ratioArray.get(i) *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
-            // mInstance.trisDec.put(mInstance.total_tris,true);
+            mInstance.total_tris = mInstance.total_tris + (coarse_Ratios[j] *  mInstance.renderArray.get(i).orig_tris);// total = total + 0.8*objtris
+
+            if(mInstance.ratioArray.get(i)!=coarse_Ratios[j]) {
+                mInstance.ratioArray.set(i, coarse_Ratios[j]);
+                mInstance.runOnUiThread(() -> mInstance.renderArray.get(i).decimatedModelRequest(mInstance.ratioArray.get(i), i, false));
+                Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+            }
+
             j = track_obj[i][j];
-            Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
-        }
+
+             }
         return (float)mInstance.total_tris; // this returns the total algorithm triangle count
 
     }
@@ -898,7 +913,10 @@ import static java.lang.Math.min;
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             for (int i=0;i<mInstance.mList.size();i++)
             {
+
+
                 AiItemsViewModel taskView=mInstance.mList.get(i);
+
                 // first find the best offline AI response Time = EXPECTED RESPONSE TIme
                 int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
                 // excel file has all information for the AI inference NAME, Delegate, and time
@@ -916,14 +934,31 @@ import static java.lang.Math.min;
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
                 //meanRt = t_h[0];
                 // calculate the latency
-                avg_AIlatencyPeriod+=(actual_rpT-expected_time);// this is because we want to have this value minimized
+                avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;//normalized over curr time this is because we want to have this value minimized
+
+                double cur_latency=actual_rpT-expected_time;
+                double tmp_lastLatency=mInstance.last_latencyInstanceN;
+
+                if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)// we check atleast one istance to make sure our latency is not noisy
+                {
+                    if(cur_latency/tmp_lastLatency >1.4 &&  mInstance.avg_AIperK.size()>2)
+                        isnoisy=true;
+                    else
+                        isnoisy=false;
+                }
+
+                if(cur_latency<0)
+                    isnoisy=true;
+
+                if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
+                   mInstance.last_latencyInstanceN =cur_latency;
 
 ////********** bellow line is for the function of finding the offline Response time which I already did,I changed it to calculate the latency
              ///   avg_AIlatencyPeriod=actual_rpT;
                 
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
-                        .append(",").append(actual_rpT) .append(",").append(expected_time);
+                        .append(",").append(actual_rpT) .append(",").append(expected_time).append(",").append(cur_latency);
                         //.append( mInstance.avg_reponseT.get(i));
             }
 
@@ -932,7 +967,8 @@ import static java.lang.Math.min;
             boolean isempty=mInstance.avg_AIperK.isEmpty();
             if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
             {
-                if (avgAIltcy < 1.4 * avgLatency) // this is to remove possible noises
+                if (isnoisy==false )
+                        //&& avgAIltcy < 1.4 * avgLatency) // this is to remove possible noises
                     mInstance.avg_AIperK.add(avgAIltcy); //this is average of all AI response time at this period
             }
             else
@@ -949,7 +985,7 @@ import static java.lang.Math.min;
 
             sb.append(",").append(mInstance.total_tris);
             sb.append(",").append(mInstance.avgq);
-            sb.append(",").append( avgAIltcy).append(",").append(avgLatency).append(",").append( mInstance.curBysIters);
+            sb.append(",").append( avgAIltcy).append(",").append(avgLatency).append(",").append( mInstance.curBysIters+1).append(",").append( mInstance.reward_weight);
 
             sb.append('\n');
             writer.write(sb.toString());
