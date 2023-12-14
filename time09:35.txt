@@ -1,2 +1,0 @@
-Execution time for reward: activate : 1702564703442 milliseconds 
-Execution time for reward: -1.282 : 5458 milliseconds 
