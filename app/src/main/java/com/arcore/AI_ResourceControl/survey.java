@@ -1,16 +1,12 @@
-/**********This was for MIR data collection. noy used for XMIR*/
+/**********This was for MIR data collection. not used for XMIR*/
 
 package com.arcore.AI_ResourceControl;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -22,7 +18,6 @@ import java.util.stream.Collectors;
 import static java.lang.Math.abs;
 
 import android.annotation.SuppressLint;
-import android.graphics.Color;
 import android.widget.TextView;
 
 public class survey implements Runnable { // this is for survey2 to collec data of the low quality object and the reference
@@ -51,9 +46,6 @@ public class survey implements Runnable { // this is for survey2 to collec data 
 
 
 
-
-
-
     public survey(MainActivity mInstance) {
 
         this.mInstance = mInstance;
@@ -65,7 +57,7 @@ public class survey implements Runnable { // this is for survey2 to collec data 
         posText_re= mInstance.findViewById(R.id.app_re);
         posText_q= mInstance.findViewById(R.id.app_quality);
         posText_thr= mInstance.findViewById(R.id.app_thr);
-        posText_mir= mInstance.findViewById(R.id.app_mir);
+        posText_mir= mInstance.findViewById(R.id.app_bt);
 
     }
 

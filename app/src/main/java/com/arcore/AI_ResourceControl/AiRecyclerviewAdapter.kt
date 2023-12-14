@@ -15,6 +15,7 @@ import java.io.IOException
 import java.lang.Thread.sleep
 
 /**
+ * The main code for backend of AI_selection
  * Adapter for RecyclerView to populate ai_settings_card_view_design.xml
  * Heavy lifting for instantiating the producer:consumer (BitmapSource:BitmapCollector) relationship
  *

@@ -105,18 +105,23 @@ bes
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
 
+    int afterHbo_counter =0;// counts steps after we run balancer after the end of hbo iteration
 
     int exploration_phase = 5;// initially 5 to explore 5 delegates on pyhon client
-    int iteration=1;// num of iterations after exploration
+    int iteration=3;// num of iterations after exploration
     int max_iteration=iteration+exploration_phase+1;// was 15+ originally => last +1 is for applying the best reward
-    int curBysIters =0;
+    int curBysIters =-1;
     List<Double> bysTratioLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
     List<Double> bysRewardsLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));//holds log of bayesian rewards for each iteration
     List<Double> bysAvgLcyLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
 
+    float smL_ratio=0.2f;// fixed ratio for baseline SML
 
     boolean bys_baseline1_2=true;// this controls if we wanna test baseline1-2 match Q and match latency to compaere with bayesian
 
+    double best_BT=0;// this is the reward of initial HBO activation with one object on the screen
+
+    int hbo_trigger_false_counter=0; // counts the # we wait for any possible noise for B_T calculation
 
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
     // on onTracking is called. Needed for DynamicBitmapSource
@@ -181,6 +186,9 @@ boolean oneTimeAccess=true;// to send image to server
      boolean stopwrite_datacollect = true;
     boolean stop_thread = false;
     List<List<Integer>> combinations_copy ;
+
+
+    public double[] all_delegates_LstHBO = new double[30];
 
     //$$$$$$$$$$$$$$$$$$$ for XMIRE-
     ListMultimap<Integer, Double> modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
@@ -251,7 +259,7 @@ boolean oneTimeAccess=true;// to send image to server
     ListMultimap<Double, List<Double>> reParamListMir =ArrayListMultimap.create();
 
     double bayesian1_bestTR= 0.7292209;// for scenario9 Config9 the  triangle ratio for the winner case
-    double bayesian1_bestLcty= 0.68; // the corresponding latency
+    double bayesian1_bestLcty= 0.71; // the corresponding latency
     //double bayesian1_bestLcty= 10.379083129247;
 
     int lastConscCounter=0; // counts the number of consecutive change in tris count, if we reach 5 we will change the tris
@@ -301,13 +309,13 @@ boolean oneTimeAccess=true;// to send image to server
     private ArrayList<String> scenarioList = new ArrayList<>();
     private String currentScenario = null;
     //private int scenarioTickLength = 22000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
-    private int scenarioTickLength = 3000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 65000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
 
 
     //private int removalTickLength = 25000;
     private ArrayList<String> taskConfigList = new ArrayList<>();
     private String currentTaskConfig = null;
-    private int taskConfigTickLength = 40000;
+    private int taskConfigTickLength = 3000;
          //   35000;
     private int pauseLength = 10000;
 
@@ -491,15 +499,15 @@ boolean oneTimeAccess=true;// to send image to server
 
                 avg_AIperK.clear();
                 baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
-               // bfb.staticAlg(bayesian1_bestTR);
-
-                bfb.staticDelegate();
-                // bfb.staticAlg(bayesian1_bestTR);
+                bfb.staticDelegate();// Do static Delegate
+                bfb.matchAvgLatency();// just match the latency
+                /*
                 try {
-                    bfb.staticMatchTrisRatio(bayesian1_bestTR);// baseline 1
+                 //   bfb.staticMatchTrisRatio(bayesian1_bestTR);//runs SMQ and then starts SML
+
                 } catch (InterruptedException e) {
                     e.printStackTrace();
-                }
+                */
             }
 
       else if(tempModelRequest.req.equals( "delegate"))
@@ -1024,9 +1032,9 @@ boolean oneTimeAccess=true;// to send image to server
         TextView posText_app_quality = (TextView) findViewById(R.id.app_quality);
         posText_app_quality.setText("Q: " );
 
-        TextView posText_app_mir = (TextView) findViewById(R.id.app_mir);
-        posText_app_mir.setText("MIR: 0" );
-
+        TextView posText_app_hbo = (TextView) findViewById(R.id.app_bt);
+//        posText_app_hbo.setText("MIR: 0" );
+        posText_app_hbo.setText("B_t: 0" );
 
 
         //create the file to store user score data
@@ -1384,7 +1392,14 @@ boolean oneTimeAccess=true;// to send image to server
             sbb.append("decimation_ratio");
             sbb.append(',');
             sbb.append("quality");
-
+            sbb.append(',');
+            sbb.append("reward_bt");
+            sbb.append(',');
+            sbb.append("best_bt");
+            sbb.append(',');
+            sbb.append("bt_error");
+            sbb.append(',');
+            sbb.append("hbo_running");
             sbb.append('\n');
             writer.write(sbb.toString());
             System.out.println("done!");
@@ -1552,7 +1567,7 @@ boolean oneTimeAccess=true;// to send image to server
             //get list of .sfb's from assets
             //assetList = getAssets().list("models");
             assetList = getAssets().list("models");
-            //take off .sfb from every string for use with server communication
+            //take off .sfb from every string for use with server_Butt communication
             for (int i = 0; i < assetList.length; i++) {
                 assetList[i] = assetList[i].substring(0, assetList[i].length() - 4);
             }
@@ -1926,6 +1941,16 @@ boolean oneTimeAccess=true;// to send image to server
 
 */
 
+        Button server_Butt = (Button) findViewById(R.id.server);// button server_Butt when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        server_Butt.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View view) {
+
+                ModelRequestManager.getInstance().add(new ModelRequest( getApplicationContext(), MainActivity.this, deleg_req,"delegate"),false,false );
+                deleg_req+=1;
+
+            }
+        });
+
         //create button listener for object placer
         Button placeObjectButton = (Button) findViewById(R.id.placeObjButton);
 
@@ -1933,11 +1958,8 @@ boolean oneTimeAccess=true;// to send image to server
             public void onClick(View view) {
 
 
-
                     double original_tris=excel_tris.get(excelname.indexOf(currentModel));
                     renderArray.add(objectCount,new decimatedRenderable(modelSpinner.getSelectedItem().toString(),original_tris));
-
-
 
 
                 addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount));
@@ -1948,7 +1970,15 @@ boolean oneTimeAccess=true;// to send image to server
 
                 //}
 
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
 
+//      Uncomment for Bayes auto Trigger
+      if(objectCount==0)
+                   runOnUiThread(server_Butt::callOnClick);
 
             }
 
@@ -2193,8 +2223,8 @@ boolean oneTimeAccess=true;// to send image to server
             }
         });
 
-//        Button gc = (Button) findViewById(R.id.server);
-//        gc.setOnClickListener(new View.OnClickListener() {
+//        Button server_Butt = (Button) findViewById(R.id.server_Butt);
+//        server_Butt.setOnClickListener(new View.OnClickListener() {
 //            public void onClick(View view) {
 //
 //                reParamList.clear();
@@ -2211,18 +2241,10 @@ boolean oneTimeAccess=true;// to send image to server
 //            }
 //            });
 
-        Button gc = (Button) findViewById(R.id.server);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
-        gc.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View view) {
 
-                ModelRequestManager.getInstance().add(new ModelRequest( getApplicationContext(), MainActivity.this, deleg_req,"delegate"),false,false );
-                deleg_req+=1;
-
-            }
-            });
 
 // This is only for the offline analysis
-        Button offAnalyz = (Button) findViewById(R.id.offlineAnalysis);// button server when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        Button offAnalyz = (Button) findViewById(R.id.offlineAnalysis);// button server_Butt when is pushed, we activate the DelegatereqRunnable class instead of decimation
         offAnalyz.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
                 avg_AIperK.clear();
@@ -2240,17 +2262,21 @@ boolean oneTimeAccess=true;// to send image to server
         Button staticForBayes = (Button) findViewById(R.id.staticAlg);// button  when is pushed, we activate the DelegatereqRunnable class instead of decimation
         staticForBayes.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
-
              ///    This is to run baseline 1 and 2 for match latency
               baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
-              if(bys_baseline1_2)  {
+              if(bys_baseline1_2)  {// this is to just run SML for user study comparison
 
-                bfb.staticDelegate();
-                try {
-                    bfb.staticMatchTrisRatio(bayesian1_bestTR);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }}
+                  avg_AIperK.clear();
+                //  baselineForBayesian bfb= new baselineForBayesian(MainActivity.this);
+                  bfb.staticDelegate();// Do static Delegate
+                  bfb.matchAvgLatency();// just match the latency
+//                bfb.staticDelegate();
+//                try {
+//                    bfb.staticMatchTrisRatio(bayesian1_bestTR);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+            }
 
               else{ // baseline 4
 
@@ -2262,18 +2288,89 @@ boolean oneTimeAccess=true;// to send image to server
             }
         });
 
+
+
+       // This is to revert all objects to Q1
+        Button highQ = (Button) findViewById(R.id.highQ);// button  when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        highQ.setOnClickListener(new View.OnClickListener() {
+            @SuppressLint("SuspiciousIndentation")
+            public void onClick(View view) {
+                ///    This is to run baseline 1 and 2 for match latency
+
+
+                for (int i = 0; i < objectCount; i++) {
+                            float decRatio=1f;
+                                total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))) );// total =total -1*objtris
+                                ratioArray.set(i,  decRatio);
+                                renderArray.get(i).decimatedModelRequest(decRatio, i, usecash);
+                                try {
+                                    Thread.sleep(20);
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+
+                                // update total_tris
+                                total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))))  ;// total = total + 0.8*objtris
+                                //      trisDec.put(total_tris,true);
+                                if (!decTris.contains(total_tris))
+                                    decTris.add(total_tris);
+                                curTrisTime= SystemClock.uptimeMillis();
+                                // quality is registered
+                            }
+
+
+                }
+
+
+        });
+
+
+        // This is to revert all objects to Q1
+        Button staticDec = (Button) findViewById(R.id.static_decimation);// button  when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        staticDec.setOnClickListener(new View.OnClickListener() {
+            @SuppressLint("SuspiciousIndentation")
+            public void onClick(View view) {
+                ///    This is to run baseline 1 and 2 for match latency
+                for (int i = 0; i < objectCount; i++) {
+                    float decRatio=smL_ratio;
+                    total_tris = total_tris - (ratioArray.get(i) * (((double)o_tris.get(i))) );// total =total -1*objtris
+                    ratioArray.set(i,  decRatio);
+                    renderArray.get(i).decimatedModelRequest(decRatio, i, usecash);
+                    try {
+                        Thread.sleep(20);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    // update total_tris
+                    total_tris = total_tris + (ratioArray.get(i) * (((double)o_tris.get(i))))  ;// total = total + 0.8*objtris
+                    //      trisDec.put(total_tris,true);
+                    if (!decTris.contains(total_tris))
+                        decTris.add(total_tris);
+                    curTrisTime= SystemClock.uptimeMillis();
+                    // quality is registered
+                }
+
+
+            }
+
+
+        });
+
+
 /// bayesian test : you need to run three AI tasks for this test
         Button bt = (Button) findViewById(R.id.bayesian);
         bt.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
                 avg_AIperK.clear();
+                bayesian bys = new bayesian(MainActivity.this);
+                bys.apply_delegate_tris(all_delegates_LstHBO);
+
+                /* commented on Dec 2023 for adding instant BO activation
+                avg_AIperK.clear();
                 bayesian bys= new bayesian(MainActivity.this);
-//                try {
-//                    bys.otdaRevised(0.2*orgTrisAllobj);
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
+
 
                 double [] test_dlg=new double[]{3.0, 2.0, 1.0, 0.6116331503770043};
                         //{1.0, 0.0, 2.0,0.5};
@@ -2376,11 +2473,13 @@ boolean oneTimeAccess=true;// to send image to server
                     tasks = new StringBuilder();
                     runOnUiThread(() -> {
                         final int[] i = {0};
-                        CountDownTimer taskTimer, sceneTimer, removeTimer; // this is to remove objects one by one
-                        removeTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) {
+                        CountDownTimer taskTimer, sceneTimer, hboTrigTimer; // this is to remove objects one by one
+                        hboTrigTimer = new CountDownTimer(Long.MAX_VALUE, 120000) {
                             @Override
                             public void onTick(long millisUntilFinished) {
-                                if (objectCount == 0) {
+                                ModelRequestManager.getInstance().add(new ModelRequest( getApplicationContext(), MainActivity.this, deleg_req,"delegate"),false,false );
+                                deleg_req+=1;
+                             /*   if (objectCount == 0) {
                                     this.cancel();
                                     //switch off is for motivation- exp2
                                     switchToggleStream.setChecked(false);
@@ -2388,29 +2487,27 @@ boolean oneTimeAccess=true;// to send image to server
                                     runOnUiThread(clearButton::callOnClick);
                                     return;
                                 }
-                                // removePhase=true;
-                                // last element in the sorted list would be maximum
-                                //int index=   sortedlist[0].get(sortedlist[0].size() - 1);
 
                                 String name = renderArray.get(objectCount-1).fileName;
                                 renderArray.get(objectCount-1).baseAnchor.select();
-                                runOnUiThread(removeButton::callOnClick);
+                                runOnUiThread(removeButton::callOnClick);*/
 
-                                // runOnUiThread(Toast.makeText(MainActivity.this, "Removed " + name, Toast.LENGTH_LONG)::show);
-                            }
+                                         }
                             @Override
                             public void onFinish() {
                             }
                         };
 
-                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) {
+
+                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 60000){
+                                //scenarioTickLength) {
                             // this is to automate adding objects to the screen
                             @Override
                             public void onTick(long millisUntilFinished) {
                                 // tick per 1 second, reading new line each time
 
 
-                                // XMIR MOTV0 is to run models concurently and add 5 planes at a time
+                                // MIR MOTV0 is to run models concurently and add 5 planes at a time
                                /*
                                 if(tris_variation[0] <=0)
                                 { this.cancel();
@@ -2440,8 +2537,7 @@ boolean oneTimeAccess=true;// to send image to server
 //                                        // to start over data collection
 //                                        decTris.clear();
                                         this.cancel();
-                                        //commented for motv-exp 1 and desing PAR-PAI experiment: commented switchToggleStream.setChecked(false);
-                                        //   removeTimer.start();
+                                        //  hboTrigTimer.start();// //uncomment  for HBO baseline periodic
 
                                         return;
                                     }
@@ -2463,8 +2559,21 @@ boolean oneTimeAccess=true;// to send image to server
                                     else{
                                     renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
                                      addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);}//
+                                    // comment below lines if you want to deactive HBO auto trigger
+                                    Thread.sleep(700);
+//
+//hbo trigger to run a baseline
+                                    if(objectCount==0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
+                                    {
+                                   // if(objectCount%2==0){//uncomment  for HBO baseline periodic
+                                    ModelRequestManager.getInstance().add(new ModelRequest( getApplicationContext(), MainActivity.this, deleg_req,"delegate"),false,false );
+                                      deleg_req+=1;}
+
+
 
                                 } catch (IOException e) {
+                                    e.printStackTrace();
+                                } catch (InterruptedException e) {
                                     e.printStackTrace();
                                 }
                                 //// this is to read from scenario1 and draw objs to the screen
@@ -2478,7 +2587,7 @@ boolean oneTimeAccess=true;// to send image to server
                             }
                         };
                         final boolean[] startObject = {false};
-                        taskTimer = new CountDownTimer(Long.MAX_VALUE, scenarioTickLength) {
+                        taskTimer = new CountDownTimer(Long.MAX_VALUE, taskConfigTickLength) {
                             @Override
                             public void onTick(long millisUntilFinished) {
 
@@ -2777,9 +2886,6 @@ boolean oneTimeAccess=true;// to send image to server
 
 
 
-
-
-
         Button savePlacementButton = (Button) findViewById(R.id.savePlacement);
         savePlacementButton.setOnClickListener(view -> {
 
@@ -2984,7 +3090,7 @@ boolean oneTimeAccess=true;// to send image to server
 
                             {
                                 /// this is for data collection bayesian
-                       new balancer(MainActivity.this).run(); // balancer has sqrt(rohT^2+ rohD^2) as wi
+                       new balancer(MainActivity.this).run(); // balancer
 // this is for MIr
                               // new Mir(MainActivity.this).run();
 //
@@ -4715,7 +4821,6 @@ public float delta (float a, float b , float c1,float creal,  float d, float gam
 
         node.select();
       //  datacol=false;// the object is placed to the screen
-
 
 
 

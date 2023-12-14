@@ -5,11 +5,7 @@ package com.arcore.AI_ResourceControl;
 * slope oof tris-distance Plus it is difficult to use two weights per AI model compared to one Weight + Plus, the response time vs tris is accurate and has RMSE below 10%
 * Process:
 * line 116 gets current reponsetime per model
-* collects data per model per tris for binsize=10
-* periodically runs the prediction and tests if model error>10 -> Yes: retrains the model and then calculates miss-count
-* has THE POLICY TO REGULATE the DECIMATION bins if model gives us more than 5 times noise
-*At the end, calls writethr to write mean response time of measured and calculated per model in each line starting from the first model
-*
+
 * */
 /*
 import java.io.File;

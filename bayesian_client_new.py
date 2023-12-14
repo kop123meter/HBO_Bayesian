@@ -1,13 +1,27 @@
 '''
 @@ This code has the function of automate HBO trigger and connects with Java server/client correctly
 This is the main python client that has bayesian
-
+    
 You need to change "num_tasks" and "max_iter" here and also reflct the changes in two other codes:
     1-TwoClientsServer_new  of the Java code
-    2-max_iteration in MainActivity of the Java code
+    2-max_iteration  of TwoClientsServer_new (server)
+    3-max_iteration in MainActivity of the Java code (app)
+    
+Instruction:
+    @@ on this code
+    1. Run the Pyhton
+    
+    @@ on the Android do this first: 
+      
+    2. Run server in Android java -cp ./ server.TwoClientsServer_new
+    3. Push server Button on the app
+    4. Add AI and Run them on the app, and at least on virtual object on the screen
+    
+    
+
 
 '''
-
+import os
 
 import json
 import socket
@@ -39,11 +53,14 @@ def quick_test(X):
     return X[0][2]
 
 
-def objective( X):
+
+
+
+def objective(X):
     
         current_time= datetime.datetime.now()
         timecur = current_time.strftime("%H:%M:%S.%f")
-        with open ("Candidate_time"+str(x)+".csv", "a")  as out:
+        with open (str(x)+"/Candidate_time"+str(x)+".csv", "a")  as out:
            out.write(str(timecur)+"\n")    
            
         global counter
@@ -94,7 +111,7 @@ def objective( X):
           print("Recieved reward : "+ str(received_data))
           current_time= datetime.datetime.now()
           x_time = current_time.strftime("%H:%M:%S.%f")
-          with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+          with open (str(x)+"/Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
                out.write(str(x_time)+","+str(nontranslated_X_list[0])+","+str(X_list[0])+","+str(received_data))
         
         #received_data=X_list[0][2]
@@ -134,13 +151,6 @@ def translate_delegate_usage(x):
 
 class JavaRewardBayesianOptimization(BayesianOptimization):
   
-    #def __init__(self, domain , acquisition_type='EI', acquisition_optimizer_type=None, model_type='GP'):
-   # normalize_Y=False,         exact_feval=False, acquisition_jitter=0.01, num_cores=None, verbosity=False, **kwargs):
-        # super(JavaRewardBayesianOptimization, self).__init__(reward_function,domain, acquisition_type, acquisition_optimizer_type,
-          #                                                   model_type)
-                                                           #  normalize_Y, exact_feval, acquisition_jitter,
-                                                            # num_cores, verbosity, **kwargs)
-                     
     
     def __init__(self, domain,constraints  ):
      #super(JavaRewardBayesianOptimization, self).__init__(reward_function,domain=domain,constraints = constraints)
@@ -157,13 +167,14 @@ space = [     {'name': 'var_1', 'type': 'continuous', 'domain': [0,1]},
 
 current_time= datetime.datetime.now()
 x = current_time.strftime("%H:%M")
-
+os.makedirs(x, exist_ok=True)
 timecur = current_time.strftime( "%H:%M:%S.%f")
 
 print(x)
 counter=0
 
-
+#problem = JavaRewardBayesianOptimization(domain=space,constraints= [{'name': 'constr_1','constraint': 'x[:,0]+ x[:,1]+ x[:, 2] -1'},
+#                                                     {'name': 'constr_2','constraint': '-x[:,0]- x[:,1]- x[:, 2] +0.999'}                              ])
 
 
  
@@ -177,16 +188,16 @@ while(1) :
  
    if(str(received_data)=='activate'):
 
-     with open ("Bayesian OUTPUT"+str(x)+".csv", "w")  as out:
-         out.write("time,cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward \n")
+     with open (str(x)+"/Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+         out.write("time,,cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward \n")
     
     
 
-     with open ("Candidate_time"+str(x)+".csv", "w")  as out:
+     with open (str(x)+"/Candidate_time"+str(x)+".csv", "a")  as out:
          out.write("time \n")    
     
      num_tasks=6
-     num_tasks=2
+     #num_tasks=3
 
 
 
@@ -198,12 +209,14 @@ while(1) :
                                                                     ])
 
 
-     '''problem = JavaRewardBayesianOptimizatio gos for exploring 5 different options and in the next lines we will run optimization
-     to exploit'''
+     #problem = JavaRewardBayesianOptimizatio gos for exploring 5 different options and in the next lines we will run optimization
+     #to exploit
 
     
      print("Initial exploration is finished!")
-     max_iter  = 1
+     max_iter =3
+     #=6
+     #10
 #15
      problem.run_optimization(max_iter = max_iter)                                      
                 
@@ -216,20 +229,20 @@ while(1) :
 
      print("Best input combination: for iteration count #" +str(max_iter), best_input)
      print("Best reward:", best_reward)
-     with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+     with open (str(x)+"/Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
          out.write( str( best_input) +","+str( best_reward)+"\n")
-     ''''This is the application of the best input to our app after the max trial'''
+     #This is the application of the best input to our app after the max trial
 
-     translatedU=[0,0,0,0]
+     translatedU=[0,0,0,0,0]
      translatedU[0:3]=translate_delegate_usage(best_input[0:3])
      translatedU[3]=(best_input[3])
-
+     translatedU[4]=best_reward*-1
 
      X_list =[]
      X_list2 =[]
      X_list2.append( list(translatedU))
      X_list.append( list([best_reward*-1]))
-
+ 
         # Prepare data to send to the Java server
      data = {
            "python_client"
@@ -253,12 +266,12 @@ while(1) :
             received_data = client_socket.recv(1024).decode()
             print("Recieved reward : "+ str(received_data))
             #
-            with open ("Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
+            with open (str(x)+"/Bayesian OUTPUT"+str(x)+".csv", "a")  as out:
                out.write(str(best_input[0])+","+str(X_list2[0]))
 
  
      # Plot convergence and save as a .png file
-     problem.plot_convergence(filename='convergence_plot')
-     problem.save_report("report"+str(x))
+     problem.plot_convergence(filename=str(x)+str("/")+'convergence_plot')
+     problem.save_report(str(x)+"/report"+str(x))
 
 

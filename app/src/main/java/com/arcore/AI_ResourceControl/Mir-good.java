@@ -1,4 +1,4 @@
-///**********This was for MIR data collection. noy used for XMIR*/
+///**********This was for MIR data collection. not used for XMIR*/
 //
 //package com.arcore.AI_ResourceControl;
 //

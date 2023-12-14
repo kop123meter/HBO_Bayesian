@@ -23,6 +23,7 @@ import java.net.Socket;
 import java.util.Arrays;
 
 /**
+ * This is the code out of my curiosity to see if we can offload the frames to a server for AI inference
  *      Communication with server running on a thread
  */
 

@@ -1,0 +1,17 @@
+Execution time for reward: activate : 1701971304954 milliseconds 
+Execution time for reward: -1.028 : 18493 milliseconds 
+Execution time for reward: -1.205 : 18635 milliseconds 
+Execution time for reward: -0.81 : 18636 milliseconds 
+Execution time for reward: -0.911 : 18737 milliseconds 
+Execution time for reward: -0.807 : 18531 milliseconds 
+Execution time for reward: -0.724 : 18423 milliseconds 
+Execution time for reward: -0.876 : 18646 milliseconds 
+Execution time for reward: -1.064 : 18632 milliseconds 
+Execution time for reward: -0.906 : 18411 milliseconds 
+Execution time for reward: -0.901 : 18358 milliseconds 
+Execution time for reward: -0.934 : 18508 milliseconds 
+Execution time for reward: -0.964 : 18404 milliseconds 
+Execution time for reward: -0.972 : 18462 milliseconds 
+Execution time for reward: -1.013 : 18849 milliseconds 
+Execution time for reward: -0.958 : 18884 milliseconds 
+Execution time for reward: -0.987 : 18417 milliseconds 

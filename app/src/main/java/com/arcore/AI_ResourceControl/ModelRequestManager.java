@@ -21,16 +21,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 
-
-
 public class ModelRequestManager {
 
     static final int DOWNLOAD_FAILED = -1;
     static final int DOWNLOAD_PENDING = 1;
     static final int DOWNLOAD_STARTED = 2;
     static final int DOWNLOAD_COMPLETE = 3;
-
-
 //
     private static final int KEEP_ALIVE_TIME = 100;
     //public static 2 repeatedRequestList;

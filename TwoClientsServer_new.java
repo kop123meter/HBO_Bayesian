@@ -18,43 +18,48 @@ public class TwoClientsServer_new {
 	public static void main(String[] args) {
 
 	int exploration=5;
-	int max_iterations=1;
+	//int max_iterations=10;
+	int max_iterations=3;
 	int iterations=	exploration +max_iterations+1; // the last +1 is to have the system apply the best reward
 
 		int client_number=1;// this is num of times we call HBO
 // we assume here that java client has triggered an inital connection to the server, then we run python client, so we are sure
 		//that client1 is java client
 		try {
-			ServerSocket serverSocket = new ServerSocket(4444); // Choose any available port
-			System.out.println("Server is running. Waiting for clients...");
+		  ServerSocket serverSocket = new ServerSocket(4444); // Choose any available port
+		  System.out.println("Server is running. Waiting for clients...");
 
-			Socket clientSocket1 = serverSocket.accept();
-			System.out.println("Client1 connected: " + clientSocket1.getInetAddress().getHostAddress());
+		  Socket clientSocket2 = serverSocket.accept();// first connect the python (run the code)
+		  System.out.println("Client2_"+client_number+" connected: " + clientSocket2.getInetAddress().getHostAddress());
 
+		  Socket clientSocket1 = serverSocket.accept(); // second connect the app (Push server Button)
+		  System.out.println("Client1 connected: " + clientSocket1.getInetAddress().getHostAddress());
 
-			while ( true){ // this runs for each time we trigger HBO
+		  while ( true){ // this runs for each time we trigger HBO
 
+			 if(client_number!=1)// not for the first round
+			 { clientSocket2 = serverSocket.accept();
+			   System.out.println("Client2_"+client_number+" connected: " + clientSocket2.getInetAddress().getHostAddress());}
 
-			Socket clientSocket2 = serverSocket.accept();
-
-			System.out.println("Client2_"+client_number+" connected: " + clientSocket2.getInetAddress().getHostAddress());
+			System.out.println("Server and Client are Connected");
 			// assume that client2 is python that will send input
             if (clientSocket2.getInetAddress().getHostAddress().equals( "127.0.0.1")==true)// this is python client
 				{
-
 					if(client_number>1)// if we have more than one call for HBO, we need to connect to the server again since we have shutdown the connection in the prev cycle through DelegateRequestRunnable class
 					{// we need to wait again for the java server to be connected to
 						clientSocket1 = serverSocket.accept();
 						System.out.println("Client1 connected: " + clientSocket1.getInetAddress().getHostAddress());
 					}
 					// this is to send, we need both directions (send&receive) here on the server
-					System.out.println("is sending from java client  ");
+					System.out.println("is sending activation from app  ");
 
 					javaClientHandler fromJava_sender = new javaClientHandler( clientSocket1,clientSocket2);// this is to recieve a result back from java client
 					fromJava_sender.start();// activate HBO
 
 					for (int i=0;i<iterations;i++) {//this runs up to the count of iterations in bayesian
-						clientSocket2 = serverSocket.accept();
+
+						clientSocket2 = serverSocket.accept();// here python runs the line 95 and connects again for objective function
+						System.out.println("Rcved Activation and is sending BO input from python  ");
 						pythonClientHandler client1Handler = new pythonClientHandler(clientSocket2, clientSocket1);
 						client1Handler.start(); // receive inputs from python and send to java client
 
@@ -98,7 +103,7 @@ public class TwoClientsServer_new {
 
 				// Read input from the client
 				String input = in.readLine();
-				System.out.println("Received from pythonClient and sent to the java client " + input);
+				System.out.println("Received from pythonClient and sent to the java client: " + input);
 				startTime = System.currentTimeMillis();
 				// Send the input to the other client
 				out.println(input);

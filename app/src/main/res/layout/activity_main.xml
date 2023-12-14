@@ -39,11 +39,11 @@
             android:textColor="#BBDEFB" />
 
         <TextView
-            android:id="@+id/app_mir"
+            android:id="@+id/app_bt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="left"
-            android:text="MIR:  "
+            android:text="B_t:  "
             android:textColor="#BBDEFB" />
 
         <TextView

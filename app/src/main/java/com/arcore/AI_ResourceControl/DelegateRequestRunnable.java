@@ -37,7 +37,7 @@ public class DelegateRequestRunnable implements Runnable {
     static final int DOWNLOAD_STARTED = 2;
     static final int DOWNLOAD_COMPLETE = 3;
 
-    boolean baseline1_2=false;// when we wanna run bayesian + two baselines we set this true here and in the activity main
+    boolean baseline1_2=true;// when we wanna run bayesian + two baselines we set this true here and in the activity main
 
     //download chunk size, make sure to match on server thread
     private final int BUFFER_SIZE = 160000;
@@ -107,7 +107,6 @@ public class DelegateRequestRunnable implements Runnable {
                     while (read1 == -1) // wait and listen
                         read1 = socketInputStream1.read(buffer1);
 
-
                     // this is just for the exploration phase , it recieves all the
 //                    if (phase.equals("exploration")){
                    // out = new PrintWriter(socket.getOutputStream(), true);
@@ -120,13 +119,37 @@ public class DelegateRequestRunnable implements Runnable {
                             //if (modelRequest.activityMain.curBysIters < max_iteration-1){// this is for all bayesian trials - before Dec 2023
                             if (modelRequest.activityMain.curBysIters < max_iteration){ // we already include a +1 in activity main to account for the last application of the best input (after a cycle of bayesian)
                                 String[] elements = message.substring(19, message.length() - 3).split(",");
-                                // Create a double array to store the converted elements
-                                double[] doubleArray = new double[elements.length];
-                                // Convert the elements to double and store them in the double array
-                                for (int i = 0; i < elements.length; i++) {
-                                    doubleArray[i] = Double.parseDouble(elements[i].trim());
+
+                                if(modelRequest.activityMain.curBysIters == max_iteration-1 && baseline1_2)// get the best reward to find avg Latency for baseline SML
+                                {// Here, we not only apply the best input, but also we take the best reward for baseline of SML = User study
+
+                                    double reward= Double.parseDouble(elements[elements.length-1].trim());
+
+                                    double[] doubleArray = new double[elements.length-1];// this is because the last data of elements is the best reward
+                                    // Convert the elements to double and store them in the double array
+                                    for (int i = 0; i < elements.length-1; i++) {
+                                        doubleArray[i] = Double.parseDouble(elements[i].trim());
+                                    }
+                                    modelRequest.all_delegates = doubleArray;
+                                    modelRequest.activityMain.all_delegates_LstHBO=doubleArray;// save it for mainactivity as well
+
+                                    int bestInd=modelRequest.activityMain.bysRewardsLog.indexOf(reward);
+                                    modelRequest.activityMain.bayesian1_bestTR=modelRequest.activityMain.bysTratioLog.get(bestInd);
+                                    modelRequest.activityMain.bayesian1_bestLcty=modelRequest.activityMain.bysAvgLcyLog.get(bestInd);
                                 }
-                                modelRequest.all_delegates = doubleArray;
+
+                                else {// find the delegate to apply
+                                    // Create a double array to store the converted elements
+                                    double[] doubleArray = new double[elements.length];
+                                    // Convert the elements to double and store them in the double array
+                                    for (int i = 0; i < elements.length; i++) {
+                                        doubleArray[i] = Double.parseDouble(elements[i].trim());
+                                    }
+                                    modelRequest.all_delegates = doubleArray;
+                                }
+
+
+
                             // this is to test if we can trigger the delegate applier- remove soon
                             Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
                             msg.obj = modelRequest;
@@ -135,12 +158,19 @@ public class DelegateRequestRunnable implements Runnable {
                             long endTime = System.currentTimeMillis();
                             //  Log.d("DelegateReq", "Buffer write time: " + (endTime - startTime) + " milliseconds");
 
-                            while (modelRequest.activityMain.avg_reward == 0) ;
+                            while (modelRequest.activityMain.avg_reward == 0);
                             //    Log.d("data received on java client, reward is: ", String.valueOf(modelRequest.activityMain.avg_reward));
                             out.println(modelRequest.activityMain.avg_reward);
                             //flush stream
                             out.flush();
                             exploration_phase -= 1;
+                            if(modelRequest.activityMain.curBysIters==max_iteration-1)// should be done all the time after last HBO iteration
+                                    //&& modelRequest.activityMain.objectCount==1)// this is done just for one time
+                            {
+                                modelRequest.activityMain.avg_reward=(double) (Math.round((double) (modelRequest.activityMain.avg_reward * 100))) / 100;
+                                modelRequest.activityMain.best_BT = modelRequest.activityMain.avg_reward;
+
+                            }
                             modelRequest.activityMain.curBysIters += 1;
                             modelRequest.activityMain.avg_reward = 0; // restart the reWARD
 
@@ -162,9 +192,11 @@ public class DelegateRequestRunnable implements Runnable {
                             }
                             else
                                 break;// this is for other baselines
+
                             //it's max_iteration+1 cause we have max_iteration+1 Msgs from python client => want to receive the last msg of the best reward to obtain the Tratio and Avglatency data for the baseline
-                            if(modelRequest.activityMain.curBysIters ==max_iteration+1)// we did apply all the exploration and exploitation from python client
+                            if(modelRequest.activityMain.curBysIters ==max_iteration)//                                    +1)// we did apply all the exploration and exploitation from python client
                                 break;
+
 
                             if ( exploration_phase == 0)// break if that's not in the exploration phase or we have finished 5 times exploration
                               exploration_phase=1; // we make it 1 that shows we are in the exploitation phase
@@ -175,24 +207,13 @@ public class DelegateRequestRunnable implements Runnable {
 
                         }
 
+                    modelRequest.activityMain.curBysIters=-1;// reset it for the next runs of Bayesian
+                    modelRequest.activityMain.afterHbo_counter =0;// we restart this
 
                     long endTime2 = System.currentTimeMillis();
                     Log.d("DelegateReq", "Total execution Time: " + (endTime2 - startTime2) + " milliseconds");
 
-                    //fout.flush();
 
-                    // tell server that file is received so it doesn't close connection
-//                    PrintWriter outM = new PrintWriter(socket.getOutputStream(), true);
-//                    outM.println("File received");
-
-
-//added from model req manager
-//         nill moved above           Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
-//                    msg.obj = modelRequest;
-
-//                    outM.flush();
-                    // close all the streams
-                   // fout.close();
                     socketInputStream1.close();
 //                    outM.close();
                     in.close();
@@ -201,19 +222,14 @@ public class DelegateRequestRunnable implements Runnable {
                     socket.close();
 
 //                    modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
-
-
                     ModelRequestManager.dlgRequestList.remove(modelRequest);
 
-
                 }//}
-
 
                 catch (Exception e) {
                     mInstance.handleState(DOWNLOAD_FAILED, modelRequest);
                     Log.w("ModelRequestRunnable", e.getMessage());
                 }
-
 
             } catch (InterruptedException e) {
 
@@ -221,7 +237,6 @@ public class DelegateRequestRunnable implements Runnable {
             } finally {
 
             }
-
 
     }
     catch (Exception e) {

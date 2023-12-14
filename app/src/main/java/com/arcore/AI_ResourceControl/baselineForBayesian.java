@@ -26,7 +26,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
     float ref_ratio=0.5f;
     int objC;
     Map <Integer, Double> candidate_obj;
-    float []coarse_Ratios=new float[]{1f,0.8f, 0.7f , 0.5f,0.3f, 0.2f};
+    float []coarse_Ratios=new float[]{1f,0.8f, 0.7f , 0.5f,0.3f, 0.2f,0.1f};
 
     double [][]fProfit;
     double [][] tRemainder;
@@ -289,7 +289,7 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
         final double[] right = {1};
         final int[] index = {0};
 
-        CountDownTimer sceneTimer = new CountDownTimer(14000, 2000) {//is  better (50000, 5000) {
+        CountDownTimer sceneTimer = new CountDownTimer(12000, 2000) {//is  better (50000, 5000) {
 
             @Override
             public void onTick(long millisUntilFinished) {
@@ -302,13 +302,21 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
             public void onFinish() {// at the end of 20 times * 2s data collection, we use binary search for the next ratio
 
 
-                if(perc_error <0.05 || selectedRatio ==0.05){// cause we cannot decimate objects below 5%
+                if(index[0]>=coarse_Ratios.length-1 ||( perc_error <0.05 || selectedRatio ==0.05)){// cause we cannot decimate objects below 5%
                     this.cancel();
                     return;
                 }
 
                 index[0] +=1;
+                if(index[0]>=coarse_Ratios.length-1)
+                {   this.cancel();
+                    return;}
+
+
                 selectedRatio=coarse_Ratios[index[0]];
+
+                mInstance.smL_ratio=selectedRatio;
+
                // decimateall(selectedRatio);
                 double nextTris = selectedRatio*mInstance.orgTrisAllobj;
                 try {

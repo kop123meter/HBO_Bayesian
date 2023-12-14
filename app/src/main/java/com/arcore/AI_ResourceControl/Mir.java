@@ -1,5 +1,9 @@
 /**********This was for MIR data collection. noy used for XMIR*/
-
+/* collects data per model per tris for binsize=10
+        * periodically runs the prediction and tests if model error>10 -> Yes: retrains the model and then calculates miss-count
+        * has THE POLICY TO REGULATE the DECIMATION bins if model gives us more than 5 times noise
+        *At the end, calls writethr to write mean response time of measured and calculated per model in each line starting from the first model
+        */
 package com.arcore.AI_ResourceControl;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -51,9 +55,6 @@ public class Mir implements Runnable {
 
 
 
-
-
-
     public Mir(MainActivity mInstance) {
 
         this.mInstance = mInstance;
@@ -65,7 +66,7 @@ public class Mir implements Runnable {
         posText_re= mInstance.findViewById(R.id.app_re);
         posText_q= mInstance.findViewById(R.id.app_quality);
         posText_thr= mInstance.findViewById(R.id.app_thr);
-        posText_mir= mInstance.findViewById(R.id.app_mir);
+        posText_mir= mInstance.findViewById(R.id.app_bt);
         //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
        // fProfit= new double[objC][coarse_Ratios.length];
       //  tRemainder= new double[objC][coarse_Ratios.length];
@@ -95,10 +96,7 @@ public class Mir implements Runnable {
         boolean fault_thr=false;
         int tris_window=4;
 
-
         double period_init_tris=mInstance.total_tris;// this is the starting triangle count
-
-
 
 
         //int count=0;
@@ -130,17 +128,11 @@ public class Mir implements Runnable {
 
 
 
-
-
-
         //I got an error for regression since decimation occurs in UI thread and Modeling runs at the same time
         // solution is to start data collection after one period passes from algorithm
  // else{ // just collect data when algorithm was applied in the last period
 
         //totTris = mInstance.total_tris;
-
-
-
 
         meanThr = mInstance.getThroughput();// after the objects are decimated
         while((meanThr) > 200 || (meanThr) <1) // we wanna get a correct value

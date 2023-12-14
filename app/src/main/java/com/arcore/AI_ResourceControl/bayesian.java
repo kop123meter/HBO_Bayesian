@@ -45,6 +45,7 @@ import static java.lang.Math.min;
  import static java.lang.Thread.sleep;
 
  import android.os.CountDownTimer;
+ import android.widget.TextView;
 
  public class bayesian implements Runnable {
      double avgLatency=0;// this is for the baseline average latency
@@ -103,6 +104,7 @@ import static java.lang.Math.min;
 
     public void run() {// this function is for the bayesian test- dta collection to test all the combinations for aI delegates
 
+     /*
                 if(!mInstance.stopwrite_datacollect)
                    writeRT();//starting the timer, we write the data collected for the last 10s period while all models were fixed: this is to write the results for the current combination selection
 
@@ -187,8 +189,8 @@ import static java.lang.Math.min;
         mInstance.avg_reponseT.replaceAll(s -> 0d);
         // here we've done delegate assignment and triangle change now want to restart the responseT of all tasks to start data collection
 
-        mInstance.avgq= calculateMeanQuality();
-
+//        mInstance.avgq= calculateMeanQuality();
+*/
 
             }
 
@@ -232,7 +234,8 @@ import static java.lang.Math.min;
             ///test I'm working on this as of now
             // this is to apply 3 diff delegates to an AI task and each time
             // collect 5 period of AI inference data and at the end calculate the average and write it to
-            CountDownTimer sceneTimer = new CountDownTimer(10000, 5000){
+            CountDownTimer sceneTimer = new CountDownTimer(30000, 3000){
+//                    (10000, 5000){
                     //oroginal was this (60000, 3000) {//is  better (50000, 5000) {
                 @Override
                 public void onTick(long millisUntilFinished) {
@@ -528,7 +531,7 @@ import static java.lang.Math.min;
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        mInstance.avgq = calculateMeanQuality();
+//        mInstance.avgq = calculateMeanQuality();
         // end
 
 
@@ -546,8 +549,8 @@ import static java.lang.Math.min;
 
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
        // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
-        CountDownTimer sceneTimer = new CountDownTimer(12000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
-
+      // original of Dec 2023 tests CountDownTimer sceneTimer = new CountDownTimer(18000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
+        CountDownTimer sceneTimer = new CountDownTimer(6000, 1500) {
             @Override
             public void onTick(long millisUntilFinished) {
                 writeRT();
@@ -559,20 +562,29 @@ import static java.lang.Math.min;
                 // this is to include fixed possible noise over the first 7 iterations
                 double reward=0;
 
+
                 if(mInstance.bys_baseline1_2)// this is for HBO compared to the frist two baselines
                  reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
 
                 else // this is for baseline #3 without triangle count change
                     reward=- (avgLatency);// I don't use weight here becuase there is no use
 
-                reward=(double) (Math.round((double) (reward * 10000))) / 10000;
-                if(mInstance.curBysIters ==0)
-                    reward-=0.15;
+               // reward=(double) (Math.round((double) (reward * 10000))) / 10000;
+
+
+
+                if(mInstance.curBysIters ==0 ||mInstance.curBysIters ==1 )
+                    reward-=0.18;
                 else
                     if(mInstance.curBysIters <4 )
-                    reward-=0.15;
+                    reward-=0.1;
                     //reward-=0.15;
-                mInstance.avg_reward=reward;
+
+                reward=(double) (Math.round((double) (reward * 1000))) / 1000;
+                mInstance.avg_reward=   reward;
+//                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
+//                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
+
                 mInstance.bysRewardsLog.set(curIteration,reward);
                 mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
 
@@ -901,6 +913,7 @@ import static java.lang.Math.min;
 
 
     public void writeRT( ){ // this is to collect the response time of all AIS after change in the AI device
+
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Bayesian_dataCollection"+mInstance.fileseries+".csv";
@@ -909,7 +922,8 @@ import static java.lang.Math.min;
         sb.append(dateFormat.format(new Date()));
         
         double avg_AIlatencyPeriod=0;// this is to calculate sum of each AI model response time per period
-        
+        mInstance.avgq = calculateMeanQuality();
+
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             for (int i=0;i<mInstance.mList.size();i++)
             {
@@ -938,8 +952,9 @@ import static java.lang.Math.min;
 
                 double cur_latency=actual_rpT-expected_time;
                 double tmp_lastLatency=mInstance.last_latencyInstanceN;
-
-                if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)// we check atleast one istance to make sure our latency is not noisy
+///* tmp deactivate maybe not necessary
+               // if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)
+               if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)// we check atleast one instance to make sure our latency is not noisy
                 {
                     if(cur_latency/tmp_lastLatency >1.4 &&  mInstance.avg_AIperK.size()>2)
                         isnoisy=true;
@@ -950,6 +965,7 @@ import static java.lang.Math.min;
                 if(cur_latency<0)
                     isnoisy=true;
 
+                //if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
                 if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
                    mInstance.last_latencyInstanceN =cur_latency;
 

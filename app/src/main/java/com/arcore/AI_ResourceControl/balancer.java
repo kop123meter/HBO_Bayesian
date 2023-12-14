@@ -1,15 +1,13 @@
  ///
  /**
-  * This is to test if we can use weight from linear regression of model specific : thr and dis-vs tris
-  This is  balancer with per AI model trained considering the latest bins
-  * the measured W is omitted and instead we rely on estimated one. We hope that with parameterts that come from the newest data,
-  * we'll have a correct order of impacted AI models as well as a better variation in Wi instead of stable one
-  *NNNNNNOOOOOOTTTTTTEEEEe that if you use updated total tris for datacollection,
+  *
+  *
+  * For HBO, this code just shows AI task's response time and calculates the average throughput
   */
 
-
+// @@@ check for  "Uncomment for Bayes auto Trigger" and uncomment those codes for auto trigger in
 package com.arcore.AI_ResourceControl;
-/*This code has relation ship between AI throughput and distance and triangle count*/
+/*for HBO it collects data and checks if HBO trigger is needed*/
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -42,6 +40,8 @@ import com.google.common.collect.ListMultimap;
 
 public class balancer implements Runnable {
 
+    boolean hbo_trigger=true;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
+
     int binCap=7;
     private final MainActivity mInstance;
     float ref_ratio=0.5f;
@@ -60,8 +60,8 @@ public class balancer implements Runnable {
     double tMin[] ;
     int missCounter=3;//means at least 4 noises
    // int aiIndx;
-   TextView posText_re,posText_thr,posText_q,posText_mir;
-
+   TextView posText_re,posText_thr,posText_q,posText_app_hbo;
+    double reward=0;
 
     public balancer(MainActivity mInstance) {
 
@@ -85,8 +85,8 @@ public class balancer implements Runnable {
         posText_re= mInstance.findViewById(R.id.app_re);
         posText_q= mInstance.findViewById(R.id.app_quality);
         posText_thr= mInstance.findViewById(R.id.app_thr);
-        posText_mir= mInstance.findViewById(R.id.app_mir);
-
+       // posText_mir= mInstance.findViewById(R.id.app_bt);
+        posText_app_hbo  = mInstance. findViewById(R.id.app_bt);
     }
 
     @SuppressLint("SuspiciousIndentation")
@@ -166,6 +166,8 @@ public class balancer implements Runnable {
 // this gets above bincap sooner than the rest of lists, so, we need to keep the size not more than 5
 
         int Ai_count = mInstance.mList.size();
+        double avg_AIlatencyPeriod=0;
+
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
 
                 double[] t_h = mInstance.getResponseT(aiIndx);
@@ -177,15 +179,16 @@ public class balancer implements Runnable {
                     meanThr = t_h[1];
                     meanRt = t_h[0];
                 }
-        /*
-            double curAvg= mInstance.avg_reponseT.get(aiIndx);
-            if(curAvg==0d)// this is the inital value
-                mInstance.avg_reponseT.set(aiIndx, meanRt  );
-            else
-                mInstance.avg_reponseT.set(aiIndx,
-                        //( meanRt+  curAvg)/2);
-                        (double) Math.round((double) ( ((meanRt+  curAvg)/2) * 100)) / 100);
-*/
+
+
+            AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
+            // first find the best offline AI response Time = EXPECTED RESPONSE TIme
+            int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));
+            double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
+            // find the actual response Time
+            double actual_rpT=meanRt;
+            avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
+
 
             if (aiIndx == 0) {
                // TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
@@ -199,16 +202,53 @@ public class balancer implements Runnable {
             else if (aiIndx == 2) {
             //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
                 posText_thr.setText("RT3: " + String.valueOf(meanRt));
-            } else if (aiIndx == 3) {
-            //    TextView posText4 = mInstance.findViewById(R.id.rspT3);
-                posText_mir.setText("RT4: " + String.valueOf(meanRt));
             }
 
 
+
+        }
+    //  Uncomment for Bayes auto Trigger
+        if(mInstance.curBysIters==-1)
+            mInstance.afterHbo_counter++;// count consecutive HBO activation
+
+        mInstance.avgq = calculateMeanQuality();
+        double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+        reward =mInstance.avgq - (mInstance.reward_weight*avgAIltcy);
+        reward=(double) (Math.round((double) (reward * 100))) / 100;
+
+        mInstance.best_BT=(double) (Math.round((double) (mInstance.best_BT * 100))) / 100;
+
+        posText_app_hbo.setText("B_t: "+ String.valueOf(reward));
+        posText_thr.setText("best_BT: " + String.valueOf(mInstance.best_BT));
+
+
+
+        if(hbo_trigger) {
+            if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
+
+                if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
+                    mInstance.best_BT = (reward + mInstance.best_BT) / 2;
+
+                double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
+                if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
+                // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
+                {
+                    mInstance.hbo_trigger_false_counter++;
+                    if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
+                    {
+                        mInstance.hbo_trigger_false_counter = 0;
+                        ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+                        mInstance.deleg_req += 1;
+                    }
+                } else
+                    mInstance.hbo_trigger_false_counter = 0;// we want to get 5 Bts consecutively with error
+            }
         }
 
+
+
         writequality();
-       // writeThr(meanThr, 0, false,0);// for the urrent period
+
     }
 
     @SuppressLint("SuspiciousIndentation")
@@ -319,34 +359,6 @@ public class balancer implements Runnable {
                 mInstance.avg_reponseT.set(aiIndx,
                         //( meanRt+  curAvg)/2);
                         (double) Math.round((double) ( ((meanRt+  curAvg)/2) * 100)) / 100);
-
-
-//            if(aiIndx==0)
-//            {
-//                TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
-//                posText.setText( "RT1: " +String.valueOf( meanRt));
-//            }
-//            else if(aiIndx==1) {
-//
-//                TextView  posText2=   mInstance.findViewById(R.id.rspT1);
-//                posText2.setText("RT2: " + String.valueOf(meanRt));
-//            }
-////
-//            else if(aiIndx==2)
-//            {    TextView  posText3=   mInstance.findViewById(R.id.rspT2);
-//                posText3.setText("RT3: "+ String.valueOf( meanRt));}
-//            else if(aiIndx==3) {
-//                TextView  posText4=   mInstance.findViewById(R.id.rspT3);
-//                posText4.setText("RT4: " + String.valueOf(meanRt));
-//            }
-//            else {
-//                TextView  posText5=   mInstance.findViewById(R.id.rspT4);
-//                posText5.setText("RT56: " + String.valueOf(meanRt));
-//
-//            }
-
-
-
 
 
 // don't use tris-dis here since->we need to remove a record of old tris for each AI model
@@ -580,7 +592,7 @@ public class balancer implements Runnable {
 
 
 
-                    if (mape > aiMaxError) {// OK
+                    if (mape > aiMaxError) {// train the model
 
 
                         //mInstance.hAI_acc.set(aiIndx, false);
@@ -1305,8 +1317,22 @@ public class balancer implements Runnable {
                 sb.append(r1);
                 sb.append(',');
                 sb.append(1-tmper1);
+               sb.append(',');
+               sb.append(reward);
+               sb.append(',');
+               sb.append(mInstance.best_BT);
+               sb.append(',');
+               sb.append((mInstance.best_BT-reward)/mInstance.best_BT);
+               int hbo_running=0;// if hbo is not running, hence we have good data to show
+               if(mInstance.curBysIters!=-1)
+                   hbo_running=1;
               //  sb.append(mInstance.tasks.toString());
+               sb.append(',');
+               sb.append(hbo_running);
 
+
+               sb.append(',');
+               sb.append(mInstance.afterHbo_counter);
                 sb.append('\n');
                 writer.write(sb.toString());
                 System.out.println("done!");
@@ -1477,10 +1503,6 @@ public class balancer implements Runnable {
             float d = mInstance.renderArray.get(ind).return_distance();
             float curQ = mInstance.ratioArray.get(ind);
 
-//            if (mInstance.renderArray.get(ind).fileName.contains("0.6")) // third scenario has ratio 0.6
-//                curQ = 0.6f; // jsut for scenario3 objects are decimated
-//            else if(mInstance.renderArray.get(ind).fileName.contains("0.3")) // sixth scenario has ratio 0.3
-//                curQ=0.3f;
 
             float deg_error = (float) Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000)) / 1000;
             float max_nrmd = mInstance.excel_maxd.get(i);

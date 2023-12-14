@@ -14,6 +14,7 @@ import java.io.File
 
 
 /**
+ * Code to run inferences on the frames taken from the dispatcher and calculates response time
  * Collects Bitmaps from a coroutine source (BitmapSource for static JPG or DynamicBitmapSource for
  * a stream of changing files)
  */
@@ -104,14 +105,6 @@ class BitmapCollector(
      * ImageClassifier requirements. Writes output to file.
      */
     private suspend fun collectStream() {
-//        childDirectory.mkdirs()
-//        val file = File(childDirectory,
-//            index.toString() + '_' +
-//                    classifier?.modelName + '_' +
-//                    classifier?.device + '_'+
-//                    classifier?.numThreads + "T_"+
-//                    classifier?.time +
-//                    ".csv")
 
 
 /****** the problem was with the dispatcher--- it should be set to Default NOT IO */////////
@@ -123,7 +116,6 @@ class BitmapCollector(
               //  bitmap=  bitmapSource?.bitmapUpdaterApi?.latestBitmap
 
                 if( run) { // resize it for image classification
-
 
                     var  bitmap= it
                     if(classifier!= null )
@@ -191,10 +183,8 @@ class BitmapCollector(
                       )
                       }
 
-
                     else if (newClassifier!=null)
                          newClassifier?.classify(bitmap!!,0)
-
 
                     else if (imgSegmentation!=null)
                         imgSegmentation?.segment(bitmap!!,0)
@@ -222,13 +212,6 @@ class BitmapCollector(
     }
 
 
-//    fun getThroughput(): Long {
-//        return if(numOfTimesExecuted>0)  {
-//            totalResponseTime/numOfTimesExecuted
-//        } else {
-//            0
-//        }
-//    }
 }
 
 
