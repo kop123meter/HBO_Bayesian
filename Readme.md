@@ -1,6 +1,7 @@
 
 Welcome to the HBO project!!!
- Jointly managing virtual object triangle count and AI task allocation is a necessary, yet complex, strategy
+
+Jointly managing virtual object triangle count and AI task allocation is a necessary, yet complex, strategy
 to effectively trade off between virtual object quality and AI task latency. The proposed HBO framework provides an efficient solution to this problem.
 
 ![framework](https://github.com/Niloofar-didar/HBO_Bayesian/assets/27611369/35a22185-a844-4488-b8a8-e824e2baa94d)
