@@ -8,7 +8,9 @@ to effectively trade off between virtual object quality and AI task latency. The
 First, it leverages Bayesian optimization (BO) to identify a solution for the continuous joint optimization variables related to AI resource usage and virtual objects triangle count ratio. This optimization process aims to minimize a black-box cost function for improved performance within a few exploratory steps. In the second stage, HBO employs heuristics to incorporate the candidate solutions into the system for cost evaluation, by adjusting AI allocation of each task and the triangle count of each virtual
 object. We evaluate HBO with real smartphones and users against four different state-of-the-art baselines that provide static and dynamic AI allocation methods. Our results have shown that HBO helps reduce the average AI task latency by up to 3.5x and increase the average virtual object quality by up to 38.7% compared to the baselines.
 
-Below is the image of our architecture and an sxreenshot of the app with some objects 
+Below is the image of our architecture and an screenshot of the app with some objects 
+
+
 ![architectureHBO](https://github.com/Niloofar-didar/HBO_Bayesian/assets/27611369/1136d5fd-d93f-4633-8d63-ec16c0a4adb2)
 
 
