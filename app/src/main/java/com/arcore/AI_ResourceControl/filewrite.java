@@ -87,7 +87,7 @@ public class filewrite implements  Runnable{
                             FileOutputStream os = new FileOutputStream(minstance.GPU_usage, true);
                             os.write(item2.getBytes());
                             os.close();
-                            System.out.println(item2);
+//                            System.out.println(item2);
 
 
                         } catch (IOException e) {
@@ -151,7 +151,7 @@ public class filewrite implements  Runnable{
                     FileOutputStream os = new FileOutputStream(minstance.tris_num, true);
                     os.write(item2.getBytes());
                     os.close();
-                    System.out.println(item2);
+//                    System.out.println(item2);
 
 
                 } catch (IOException e) {

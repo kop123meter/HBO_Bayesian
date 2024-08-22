@@ -789,10 +789,10 @@ public class Mir_old implements Runnable {
 
                 sb.append('\n');
                 writer.write(sb.toString());
-                System.out.println("done!");
+//                System.out.println("done!");
             }
         }catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
 
     }
@@ -830,9 +830,9 @@ public class Mir_old implements Runnable {
 
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -932,9 +932,9 @@ public class Mir_old implements Runnable {
             sb.append(',');  sb.append(duration);
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 

@@ -228,9 +228,9 @@ void printToFile(){
 
     }
     writer.write(sb.toString());
-    System.out.println("done!");
+//    System.out.println("done!");
   } catch (FileNotFoundException e) {
-    System.out.println(e.getMessage());
+//    System.out.println(e.getMessage());
   }
 
 
