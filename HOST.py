@@ -10,12 +10,20 @@ from GPyOpt.methods import BayesianOptimization
 
 import colorama
 from colorama import Fore, Style
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import pandas as pd
+
+
+
+
+
 
 class TwoClientsServer:
 
     MAX_ITER = 15
     EXPLORATION_n = 5
-    NUM_TASKS = 6
+    NUM_TASKS = 3
     PORT = 4444  
 
 
@@ -61,6 +69,7 @@ class TwoClientsServer:
             android_handler.start()
             self.client_threads.append(android_handler)
             
+            self.live_plot()
             while android_handler.is_done == False:
                 time.sleep(1)
 
@@ -79,6 +88,43 @@ class TwoClientsServer:
         red_printer = printer("red")
         red_printer.print("SERVER: All sockets closed and threads terminated.")
 
+    def live_plot(self, interval=10000):
+        """
+        Function to read the CSV file and update the plot in real-time.
+        
+        Parameters:
+        filepath (str): Path to the CSV file.
+        interval (int): Update interval in milliseconds (default is 1000ms or 1 second).
+        """
+        filepath = os.path.join(self.output_dir, 'thermal_data.csv')
+        fig, ax = plt.subplots()
+        
+        def update_plot(i):
+            # Read the data from the file
+            if os.path.exists(filepath):
+                data = pd.read_csv(filepath)
+                if len(data) > 1:
+                    ax.clear()
+                    for column in data.columns[1:]:  # Skip the first column (timeStamp)
+                        ax.plot(data['timeStamp'], data[column], label=column)
+                    ax.set_title("Real-time Temperature Plot")
+                    ax.set_xlabel("Time")
+                    ax.set_ylabel("Temperature (°C)")
+                    ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1))
+                    ax.set_ylim(20, 100)
+                    plt.xticks(rotation=45)
+                else:
+                    ax.clear()
+                    ax.text(0.5, 0.5, "No Data Point.", ha="center", va="center", transform=ax.transAxes)
+            else:
+                ax.clear()
+                ax.text(0.5, 0.5, "File not found.", ha="center", va="center", transform=ax.transAxes)
+
+        # Set up the animation
+        ani = animation.FuncAnimation(fig, update_plot, interval=interval)
+
+        # Show the plot
+        plt.show()
 
 class PythonClient(threading.Thread):
     def __init__(self, num_tasks, max_iter, host, port, output_dir, stop_event):
@@ -119,9 +165,9 @@ class ClientHandler(threading.Thread):
         except Exception as e:
             self.printRed(f"SERVER: Exception in {'Android' if self.is_android else 'Python'}ClientHandler: {e}")
         finally:
+            self.is_done = True
             self.print(f"SERVER: {'Android' if self.is_android else 'Python'} handler is Done")
             self.client_socket.close()
-            self.is_done = True
             # self.other_client_socket.close()
             
     def python_client(self):
@@ -254,6 +300,7 @@ class BayesianOptimizationRunner:
 
         if 'activate' in received_data:
             time.sleep(10)
+
             with open(f"{self.output_dir}/Bayesian_OUTPUT.csv", "a") as out:
                 out.write("time,,cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward\n")
 

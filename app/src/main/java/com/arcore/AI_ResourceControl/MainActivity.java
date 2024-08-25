@@ -1,25 +1,57 @@
 package com.arcore.AI_ResourceControl;
 
 
-import static java.lang.Math.abs;
-import static java.lang.Thread.sleep;
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.net.Socket;
+import java.util.Map.Entry;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.*;
+import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.media.Image;
-import android.net.Uri;
-import android.opengl.Matrix;
-import android.os.Bundle;
-import android.os.CountDownTimer;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+
 import android.os.SystemClock;
 import android.util.Log;
+
+import java.util.LinkedList;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import android.net.Uri;
+import android.opengl.Matrix;
+import android.os.Bundle;
+import android.os.CountDownTimer;
+
+
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -29,12 +61,6 @@ import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
-
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Camera;
@@ -51,42 +77,23 @@ import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.rendering.Renderable;
 import com.google.ar.sceneform.ux.ArFragment;
 import com.google.ar.sceneform.ux.TransformableNode;
+
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.lang.Math;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.text.DecimalFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Queue;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+
+import static java.lang.Math.abs;
+import static java.lang.Math.min;
+import static java.lang.Math.round;
+import static java.lang.Thread.sleep;
 //import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper;
 //import  javax.imageio;
 //import java.awt.*;
@@ -99,53 +106,67 @@ bes
 */
 
 
-public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
+public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener, ServiceBinderUtility.ServiceBinderCallback {
 
-    static List<AiItemsViewModel> mList = new ArrayList<>();
-    // BitmapUpdaterApi gets bitmap version of ar camera frame each time
-    // on onTracking is called. Needed for DynamicBitmapSource
-    private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
-    private final int SEEKBAR_INCREMENT = 10;
-    private final int MAX_THREAD_POOL_SIZE = 10;
-//    DataProcessor dataProcessor;
-    //KEEP_ALIVE_TIME_UNIT  =
-    private final TimeUnit KEEP_ALIVE_TIME_UNIT = TimeUnit.MILLISECONDS;
-    private final BlockingQueue<Runnable> mWorkQueue = new LinkedBlockingQueue<Runnable>();
-    public double[] all_delegates_LstHBO = new double[30];
-    public int objectCount = 0;
-    public List<Double> avg_reponseT = new ArrayList<>();
-    public double avg_reward = 0;// this is the bayesian average reward
-    String server_IP_address = "192.168.0.132";
+    private ServiceBinderUtility serviceBinderUtility;
+    private ThermalDataService thermalDataService;
+
+    String server_IP_address = "192.168.120.27";
     int server_PORT = 4444;
     String documentsFolder;
     String experiment_time;
+//    DataProcessor dataProcessor;
+
+    public String get_exeriment_time() {
+        return experiment_time;
+    }
+
     int afterHbo_counter = 0;// counts steps after we run balancer after the end of hbo iteration
+
     int exploration_phase = 5;// initially 5 to explore 5 delegates on pyhon client
     int iteration = 15;// num of iterations after exploration
     int max_iteration = iteration + exploration_phase + 1;// was 15+ originally => last +1 is for applying the best reward
+    int curBysIters = -1;
     List<Double> bysTratioLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
     List<Double> bysRewardsLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));//holds log of bayesian rewards for each iteration
     List<Double> bysAvgLcyLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
+
+    float smL_ratio = 0.2f;// fixed ratio for baseline SML
+
+    boolean bys_baseline1_2 = true;// this controls if we wanna test baseline1-2 match Q and match latency to compaere with bayesian
+
+    double best_BT = 0;// this is the reward of initial HBO activation with one object on the screen
+
+    int hbo_trigger_false_counter = 0; // counts the # we wait for any possible noise for B_T calculation
+
+    // BitmapUpdaterApi gets bitmap version of ar camera frame each time
+    // on onTracking is called. Needed for DynamicBitmapSource
+    private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
+    static List<AiItemsViewModel> mList = new ArrayList<>();
+
+    private ArFragment fragment;
+    private PointerDrawable pointer = new PointerDrawable();
     //private static final String GLTF_ASSET = "https://storage.googleapis.com/ar-answers-in-search-models/static/Tiger/model.glb";
     // private static MainActivity Instance = new MainActivity();
     //private static MainActivity Instance = new com.arcore.MixedAIAR.MainActivity();
-    int curBysIters = -1;
-    float smL_ratio = 0.2f;// fixed ratio for baseline SML
-    boolean bys_baseline1_2 = true;// this controls if we wanna test baseline1-2 match Q and match latency to compaere with bayesian
-    double best_BT = 0;// this is the reward of initial HBO activation with one object on the screen
-    int hbo_trigger_false_counter = 0; // counts the # we wait for any possible noise for B_T calculation
+
     double reward_weight = 2.5; //was 0.02 before for non normalized vals
     double last_latencyInstanceN = 0;// keeps the latency of AI1 instance to check the noises in bayesian class
     String bayesian_delegate = "";
+
     int deleg_req = 0;
     boolean oneTimeAccess = true;// to send image to server
+    private boolean isTracking;
+    private boolean isHitting;
+
     boolean survey = false; // this is for the survey experiments
+
     //  baseRenderable renderArray[] = new baseRenderable[obj_count];
     List<baseRenderable> renderArray = new ArrayList<baseRenderable>();
+
     List<Float> ratioArray = new ArrayList<Float>();
     List<Float> cacheArray = new ArrayList<Float>();
     List<Float> updatednetw = new ArrayList<Float>();
-    //for RE modeling and algorithm
     /*please note that this factor selection affects the alpha parameters for throughput model. so make sure to choose it correctly
      * eg, for some AI models if normalized  tris goes from 0.2 to 85, and throughput of AI1 is 9, the alpha_d changes for, 0.002 to 3.4 for one model which is not good compared to other models that might have still alpha d bellow 0.1*/
     // double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
@@ -154,9 +175,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     int maxtime = 6; // 20 means calculates data for next 10 sec ->>>should be even num
     // if 5, goes up to 2.5 s. if 10, goes up to 5s
     double pred_meanD_cur = 0; // predicted mean distance in next two second saved as current d in dataCol for next period
+    //for RE modeling and algorithm
+
     List<Double> rE = new ArrayList<>();// keeps the record of RE
     List<List<Double>> rERegList = new ArrayList<List<Double>>();// keeps the record of RE
+
     long curTrisTime = 0;// holds the time when tot triangle count changes
+    private float ref_ratio = 0.5f;
+
     Map<Integer, Float> candidate_obj;
     //float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
     float[] coarse_Ratios = new float[]{1f, 0.8f, 0.6f, 0.4f, 0.2f, 0.1f};
@@ -167,38 +193,52 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     //double algNxtTris = 0;
     long t_loop1 = 0;
     int alg = 1;
+
     String[] algName = new String[]{"XMIR", "MIR"};
     //long t_loop2=0;
     StringBuilder tasks = new StringBuilder();
+
     boolean stopTimer = false;
     boolean stopwrite_datacollect = true;
     boolean stop_thread = false;
     List<List<Integer>> combinations_copy;
+
+
+    public double[] all_delegates_LstHBO = new double[30];
+
     //$$$$$$$$$$$$$$$$$$$ for XMIRE-
     ListMultimap<Integer, Double> modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
     ListMultimap<Integer, Double> total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
+
     ListMultimap<Integer, Double> coeff_modelMeanRsp = ArrayListMultimap.create();//  a map from tot tris to mean throughput
     ListMultimap<Integer, Double> coeff_total_triangle = ArrayListMultimap.create();//  a map from tot tris to mean throughput
+
     List<ListMultimap<Double, Double>> rsp_models = new ArrayList<>();// map from each model to throughput an Tris
     List<Double> rohTLRt = new ArrayList<>();
     List<Double> rohDLRt = new ArrayList<>();
     List<Double> deltaLRt = new ArrayList<>();
+
     List<Double> rohTL = new ArrayList<>();
     List<Double> rohDL = new ArrayList<>();
     List<Double> deltaL = new ArrayList<>();
+
     List<Boolean> hAI_acc = new ArrayList<>();// the accuracy of AI throughput model
     List<Integer> conseq_error = new ArrayList<>();// the counter for consequent per AI throughput error
+
     List<Double> baseline_AIRt = new ArrayList<>();// holds baseline throughput of fixed models running on fixed devices
     List<Double> est_weights = new ArrayList<>();// this is a list of normalized  estimated weights
+    List<Double> nrmest_weights = new ArrayList<>();// this is a list of normalized  estimated weights
 
 //    List<Double> msr_weights= new ArrayList<>();// this is a list of normalized measured weights
-    List<Double> nrmest_weights = new ArrayList<>();// this is a list of normalized  estimated weights
+
     List<Double> baseline_est_weights = new ArrayList<>();// the accuracy of AI throughput model
+
     List<Integer> rsp_miss_counter = new ArrayList<>();
     List<Integer> thr_miss_counter = new ArrayList<>();
+    List<Multimap<Double, Double>> thr_models = new LinkedList<>();// map from each model to throughput an Tris -> has HASHEDMULTIMAP that preserves order of insersion
     // List<LinkedHashMultimap<Double, Double>> thr_models= new ArrayList<>();
 //    Multimap<Double, Double> hm = LinkedHashMultimap.create();
-    List<Multimap<Double, Double>> thr_models = new LinkedList<>();// map from each model to throughput an Tris -> has HASHEDMULTIMAP that preserves order of insersion
+
     int mir_active_count = 0;
     int thr_miss_counter1 = 0;
     double last_tris = 0;
@@ -209,24 +249,35 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double des_Rt_weight = 1 / des_thr_weight;// for response time, 1.5x is equal to 50% increase in response time or 50% decrease in throughput?
     List<ListMultimap<Double, List<Double>>> tParamList = new ArrayList<>(); // LinkedHashMultimap to keep order of insersion to hold list of response time
     List<ListMultimap<Double, List<Double>>> thParamList = new ArrayList<>(); // to hold list of throughput
+
     ListMultimap<Double, List<Double>> thParamList_Mir = ArrayListMultimap.create();
+
+    //ArrayListMultimap.create();//  a map from tot tris to measured RE
+    ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
 
 
     //List<  ListMultimap<Double, Double>> trisMeanDisk =new ArrayList<>();
-    //ArrayListMultimap.create();//  a map from tot tris to measured RE
-    ListMultimap<Integer, List<Double>> rspParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
+
     ListMultimap<Double, Double> trisMeanDisk = ArrayListMultimap.create();// for all fixed AI tasks we have the same distance from objects
+
     ListMultimap<Double, Double> trisMeanThr = ArrayListMultimap.create();//  a map from tot tris to mean throughput
+
     ListMultimap<Integer, Double> modelMeanDisk = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
+
     ListMultimap<Double, Double> trisMeanDisk_Mir = ArrayListMultimap.create();//  a map from tot tris to mean dis at current period
-    // new LinkedList<>(); // to hold list of throughput
+
+
     Multimap<Double, Double> trisRe = LinkedHashMultimap.create();
+    // new LinkedList<>(); // to hold list of throughput
+
     ListMultimap<Double, Double> trisReMir = ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Double, List<Double>> reParamList = ArrayListMultimap.create();//  a map from tot tris to measured RE
     ListMultimap<Double, List<Double>> reParamListMir = ArrayListMultimap.create();
+
     double bayesian1_bestTR = 0.7292209;// for scenario9 Config9 the  triangle ratio for the winner case
-    //double bayesian1_bestLcty= 10.379083129247;
     double bayesian1_bestLcty = 0.71; // the corresponding latency
+    //double bayesian1_bestLcty= 10.379083129247;
+
     int lastConscCounter = 0; // counts the number of consecutive change in tris count, if we reach 5 we will change the tris
     int acc_counter = 0;
     double prevtotTris = 0;
@@ -234,18 +285,33 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double rohD = 0.0001;
     double delta = 66.92;
     double thRmse;
-    //for RE modeling and algorithm
     boolean bayesian_pushed = false;
+    //for RE modeling and algorithm
+
     double orgTrisAllobj = 0d; // is sum of (max object triangles) across all objects onthe screen
+    public int objectCount = 0;
+    private String[] assetList = null;
+    //private Integer[] objcount = new Integer[]{1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 160, 170, 180, 190, 200, 220, 240, 260, 300, 340, 380, 430, 500};
+    //private float[] distance_log = new float[]{2.24f,2.0f, 2.24f, 2.83f, 3.61f, 4.47f, 5.39f, 6.32f, 7.28f, 8.25f, 9.22f, 10.2f, 11.18f, 12.17f, 13.15f };
+    private Double[] desiredQ = new Double[]{0.7, 0.5, 0.3};
+    private String[] desiredalg = new String[]{"1", "2", "3"};
+    private Double[] desiredThr_weight = new Double[]{1.3, 1.1, 0.9, 0.8, 0.7, 0.6, 0.5};
+
+    public List<Double> avg_reponseT = new ArrayList<>();
+    public double avg_reward = 0;// this is the bayesian average reward
+    //we use it to make sure whenever the reward is ready for each delegate req frm the pyhton server
+
     AiRecyclerviewAdapter adapter;// added by nil
     RecyclerView recyclerView_aiSettings;
+    private String currentModel = null;
     boolean decAll = false; // older name :referenceObjectSwitchCheck
     //   boolean usecash=true;// should be true for the tests
     boolean usecash = false;// either downloads from the edge or uses cash
+    private boolean autoPlace = false;// older name multipleSwitchCheck
+    private boolean askedbefore = false;
     // int nextID = 1;
     int nextID = 0;
     boolean under_Perc = false; // it is used for seekbar and the percentages with 0.1 precios like 1.1%, I press 11% in app and /1000 here
-    //we use it to make sure whenever the reward is ready for each delegate req frm the pyhton server
     boolean fisrService = false;
     CountDownTimer countDownTimer;
     float agpu = 4.10365E-05f;
@@ -255,13 +321,38 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     boolean removePhase = false; // this is for the mixed adding and after that removing scnario
     boolean setDesTh = false;// used just for the first time when we run AI models and get the highest baseline throughput
     List<Double> decTris = new ArrayList<>();// create a list of decimated
+
+    private ArrayList<String> scenarioList = new ArrayList<>();
+    private String currentScenario = null;
+    //private int scenarioTickLength = 22000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
+    private int scenarioTickLength = 65000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
+
+
+    //private int removalTickLength = 25000;
+    private ArrayList<String> taskConfigList = new ArrayList<>();
+    private String currentTaskConfig = null;
+    private int taskConfigTickLength = 3000;
+    //   35000;
+    private int pauseLength = 10000;
+
     double thr_factor = 0.5;
     double re_factor = 0.9;
     //int rsp_miss_counter=0;
     int re_miss_counter = 0;
+
+
     List<String> mLines = new ArrayList<>();
+    //  List<String> time_tris = new ArrayList<>();
+    //   Map<String, Integer> time_tris = new HashMap<>();
+    //  Map<String, Integer> time_gpu = new HashMap<>();
+
+
     ArFragment arFragment = (ArFragment)
             getSupportFragmentManager().findFragmentById(R.id.sceneform_fragment);
+
+
+    private DecimalFormat posFormat = new DecimalFormat("###.##");
+    private final int SEEKBAR_INCREMENT = 10;
     File dateFile;
     // File Nil;
     File obj;
@@ -272,16 +363,15 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     float percReduction = 0;
     int decision_p = 1;
     List<Double> o_tris = new ArrayList<>();
+
     double initial_meanD = 0;
     double initial_totT = 0;
+
     List<Float> prevquality = new ArrayList<>();
     Process process2;
     List<Float> excel_alpha = new ArrayList<>();
     List<Float> excel_betta = new ArrayList<>();
     List<Float> excel_filesize = new ArrayList<>();
-    //  List<String> time_tris = new ArrayList<>();
-    //   Map<String, Integer> time_tris = new HashMap<>();
-    //  Map<String, Integer> time_gpu = new HashMap<>();
     List<Float> excel_c = new ArrayList<>();
     List<Float> excel_gamma = new ArrayList<>();
     List<Float> excel_maxd = new ArrayList<>();
@@ -295,17 +385,20 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Float> best_cur_eb = new ArrayList<>();
     List<Float> gpusaving = new ArrayList<>();
     List<String> eng_dec = new ArrayList<>();
+
     int baseline_index = 0;// index of all objects ratio of the coarse_ratio array
     List<List<Integer>> combinations = new ArrayList<>();
     //Arrays.asList(new List[]{new ArrayList<>()});
     List<String> excel_BestofflineAIname = new ArrayList<>();
     List<String> excel_BestofflineAIdelg = new ArrayList<>();
     List<Double> excel_BestofflineAIRT = new ArrayList<>();
+
     List<AIModel> curModels = new ArrayList<>();
     List<AIModel> cpuModels = new ArrayList<>();// each of these lists contain tht Ai models sorted based on the afinity
     List<AIModel> gpuModels = new ArrayList<>();
     List<AIModel> nnapiModels = new ArrayList<>();
     List<AIModel> models = new ArrayList<>();// This contains all models proceseed in offline mode
+
     List<String> quality_log = new ArrayList<>();
     List<String> time_log = new ArrayList<>();
     List<String> distance_log = new ArrayList<>();
@@ -313,42 +406,89 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     List<Float> obj_quality = new ArrayList<>();
     //  Double prevTris=0d;
     List<Integer> Server_reg_Freq = new ArrayList<>();
+
     List<Thread> decimate_thread = new ArrayList<>(); //@@ it is needed for server requests
     int decimate_count = 0;
     int AI_tasks = 0;
     String policy = "Mean";
+    //  private String[] Policy_Selection = new String[]{"Aggressive", "Mean", "Conservative"};
+
     int temp_ww = (((maxtime / 2) - 1) - (decision_p - 1)) / decision_p;
     // private int[] W_Selection = IntStream.range(1, temp_ww).toArray();
     private Integer[] W_Selection = new Integer[temp_ww];
+
     //    private Integer[] BW_Selection= new Integer[]{100, 200, 303, 400, 500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600};
     //   private Integer[] MDE_Selection= new Integer []{2,6};
     int finalw = 4;
     float max_d_parameter = 0.2f;
+
     //@@@ periodicTotTris of main instance is changed not actual main-> to access it always use getInstance.periodicTotTris
     List<Double> totTrisList = new ArrayList<Double>();// to collect triangle count every 500 ms
+
+    //double l
+
     float area_percentage = 0.5f;
+
     // Conservative , or mean are other options
     double total_tris = 0;
     //for bayesian
     List<Double> avg_AIperK = new ArrayList<>();
+
     boolean activate_b = false;
     boolean sleepmode = false;
+    ///prediction - Nil/Saloni
+    private ArrayList<Float> timeLog = new ArrayList<>();
+
     // List<Float> newdistance;
     Timer t2;
+    private float timeInSec = 0;
     float phone_batttery_cap = 12.35f; // in w*h
+    private ArrayList<ArrayList<Float>> current = new ArrayList<ArrayList<Float>>();
+    private HashMap<Integer, ArrayList<ArrayList<Float>>> prmap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
+    private HashMap<Integer, ArrayList<ArrayList<Float>>> marginmap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
+    private HashMap<Integer, ArrayList<ArrayList<Float>>> errormap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
+    private HashMap<Integer, ArrayList<ArrayList<Float>>> booleanmap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
+
+    // private LinkedList<LinkedList<Float> > last_errors = new LinkedList<LinkedList<Float> >();
+    private LinkedList<Float> last_errors_x = new LinkedList<Float>();
+    private LinkedList<Float> last_errors_z = new LinkedList<Float>();
     HashMap<Integer, ArrayList<Float>> predicted_distances = new HashMap<Integer, ArrayList<Float>>();
+    private HashMap<Integer, ArrayList<Float>> nextfive_fourcenters = new HashMap<Integer, ArrayList<Float>>();
     List<Float> d1_prev = new ArrayList<Float>();// for prediction module we need to store dprev
+    private float objX, objZ;
+    private ArrayList<ArrayList<Float>> nextfivesec = new ArrayList<ArrayList<Float>>();
+
     // RE regression parameters
     boolean cleanedbin = false;
+    private float alpha = 0.7f;
     // int max_datapoint=25;
     int max_datapoint = 28;
     // double reRegRMSE= Double.POSITIVE_INFINITY;
     double alphaT = 5.14E-7, alphaD = 0.19, alphaH = 1.34E-5, zeta = 0.29;
+    //double nextTris=0; // triangles for the next period
+
     //  private static final int KEEP_ALIVE_TIME = 500;
     //  private final int CORE_THREAD_POOL_SIZE = 10;
     SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm");
-    //  private String[] Policy_Selection = new String[]{"Aggressive", "Mean", "Conservative"};
     public String fileseries = dateFormat.format(new Date());
+    private final int MAX_THREAD_POOL_SIZE = 10;
+    private final int CORE_THREAD_POOL_SIZE = 50;
+    private static final int KEEP_ALIVE_TIME = 100;
+
+    //KEEP_ALIVE_TIME_UNIT  =
+    private final TimeUnit KEEP_ALIVE_TIME_UNIT = TimeUnit.MILLISECONDS;
+    private final BlockingQueue<Runnable> mWorkQueue = new LinkedBlockingQueue<Runnable>();
+
+
+
+//    private final ThreadPoolExecutor algoThreadPool=new ThreadPoolExecutor(CORE_THREAD_POOL_SIZE, MAX_THREAD_POOL_SIZE, KEEP_ALIVE_TIME, KEEP_ALIVE_TIME_UNIT, mWorkQueue);
+
+
+    /**
+     * coroutine flow source that captures camera frames from updateTracking() function
+     */
+    DynamicBitmapSource source = new DynamicBitmapSource(bitmapUpdaterApi);
+
     //Eric code recieves messages from modelrequest manager
     private final Handler handler = new Handler(Looper.getMainLooper()) {
         @Override
@@ -409,81 +549,319 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         }
     };
-    /**
-     * coroutine flow source that captures camera frames from updateTracking() function
-     */
-    DynamicBitmapSource source = new DynamicBitmapSource(bitmapUpdaterApi);
-    private ArFragment fragment;
-    private PointerDrawable pointer = new PointerDrawable();
 
-    //double l
-    private boolean isTracking;
-    private boolean isHitting;
-    private float ref_ratio = 0.5f;
-    private String[] assetList = null;
-    //private Integer[] objcount = new Integer[]{1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 160, 170, 180, 190, 200, 220, 240, 260, 300, 340, 380, 430, 500};
-    //private float[] distance_log = new float[]{2.24f,2.0f, 2.24f, 2.83f, 3.61f, 4.47f, 5.39f, 6.32f, 7.28f, 8.25f, 9.22f, 10.2f, 11.18f, 12.17f, 13.15f };
-    private Double[] desiredQ = new Double[]{0.7, 0.5, 0.3};
-    private String[] desiredalg = new String[]{"1", "2", "3"};
-    private Double[] desiredThr_weight = new Double[]{1.3, 1.1, 0.9, 0.8, 0.7, 0.6, 0.5};
-    private String currentModel = null;
-    private boolean autoPlace = false;// older name multipleSwitchCheck
-    private boolean askedbefore = false;
-    private ArrayList<String> scenarioList = new ArrayList<>();
-    private String currentScenario = null;
-    //private int scenarioTickLength = 22000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
-    private int scenarioTickLength = 65000;// this value is for surveys setup-> so if dec_p=2, here we select an odd
-    //private int removalTickLength = 25000;
-    private ArrayList<String> taskConfigList = new ArrayList<>();
-    private String currentTaskConfig = null;
-    private int taskConfigTickLength = 3000;
-    //   35000;
-    private int pauseLength = 10000;
-    private DecimalFormat posFormat = new DecimalFormat("###.##");
-    ///prediction - Nil/Saloni
-    private ArrayList<Float> timeLog = new ArrayList<>();
-    private float timeInSec = 0;
-    private ArrayList<ArrayList<Float>> current = new ArrayList<ArrayList<Float>>();
-    private HashMap<Integer, ArrayList<ArrayList<Float>>> prmap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
-    private HashMap<Integer, ArrayList<ArrayList<Float>>> marginmap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
-    private HashMap<Integer, ArrayList<ArrayList<Float>>> errormap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
-    private HashMap<Integer, ArrayList<ArrayList<Float>>> booleanmap = new HashMap<Integer, ArrayList<ArrayList<Float>>>();
-    //double nextTris=0; // triangles for the next period
-    // private LinkedList<LinkedList<Float> > last_errors = new LinkedList<LinkedList<Float> >();
-    private LinkedList<Float> last_errors_x = new LinkedList<Float>();
-    private LinkedList<Float> last_errors_z = new LinkedList<Float>();
-    private HashMap<Integer, ArrayList<Float>> nextfive_fourcenters = new HashMap<Integer, ArrayList<Float>>();
-    private float objX, objZ;
-    private ArrayList<ArrayList<Float>> nextfivesec = new ArrayList<ArrayList<Float>>();
-    //  private final ThreadPoolExecutor algoThreadPool=new ThreadPoolExecutor(CORE_THREAD_POOL_SIZE, MAX_THREAD_POOL_SIZE, KEEP_ALIVE_TIME, KEEP_ALIVE_TIME_UNIT, mWorkQueue);
-    private float alpha = 0.7f;
-
-    private static Map<Integer, Float> sortByValue(Map<Integer, Float> unsortMap, final boolean order) {
-        List<Entry<Integer, Float>> list = new LinkedList<>(unsortMap.entrySet());
-
-        // Sorting the list based on values
-        list.sort((o1, o2) -> order ? o1.getValue().compareTo(o2.getValue()) == 0
-                ? o1.getKey().compareTo(o2.getKey())
-                : o1.getValue().compareTo(o2.getValue()) : o2.getValue().compareTo(o1.getValue()) == 0
-                ? o2.getKey().compareTo(o1.getKey())
-                : o2.getValue().compareTo(o1.getValue()));
-        return list.stream().collect(Collectors.toMap(Entry::getKey, Entry::getValue, (a, b) -> b, LinkedHashMap::new));
-
-    }
-
-    public String get_exeriment_time() {
-        return experiment_time;
-    }
 
     public Handler getHandler() {
         return handler;
     }
+
+    //used for abstraction of reference renderable and decimated renderable
+    public abstract class baseRenderable {
+        public TransformableNode baseAnchor;
+        public String fileName;
+        private int ID;
+        public double orig_tris;
+        //public float current_tris;
+
+        //        public float getcur_tris() {
+//            return current_tris;
+//        }
+        public double getOrg_tris() {
+            return orig_tris;
+        }
+
+        public void setAnchor(TransformableNode base) {
+            baseAnchor = base;
+        }
+
+        public String getFileName() {
+            return fileName;
+        }
+
+        public int getID() {
+            return ID;
+        }
+
+        public void setID(int mID) {
+            ID = mID;
+        }
+
+        public abstract void redraw(int i);
+
+        public abstract void decimatedModelRequest(double percentageReduction, int i, boolean rd);
+
+        public abstract void indirect_redraw(float percentageReduction, int i);
+        //public abstract void print(AdapterView<?> parent, int pos);
+
+        // public abstract void distance();
+
+        public abstract float return_distance();
+
+
+        public abstract float return_distance_predicted(float x, float z);
+
+        public void detach() {
+            try {
+                baseAnchor.getScene().onRemoveChild(baseAnchor.getParent());
+                // baseAnchor.getAnchor().detach();
+                baseAnchor.setRenderable(null);
+                baseAnchor.setParent(null);
+
+            } catch (Exception e) {
+                Log.w("Detach", e.getMessage());
+            }
+
+        }
+
+
+        public void detach_obj() { //Nill
+            try {
+                baseAnchor.getScene().onRemoveChild(baseAnchor.getParent());
+                // baseAnchor.setRenderable(null);
+                // baseAnchor.setParent(null);
+
+            } catch (Exception e) {
+                Log.w("Detach", e.getMessage());
+            }
+
+        }
+
+    }
+
+    //reference renderables, cannot be changed when decimation percentage is selected
+    private class refRenderable extends baseRenderable {
+        refRenderable(String filename, float tris) {
+            this.fileName = filename;
+            this.orig_tris = tris;
+            //   this.current_tris=tris;
+            setID(nextID);
+            nextID++;
+        }
+
+        public void decimatedModelRequest(double percentageReduction, int i, boolean rd) {
+            return;
+        }
+
+        public void indirect_redraw(float percentageReduction, int i) {
+            return;
+        }
+
+
+        public void redraw(int j) {
+            return;
+        }
+
+
+        //public void distance(AdapterView<?> parent, int pos)
+/*//        public void distance() {
+//            {
+//                float dist=1;
+//                Frame frame = fragment.getArSceneView().getArFrame();
+//
+//                if(frame!=null)
+//                   dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
+//
+//
+//            }
+//        }*/
+
+        public float return_distance() {
+
+            float dist = 0;
+            Frame frame = fragment.getArSceneView().getArFrame();
+            while (frame == null)
+                frame = fragment.getArSceneView().getArFrame();
+            // if(frame!=null) {
+            dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
+            dist = (float) (Math.round((float) (dist * 100))) / 100;
+            //   }
+
+            return dist;
+
+        }
+
+
+        public float return_distance_predicted(float px, float pz) {
+
+            //Frame frame = fragment.getArSceneView().getArFrame();
+
+            float dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - px), 2) + Math.pow((baseAnchor.getWorldPosition().z - pz), 2)));
+
+            dist = (float) (Math.round((float) (dist * 100))) / 100;
+            return dist;
+
+        }
+
+    }
+
+
+    //Decimated renderable -- has the ability to redraw and make model request from the manager
+    private class decimatedRenderable extends baseRenderable {
+        decimatedRenderable(String filename, double tris) {
+            this.fileName = filename;
+            this.orig_tris = tris;
+            //  this.current_tris=tris;
+            setID(nextID);
+            nextID++;
+        }
+
+
+        public void indirect_redraw(float percentageReduction, int id) {
+
+            percReduction = percentageReduction;
+            renderArray.get(id).redraw(id);
+        }
+
+
+        public void decimatedModelRequest(double percentageReduction, int id, boolean redraw_direct) {
+            //Nil
+
+//
+
+            percReduction = (float) percentageReduction;
+            //this is to request for new decimated objects in edge
+            ModelRequestManager.getInstance().add(new ModelRequest(cacheArray.get(id), fileName, percReduction, getApplicationContext(), MainActivity.this, id), redraw_direct, false);
+// this is for request for offloading to the edge : works withput image as the last argumant
+            //    ModelRequestManager.getInstance().add(new ModelRequest("classifier", getApplicationContext(), MainActivity.this),redraw_direct, true);
+
+
+            //April 21 Nill , istead of calling mdelreq, sinc we have already downloaded objs from screen, we can call directly redraw
+            //renderArray.get(id).redraw(id); uncomment this if you want to load from cache and aslo make cash flag (redirect label here) true
+
+
+            //Nil
+        }
+
+//        public void distance() {
+//            {
+//                Frame frame = fragment.getArSceneView().getArFrame();
+//
+//                float dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
+//
+//
+//            }
+//        }
+
+        public float return_distance() {
+
+
+            float dist = 0;
+            Frame frame = fragment.getArSceneView().getArFrame();
+            if (frame != null) {
+
+                dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
+                dist = (float) (Math.round((float) (dist * 100))) / 100;
+            }
+
+            return dist;
+
+
+        }
+
+
+        public float return_distance_predicted(float px, float pz) {
+
+            // Frame frame = fragment.getArSceneView().getArFrame();
+
+            float dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - px), 2) + Math.pow((baseAnchor.getWorldPosition().z - pz), 2)));
+
+            dist = (float) (Math.round((float) (dist * 100))) / 100;
+            return dist;
+
+        }
+
+
+        public void redraw(int j) {
+
+
+            Log.d("ServerCommunication", "Redraw waiting is done");
+//Nil april 21
+//     try {
+//                    Frame frame = fragment.getArSceneView().getArFrame();
+//                  //  while(frame==null)
+//                     //   frame = fragment.getArSceneView().getArFrame();
+//
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+            Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(j).fileName + ratioArray.get(j) + ".sfb"));
+
+
+            if (ratioArray.get(j) == 1f)// for the times when perc_reduc is 1, we show the original object
+                objUri = Uri.parse("models/" + renderArray.get(j).fileName + ".sfb");
+
+            android.content.Context context = fragment.getContext();
+            if (context != null) {
+                CompletableFuture<Void> renderableFuture =
+                        ModelRenderable.builder().setSource(context, objUri)
+                                // .setSource(fragment.getContext(),objUri )
+                                //.setIsFilamentGltf(true)
+                                .build()
+                                .thenAccept(renderable -> baseAnchor.setRenderable(renderable))
+                                .exceptionally((throwable -> {
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
+                                    builder.setMessage(throwable.getMessage())
+                                            .setTitle("Codelab error!");
+                                    AlertDialog dialog = builder.create();
+                                    dialog.show();
+                                    return null;
+                                }));
+
+
+// update tris and gu log
+            }
+
+            context = null;
+
+
+        }
+
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Unbind from the service to prevent memory leaks
+        serviceBinderUtility.unbindFromService();
+    }
+
+
+    // Implement the required methods for ServiceBinderUtility.ServiceBinderCallback
+    @Override
+    public void onServiceConnected(ThermalDataService service) {
+        thermalDataService = service; // Store the service instance
+        Log.d("MainActivity", "Service connected: " + service);
+    }
+
+    @Override
+    public void onServiceDisconnected() {
+        thermalDataService = null; // Clear the service instance
+        Log.d("MainActivity", "Service disconnected.");
+    }
+
+    // Add the public getter method to return the Socket instance from the service
+    public Socket getMainSocket() {
+        if (thermalDataService != null) {
+            return thermalDataService.getMainSocket();
+        } else {
+            Log.e("MainActivity", "ThermalDataService is not bound.");
+            return null;
+        }
+    }
+
 
     /// for python bridge
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Initialize the ServiceBinderUtility
+        serviceBinderUtility = new ServiceBinderUtility(this, this);
+
+        // Bind to the ThermalDataService
+        serviceBinderUtility.bindToService();
 
         try {
             Process process = Runtime.getRuntime().exec("su -c setenforce 0");
@@ -548,7 +926,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             }
         });
 
-        buttonPushAiTask.setOnClickListener(new View.OnClickListener() {// add AI task
+        buttonPushAiTask.setOnClickListener(new View.OnClickListener() {// add AI task (+)
             public void onClick(View view) {
                 // get num of ai tasks from textView
                 int numAiTasks = Integer.parseInt(textNumOfAiTasks.getText().toString());
@@ -573,7 +951,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         });
 
 
-        buttonPopAiTask.setOnClickListener(new View.OnClickListener() {// remove AI task
+        buttonPopAiTask.setOnClickListener(new View.OnClickListener() {// remove AI task (-)
             public void onClick(View view) {
                 // get num of ai tasks from textView
                 int numAiTasks = Integer.parseInt(textNumOfAiTasks.getText().toString());
@@ -1602,15 +1980,18 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 */
 
-        Button server_Butt = (Button) findViewById(R.id.server);// button server_Butt when is pushed, we activate the DelegatereqRunnable class instead of decimation
+        Button server_Butt = (Button) findViewById(R.id.server);
         server_Butt.setOnClickListener(new View.OnClickListener() {
+            @Override
             public void onClick(View view) {
-
-                ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
-                deleg_req += 1;
-
+                // Start the ThermalDataService with the necessary server details
+                Intent serviceIntent = new Intent(MainActivity.this, ThermalDataService.class);
+                serviceIntent.putExtra("server_IP_address", server_IP_address);
+                serviceIntent.putExtra("server_PORT", server_PORT);
+                startService(serviceIntent);
             }
         });
+
 
         //create button listener for object placer
         Button placeObjectButton = (Button) findViewById(R.id.placeObjButton);
@@ -2118,7 +2499,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                     runOnUiThread(() -> {
                         final int[] i = {0};
                         CountDownTimer taskTimer, sceneTimer, hboTrigTimer; // this is to remove objects one by one
-//                        hboTrigTimer = new CountDownTimer(Long.MAX_VALUE, 10*60*1000) { // it seems redundant
+//                        hboTrigTimer = new CountDownTimer(Long.MAX_VALUE, 120000) {
 //                            @Override
 //                            public void onTick(long millisUntilFinished) {
 //                                ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
@@ -2143,8 +2524,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //                            }
 //                        };
 
-
-                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 1000) {
+                        sceneTimer = new CountDownTimer(Long.MAX_VALUE, 3000) { // this timer value should not be too low otherwise Error occurs
                             //scenarioTickLength) {
                             // this is to automate adding objects to the screen
                             @Override
@@ -2170,7 +2550,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                 // this is to read from scenario1 and draw objs to the screen
                                 try {
                                     String record = sceneBr.readLine();
-                                    if (record == null) {
+                                    if (record == null) { // means that all 3D Objects added to the scene
+                                        // after all 3D objects aded, connect to server and do the HBO tasks:
+                                        ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
+                                        deleg_req += 1;
+
                                         // just for detailed exp not for exp 4_1
                                         //
 //                                        reParamList.clear();
@@ -2207,15 +2591,15 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);
                                     }//
                                     // comment below lines if you want to deactive HBO auto trigger
-                                    Thread.sleep(700);
+                                    Thread.sleep(1000);
 //
 //hbo trigger to run a baseline
-                                    if (objectCount == 0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
-                                    {
-                                        // if(objectCount%2==0){//uncomment  for HBO baseline periodic
-                                        ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
-                                        deleg_req += 1;
-                                    }
+//                                    if (objectCount == 0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
+//                                    {
+//                                        // if(objectCount%2==0){//uncomment  for HBO baseline periodic
+//                                        ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
+//                                        deleg_req += 1;
+//                                    }
 
 
                                 } catch (IOException e) {
@@ -2755,6 +3139,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
+
     double getThroughput() {
         Log.d("size", String.valueOf(mList.size()));
         double[] meanthr = new double[mList.size()];// up to the count of different AI models
@@ -2798,6 +3183,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return avg;// this is response time
         //      (1/avg)*1000;
     }
+
 
     public void decimateAll(float ratio) {// decimates all objects to ratio
 
@@ -2874,6 +3260,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return rT_thr;//this was for prev exxperiments
     }
 
+
     double getThroughput(int aiIndx) {// returns average thr of each model
 
         double meanthr = 0;// up to the count of different AI models
@@ -2911,29 +3298,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         return meanthr;
         ///  return meanRT;
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
     }
 
 
@@ -3067,6 +3431,45 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
     }*/
+
+
+    private static Map<Integer, Float> sortByValue(Map<Integer, Float> unsortMap, final boolean order) {
+        List<Entry<Integer, Float>> list = new LinkedList<>(unsortMap.entrySet());
+
+        // Sorting the list based on values
+        list.sort((o1, o2) -> order ? o1.getValue().compareTo(o2.getValue()) == 0
+                ? o1.getKey().compareTo(o2.getKey())
+                : o1.getValue().compareTo(o2.getValue()) : o2.getValue().compareTo(o1.getValue()) == 0
+                ? o2.getKey().compareTo(o1.getKey())
+                : o2.getValue().compareTo(o1.getValue()));
+        return list.stream().collect(Collectors.toMap(Entry::getKey, Entry::getValue, (a, b) -> b, LinkedHashMap::new));
+
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
 
     //for user score selection
     @Override
@@ -3224,63 +3627,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
-    private float computeWidth(ArrayList<Float> point) {
-        float width = Math.abs(point.get(3) - point.get(5));
-        return width;
-    }
-
-    private float computeLength(ArrayList<Float> point) {
-        float length = Math.abs(point.get(4) - point.get(6));
-        return length;
-    }
-
-    // this function returns array predicted_distances as a map from obj index to the list of predicted distances for time t
-    private void Findpredicted_distances() { // centers is the output of FindMiniareas, just for one area , so 01 is for pointx1, 2-3 is for point x2, ... 67, is for point x4
-
-
-        float distance = 0;
-        float tempdis = 0;
-        // float mindis=Integer.MAX_VALUE;
-        //  float maxdis=0;
-        int jmindex;
-        int jmaxdex;
-        for (int t = 0; t < maxtime / 2; t++)
-
-            for (int i = 0; i < objectCount; i++) {
-
-                float mindis = Integer.MAX_VALUE;
-                float maxdis = 0;
-
-                for (int j = 0; j < 4; j++) // we have 4 points to calculate the distance ffrom
-                {
-                    tempdis = renderArray.get(i).return_distance_predicted(nextfive_fourcenters.get(t).get(2 * j), nextfive_fourcenters.get(t).get((2 * j) + 1));
-                    if (tempdis > maxdis) {
-                        maxdis = tempdis;
-                        // jmaxdex = j;
-                    }
-                    if (tempdis < mindis) {
-                        mindis = tempdis;
-                        // jmindex = j;
-                    }
-                }// after this, we'll get min and max dis plus their index
-
-
-//            if(policy== "Aggressive")
-//                predicted_distances.get(i).set(t,maxdis);
-//            else if (policy== "Conservative")
-//                predicted_distances.get(i).set(t,mindis);
-                // else { // middle case
-
-                ArrayList<Float> point = nextfivesec.get(t);// get next five area coordinates for time t
-                float pointcx = point.get(0);
-                float pointcz = point.get(1);
-                tempdis = renderArray.get(i).return_distance_predicted(pointcx, pointcz);
-                predicted_distances.get(i).set(t, tempdis);
-                //}
-            }
-
-    }
-
 
 //    public ArrayList<ArrayList<Float>> findW (int ind)
 //    {
@@ -3381,6 +3727,64 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //        return temp1;
 //    }
 
+
+    private float computeWidth(ArrayList<Float> point) {
+        float width = Math.abs(point.get(3) - point.get(5));
+        return width;
+    }
+
+    private float computeLength(ArrayList<Float> point) {
+        float length = Math.abs(point.get(4) - point.get(6));
+        return length;
+    }
+
+    // this function returns array predicted_distances as a map from obj index to the list of predicted distances for time t
+    private void Findpredicted_distances() { // centers is the output of FindMiniareas, just for one area , so 01 is for pointx1, 2-3 is for point x2, ... 67, is for point x4
+
+
+        float distance = 0;
+        float tempdis = 0;
+        // float mindis=Integer.MAX_VALUE;
+        //  float maxdis=0;
+        int jmindex;
+        int jmaxdex;
+        for (int t = 0; t < maxtime / 2; t++)
+
+            for (int i = 0; i < objectCount; i++) {
+
+                float mindis = Integer.MAX_VALUE;
+                float maxdis = 0;
+
+                for (int j = 0; j < 4; j++) // we have 4 points to calculate the distance ffrom
+                {
+                    tempdis = renderArray.get(i).return_distance_predicted(nextfive_fourcenters.get(t).get(2 * j), nextfive_fourcenters.get(t).get((2 * j) + 1));
+                    if (tempdis > maxdis) {
+                        maxdis = tempdis;
+                        // jmaxdex = j;
+                    }
+                    if (tempdis < mindis) {
+                        mindis = tempdis;
+                        // jmindex = j;
+                    }
+                }// after this, we'll get min and max dis plus their index
+
+
+//            if(policy== "Aggressive")
+//                predicted_distances.get(i).set(t,maxdis);
+//            else if (policy== "Conservative")
+//                predicted_distances.get(i).set(t,mindis);
+                // else { // middle case
+
+                ArrayList<Float> point = nextfivesec.get(t);// get next five area coordinates for time t
+                float pointcx = point.get(0);
+                float pointcz = point.get(1);
+                tempdis = renderArray.get(i).return_distance_predicted(pointcx, pointcz);
+                predicted_distances.get(i).set(t, tempdis);
+                //}
+            }
+
+    }
+
     private float FindCons(ArrayList<Float> centers) { // conservative
         float distance = 0;
 
@@ -3433,12 +3837,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
+
     private float[] Findmed(ArrayList<Float> point) {
         float[] center = new float[2];
         center[0] = point.get(0); // xcenter
         center[1] = point.get(1);//z center
         return center;
     }
+
 
     private void onUpdate() {
 
@@ -3671,6 +4077,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
     }
+
 
     public List<String> predictwindow(MainActivity ma, List<Boolean> cls, float fath, float qprev, float d11, int ww, int ind, int dindex, ArrayList<Float> predicted_d) {
 
@@ -3918,6 +4325,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
+
     public float update_e_dec_req(float size, float qual) {
         //   '''this is to update energy consumption for decimation '''
         //return 0;
@@ -3944,6 +4352,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
+
     public float compute_GPU_eng(float period, float current_tris) // returns gpu percentage if we decimate obj1 to qual
     {
         //'''this is to calculate gpu utilization having quality
@@ -3959,6 +4368,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
+
     public float compute_actual_GPU_eng(float period, float gpu_perc) // returns gpu percentage if we decimate obj1 to qual
     {
         //'''this is to calculate gpu utilization having quality
@@ -3967,6 +4377,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return gpu_power_eng;
 
     }
+
 
     public float compute_GPU_ut(float period, float current_tris) // returns gpu percentage if we decimate obj1 to qual
     {
@@ -4003,6 +4414,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     }
 
+
     public boolean Testerror(float a, float b, float creal, float d, float gamma, float r1, int ind) {
 
         float error = (float) ((a * (Math.pow(r1, 2)) + b * r1 + creal) / (Math.pow(d, gamma)));
@@ -4011,6 +4423,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         else
             return false;
     }
+
 
     public String adjustfarther(float x1, float prevq, int ind)//: # four cases we need to adjust xs to 0 or 1 which are cases with at least two '1's
     {
@@ -4059,6 +4472,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         error = (float) (((a * Math.pow(r1, 2)) + (b * r1) + creal) / (Math.pow(d, gamma)));
         return error;
     }
+
 
     public float delta(float a, float b, float c1, float creal, float d, float gamma, int ind) {
 
@@ -4113,6 +4527,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return r;
     }
 
+
     private boolean updateHitTest() {
 
         Frame frame = fragment.getArSceneView().getArFrame();
@@ -4156,6 +4571,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
     }
+
 
     //this came with the app, it sends out a ray to a plane and wherever it hits, it makes an anchor
     //then it calls placeobject
@@ -4248,6 +4664,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
     }
+
 
     private void removePreviousAnchors() {
         List<Node> nodeList = new ArrayList<>(arFragment.getArSceneView().getScene().getChildren());
@@ -4385,6 +4802,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return cur_degerror;
     }
 
+
     private float nextPoint(float x1, float x2, float y1, float y2, float time) {
         float slope = (y2 - y1) / (x2 - x1);
         float y3 = slope * (x2 + time) - (slope * x1) + y1;
@@ -4394,6 +4812,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private float nextPointEstimation(float actual, float predicted) {
         return (alpha * actual) + ((1 - alpha) * predicted);
     }
+
 
     private float[] rotate_point(double rad_angle, float x, float z) {
         float[] rotated = new float[2];
@@ -4555,9 +4974,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return predictedValues;
     }
 
+
     private float area_tri(float x1, float y1, float x2, float y2, float x3, float y3) {
         return (float) Math.abs((x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0);
     }
+
 
     private ArrayList<Float> check_rect(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float x, float y) {
         ArrayList<Float> bool_val;
@@ -4585,6 +5006,22 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         return bool_val;
     }
+
+
+//    private void errorAnalysis2(int size)
+//    {
+//        float area = 0f;
+//        for(int i = 0; i < size - maxtime; i++) {
+//            for (int k = 0; k < maxtime ; k++) {
+//
+//                booleanmap.get(k).add(check_rect(prmap.get(k).get(i).get(2), prmap.get(k).get(i).get(3), prmap.get(k).get(i).get(4), prmap.get(k).get(i).get(5),
+//                        prmap.get(k).get(i).get(6), prmap.get(k).get(i).get(7), prmap.get(k).get(i).get(8), prmap.get(k).get(i).get(9),
+//                        current.get(i + 1 + k).get(0), current.get(i + 1+ k).get(2)));
+//
+//            }
+//        }
+//    }
+
 
     @SuppressLint("SuspiciousIndentation")
 
@@ -4652,6 +5089,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 0,      // run first occurrence immediatetly
                 2000);
     }
+
+    ;
+
 
     public void givenUsingTimer_whenSchedulingTaskOnce_thenCorrect() {
 
@@ -4860,6 +5300,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 2000);
     }
 
+    ;
+
+
+//    float a_t=-8.825245622870156e-06f, b_t=-0.5743863744426319f, c_t= 55.801f;
+//
+//    float a_re=5.18208816882466E-07f, b_re=0.111009877415992f, c_re=0.00213110940797337f, d_re=0.00118086288001582f;
+
+
     private boolean isObjectVisible(Vector3 worldPosition) {
         float[] var2 = new float[16];
         Frame frame = fragment.getArSceneView().getArFrame(); // OK not used
@@ -4897,21 +5345,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return true;
     }
 
-
-//    private void errorAnalysis2(int size)
-//    {
-//        float area = 0f;
-//        for(int i = 0; i < size - maxtime; i++) {
-//            for (int k = 0; k < maxtime ; k++) {
-//
-//                booleanmap.get(k).add(check_rect(prmap.get(k).get(i).get(2), prmap.get(k).get(i).get(3), prmap.get(k).get(i).get(4), prmap.get(k).get(i).get(5),
-//                        prmap.get(k).get(i).get(6), prmap.get(k).get(i).get(7), prmap.get(k).get(i).get(8), prmap.get(k).get(i).get(9),
-//                        current.get(i + 1 + k).get(0), current.get(i + 1+ k).get(2)));
-//
-//            }
-//        }
-//    }
-
     /**
      * Hide buttons to change amount of AI tasks
      */
@@ -4929,278 +5362,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             buttonPopAiTask.setVisibility(View.VISIBLE);
             textNumOfAiTasks.setVisibility(View.VISIBLE);
         }
-    }
-
-    ;
-
-    //used for abstraction of reference renderable and decimated renderable
-    public abstract class baseRenderable {
-        public TransformableNode baseAnchor;
-        public String fileName;
-        public double orig_tris;
-        private int ID;
-        //public float current_tris;
-
-        //        public float getcur_tris() {
-//            return current_tris;
-//        }
-        public double getOrg_tris() {
-            return orig_tris;
-        }
-
-        public void setAnchor(TransformableNode base) {
-            baseAnchor = base;
-        }
-
-        public String getFileName() {
-            return fileName;
-        }
-
-        public int getID() {
-            return ID;
-        }
-
-        public void setID(int mID) {
-            ID = mID;
-        }
-
-        public abstract void redraw(int i);
-
-        public abstract void decimatedModelRequest(double percentageReduction, int i, boolean rd);
-
-        public abstract void indirect_redraw(float percentageReduction, int i);
-        //public abstract void print(AdapterView<?> parent, int pos);
-
-        // public abstract void distance();
-
-        public abstract float return_distance();
-
-
-        public abstract float return_distance_predicted(float x, float z);
-
-        public void detach() {
-            try {
-                baseAnchor.getScene().onRemoveChild(baseAnchor.getParent());
-                // baseAnchor.getAnchor().detach();
-                baseAnchor.setRenderable(null);
-                baseAnchor.setParent(null);
-
-            } catch (Exception e) {
-                Log.w("Detach", e.getMessage());
-            }
-
-        }
-
-
-        public void detach_obj() { //Nill
-            try {
-                baseAnchor.getScene().onRemoveChild(baseAnchor.getParent());
-                // baseAnchor.setRenderable(null);
-                // baseAnchor.setParent(null);
-
-            } catch (Exception e) {
-                Log.w("Detach", e.getMessage());
-            }
-
-        }
-
-    }
-
-    ;
-
-
-//    float a_t=-8.825245622870156e-06f, b_t=-0.5743863744426319f, c_t= 55.801f;
-//
-//    float a_re=5.18208816882466E-07f, b_re=0.111009877415992f, c_re=0.00213110940797337f, d_re=0.00118086288001582f;
-
-    //reference renderables, cannot be changed when decimation percentage is selected
-    private class refRenderable extends baseRenderable {
-        refRenderable(String filename, float tris) {
-            this.fileName = filename;
-            this.orig_tris = tris;
-            //   this.current_tris=tris;
-            setID(nextID);
-            nextID++;
-        }
-
-        public void decimatedModelRequest(double percentageReduction, int i, boolean rd) {
-            return;
-        }
-
-        public void indirect_redraw(float percentageReduction, int i) {
-            return;
-        }
-
-
-        public void redraw(int j) {
-            return;
-        }
-
-
-        //public void distance(AdapterView<?> parent, int pos)
-/*//        public void distance() {
-//            {
-//                float dist=1;
-//                Frame frame = fragment.getArSceneView().getArFrame();
-//
-//                if(frame!=null)
-//                   dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
-//
-//
-//            }
-//        }*/
-
-        public float return_distance() {
-
-            float dist = 0;
-            Frame frame = fragment.getArSceneView().getArFrame();
-            while (frame == null)
-                frame = fragment.getArSceneView().getArFrame();
-            // if(frame!=null) {
-            dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
-            dist = (float) (Math.round((float) (dist * 100))) / 100;
-            //   }
-
-            return dist;
-
-        }
-
-
-        public float return_distance_predicted(float px, float pz) {
-
-            //Frame frame = fragment.getArSceneView().getArFrame();
-
-            float dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - px), 2) + Math.pow((baseAnchor.getWorldPosition().z - pz), 2)));
-
-            dist = (float) (Math.round((float) (dist * 100))) / 100;
-            return dist;
-
-        }
-
-    }
-
-    //Decimated renderable -- has the ability to redraw and make model request from the manager
-    private class decimatedRenderable extends baseRenderable {
-        decimatedRenderable(String filename, double tris) {
-            this.fileName = filename;
-            this.orig_tris = tris;
-            //  this.current_tris=tris;
-            setID(nextID);
-            nextID++;
-        }
-
-
-        public void indirect_redraw(float percentageReduction, int id) {
-
-            percReduction = percentageReduction;
-            renderArray.get(id).redraw(id);
-        }
-
-
-        public void decimatedModelRequest(double percentageReduction, int id, boolean redraw_direct) {
-            //Nil
-
-//
-
-            percReduction = (float) percentageReduction;
-            //this is to request for new decimated objects in edge
-            ModelRequestManager.getInstance().add(new ModelRequest(cacheArray.get(id), fileName, percReduction, getApplicationContext(), MainActivity.this, id), redraw_direct, false);
-// this is for request for offloading to the edge : works withput image as the last argumant
-            //    ModelRequestManager.getInstance().add(new ModelRequest("classifier", getApplicationContext(), MainActivity.this),redraw_direct, true);
-
-
-            //April 21 Nill , istead of calling mdelreq, sinc we have already downloaded objs from screen, we can call directly redraw
-            //renderArray.get(id).redraw(id); uncomment this if you want to load from cache and aslo make cash flag (redirect label here) true
-
-
-            //Nil
-        }
-
-//        public void distance() {
-//            {
-//                Frame frame = fragment.getArSceneView().getArFrame();
-//
-//                float dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
-//
-//
-//            }
-//        }
-
-        public float return_distance() {
-
-
-            float dist = 0;
-            Frame frame = fragment.getArSceneView().getArFrame();
-            if (frame != null) {
-
-                dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - frame.getCamera().getPose().tx()), 2) + Math.pow((baseAnchor.getWorldPosition().y - frame.getCamera().getPose().ty()), 2) + Math.pow((baseAnchor.getWorldPosition().z - frame.getCamera().getPose().tz()), 2)));
-                dist = (float) (Math.round((float) (dist * 100))) / 100;
-            }
-
-            return dist;
-
-
-        }
-
-
-        public float return_distance_predicted(float px, float pz) {
-
-            // Frame frame = fragment.getArSceneView().getArFrame();
-
-            float dist = ((float) Math.sqrt(Math.pow((baseAnchor.getWorldPosition().x - px), 2) + Math.pow((baseAnchor.getWorldPosition().z - pz), 2)));
-
-            dist = (float) (Math.round((float) (dist * 100))) / 100;
-            return dist;
-
-        }
-
-
-        public void redraw(int j) {
-
-
-            Log.d("ServerCommunication", "Redraw waiting is done");
-//Nil april 21
-//     try {
-//                    Frame frame = fragment.getArSceneView().getArFrame();
-//                  //  while(frame==null)
-//                     //   frame = fragment.getArSceneView().getArFrame();
-//
-//                } catch (Exception e) {
-//                    e.printStackTrace();
-//                }
-            Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(j).fileName + ratioArray.get(j) + ".sfb"));
-
-
-            if (ratioArray.get(j) == 1f)// for the times when perc_reduc is 1, we show the original object
-                objUri = Uri.parse("models/" + renderArray.get(j).fileName + ".sfb");
-
-            android.content.Context context = fragment.getContext();
-            if (context != null) {
-                CompletableFuture<Void> renderableFuture =
-                        ModelRenderable.builder().setSource(context, objUri)
-                                // .setSource(fragment.getContext(),objUri )
-                                //.setIsFilamentGltf(true)
-                                .build()
-                                .thenAccept(renderable -> baseAnchor.setRenderable(renderable))
-                                .exceptionally((throwable -> {
-                                    AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
-                                    builder.setMessage(throwable.getMessage())
-                                            .setTitle("Codelab error!");
-                                    AlertDialog dialog = builder.create();
-                                    dialog.show();
-                                    return null;
-                                }));
-
-
-// update tris and gu log
-            }
-
-            context = null;
-
-
-        }
-
-
     }
 
 }

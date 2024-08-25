@@ -14,7 +14,7 @@ import java.util.Date;
 
 public class ThermalDataCollectionRunnable implements Runnable {
 
-    private final Context context;
+//    private final Context context;
     private final Socket socket;
 
     private final String thermalDir = "/sys/class/thermal"; // example directory
@@ -26,8 +26,8 @@ public class ThermalDataCollectionRunnable implements Runnable {
     static final int COLLECTION_STARTED = 2;
     static final int COLLECTION_COMPLETE = 3;
 
-    public ThermalDataCollectionRunnable(Context context, Socket socket) {
-        this.context = context;
+    public ThermalDataCollectionRunnable( Socket socket) {
+//        this.context = context;
         this.socket = socket;
     }
 
@@ -45,10 +45,10 @@ public class ThermalDataCollectionRunnable implements Runnable {
             StringBuilder msg = new StringBuilder();
             msg.append("timeStamp");
             for (String thermalZonePath : thermalZonePaths) {
-                msg.append(", " + getThermalZoneType(thermalZonePath) );
+                    msg.append("," + getThermalZoneType(thermalZonePath) );
             }
 
-            out.println(topic + msg.toString());
+            out.println(topic + msg.toString() + "\n");
             out.flush();
 
             while (!Thread.interrupted()) {
@@ -56,18 +56,16 @@ public class ThermalDataCollectionRunnable implements Runnable {
                 String timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
                 msg.append(timeStamp);
                 for (String thermalZonePath : thermalZonePaths) {
-                    msg.append(", " + getThermalZoneTemp(thermalZonePath));
+                    msg.append("," + getThermalZoneTemp(thermalZonePath));
                 }
-                out.println(topic + msg.toString());
+                out.println(topic + msg.toString() + "\n");
                 out.flush();
-                Log.d("ThermalDataCollection", topic + msg.toString());
-                Thread.sleep(1); // Wait before the next sampling
+                Thread.sleep(100); // Wait for 100milli seconds before the next sampling
             }
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         } finally {
             try {
-                Log.e("ThermalDataCollection","Closing Socket" );
                 socket.close();
             } catch (IOException e) {
                 e.printStackTrace();
@@ -86,7 +84,15 @@ public class ThermalDataCollectionRunnable implements Runnable {
             if (currFileName.contains("thermal_zone")) {
                 String thermalZoneFilePath = thermalDir + "/" + currFileName + "/";
                 Float zoneTemp = getThermalZoneTemp(thermalZoneFilePath);
-                if (zoneTemp > 10) {             // ignore ADC sensors values and unavailable sensors
+                String type = getThermalZoneType(thermalZoneFilePath);
+                if (zoneTemp > 1 && // ignore ADC sensors values or unavailable sensors
+                        !type.contains("cp_on_chip") &&
+                        !type.contains("pca94") &&
+                        !type.contains("usb") &&
+                        !type.contains("gnss") &&
+                        !type.contains("ISP") &&
+                        !type.contains("AUR") &&
+                        !type.contains("batt_")) {
                     thermalZonePaths.add(thermalZoneFilePath);
                 }
             }

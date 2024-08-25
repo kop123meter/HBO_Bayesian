@@ -78,13 +78,14 @@ public class DelegateRequestRunnable implements Runnable {
                 //@@@pc address
                 modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
 
-                Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
+//                Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
+                Socket socket =  modelRequest.activityMain.getMainSocket();
                 // Open output stream
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 //                    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
 
-                mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
+//                mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable( socket));
 
                 ///nill test to trigger HBO-> we write a code to python server and then activate it
                 out.println("delegate/activate");
@@ -105,14 +106,14 @@ public class DelegateRequestRunnable implements Runnable {
                 int max_iteration=modelRequest.activityMain.max_iteration;// we define it in python client 15 iterations and the last applying the best
 
 
-                //This is for test
-                // Read from input stream and send back everything received
+//                This is for test
+//                 Read from input stream and send back everything received
 //                while ((read1 = socketInputStream1.read(buffer1)) != -1) {
 //                    String receivedData = new String(buffer1, 0, read1);
 //                    Log.d("DelegateRequest Msg", "Received: " + receivedData);
 //
 //                    // Send back the received data
-//                    out.println("Android ECO: ["+receivedData+"]");
+//                    out.println("Android ECO: "+receivedData);
 //                    out.flush();
 //                }
 
@@ -236,15 +237,14 @@ public class DelegateRequestRunnable implements Runnable {
                 long endTime2 = System.currentTimeMillis();
                 Log.d("DelegateRequest", "Total execution Time: " + (endTime2 - startTime2) + " milliseconds");
 
+                SystemClock.sleep(1000*60*10); // Wait 10 min to collect temp data before closing the socket
 
-
-                SystemClock.sleep(1000*60*10); //wait before closing the connection (to collect thermal data)
                 socketInputStream1.close();
 //                    outM.close();
 //                    in.close();
                 //fout.close();
                 out.close();
-                socket.close();
+//                socket.close();
 
 //                    modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
                 ModelRequestManager.dlgRequestList.remove(modelRequest);
