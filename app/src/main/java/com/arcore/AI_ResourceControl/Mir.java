@@ -556,7 +556,7 @@ public class Mir implements Runnable {
 
                                 // nextTris =  Math.round(nextTris * 100) / 100;
                                 trainedTris = true;
-                                System.out.println("OTDA Activated");
+//                                System.out.println("OTDA Activated");
                                 //   if (mInstance.trainedTris == true) {
                                 try {
                                     mInstance. mir_active_count+=1;
@@ -755,10 +755,10 @@ public class Mir implements Runnable {
 
                 sb.append('\n');
                 writer.write(sb.toString());
-                System.out.println("done!");
+//                System.out.println("done!");
             }
         }catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
 
     }
@@ -792,9 +792,9 @@ public class Mir implements Runnable {
             }
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -895,9 +895,9 @@ public class Mir implements Runnable {
             sb.append(',');  sb.append(mInstance.algName[mInstance.alg-1]);
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 

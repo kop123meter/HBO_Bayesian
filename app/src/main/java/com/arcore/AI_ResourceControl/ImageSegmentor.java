@@ -139,7 +139,8 @@ public abstract class ImageSegmentor {
     convertBitmapToByteBuffer(bitmap);
     // Here's where the magic happens!!!
     long startTime = SystemClock.uptimeMillis();
-    runInference();
+    System.out.println("Current Device:" + getDevice());
+    runInference(getDevice());
 
 
    //Log.d("MODE", String.valueOf(mode));
@@ -195,6 +196,13 @@ public abstract class ImageSegmentor {
     device = "NNAPI";
     recreateInterpreter();
   }
+
+  public void useRemote(){
+
+    device = "SERVER";
+    recreateInterpreter();
+  }
+
 
   String getDevice() {
     return device;
@@ -294,7 +302,11 @@ public abstract class ImageSegmentor {
    */
   protected abstract void addPixelValue(int pixelValue);
 
-  protected abstract void runInference();
+  protected abstract void runInference(String device);
+
+  /**
+   * Define Offload Server Ip and Port
+   * */
 
   /**
    * Get the total number of labels.

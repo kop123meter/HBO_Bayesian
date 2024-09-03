@@ -65,6 +65,7 @@ class AiRecyclerviewAdapter(
         holder.deviceListView.setItemChecked(itemsViewModel.currentDevice, true) // 0 = gpu
 
 
+
         // set current consumer to device[0] and model[0] from ItemsViewModel
 //        initializeActiveModel(itemsViewModel)
 //        itemsViewModel.classifier?.numThreads = holder.numberPicker.value
@@ -229,6 +230,7 @@ class AiRecyclerviewAdapter(
         // Lookup names of parameters.
         val model: String = itemsView.models[itemsView.currentModel]
         val device: String = itemsView.devices[itemsView.currentDevice]
+        System.out.println(device)
         val threads = itemsView.currentNumThreads
 
 
@@ -464,8 +466,36 @@ class AiRecyclerviewAdapter(
 
             }
 
+             itemsView.devices[3]-> {
+                 itemsView.segm?.useRemote()
+                 itemsView.classifier?.useRemote()
+                 itemsView.objectDetector?.currentDelegate = 3
+                 itemsView.objectDetector?.clearObjectDetector()
+
+                 itemsView.newclassifier?.currentDelegate = 3
+                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                 itemsView.newclassifier?.clearImageClassifier()
+
+                 itemsView.imgSegmentation?.currentDelegate = 3
+                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                 itemsView.imgSegmentation?.clearImageSegmenter()
+
+                 itemsView.gestureClas?.currentDelegate = 3
+                 // Needs to be cleared instead of reinitialized because the GPU delegate needs to be initialized on the thread using it when applicable
+                 itemsView.gestureClas?.clearGestureClassifier()
+
+                 itemsView.digitClas?.currentDelegate=3
+                 itemsView.digitClas?.clearDigitClassifier()
+                 Log.d("SERVER","Using Server")
+
+
+             }
+
+
+
 
         }
+
 
         itemsView.segm?.numThreads=  threads
         itemsView.classifier?.numThreads = threads
@@ -481,12 +511,15 @@ class AiRecyclerviewAdapter(
         itemsView.digitClas?.numThreads= threads // NEW object classification
         itemsView.digitClas?.clearDigitClassifier()
 
+
+        System.out.println("Device: ${device} Model: ${model} Threads: ${threads}")
         // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
         itemsView.collector = BitmapCollector(streamSource, itemsView.classifier,itemsView.segm ,position, activity, mainActivity,
-            itemsView.objectDetector,itemsView.newclassifier, itemsView.imgSegmentation, itemsView.gestureClas, itemsView.digitClas)
+            itemsView.objectDetector,itemsView.newclassifier, itemsView.imgSegmentation, itemsView.gestureClas, itemsView.digitClas,itemsView.currentDevice,itemsView.currentModel)
         if (switchToggleStream.isChecked) {
             itemsView.collector!!.startCollect()
         }
+
     }
 
     private fun updateActiveModel(holder: ViewHolder, itemsView : AiItemsViewModel, position: Int) { // update changes in model's setting- add for each model

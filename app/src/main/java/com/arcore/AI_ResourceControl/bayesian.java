@@ -45,6 +45,7 @@ import static java.lang.Math.min;
  import static java.lang.Thread.sleep;
 
  import android.os.CountDownTimer;
+ import android.util.Log;
  import android.widget.TextView;
 
  public class bayesian implements Runnable {
@@ -590,7 +591,8 @@ import static java.lang.Math.min;
 
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
-                System.out.println("reward is "+ reward);
+//                System.out.println("reward is "+ reward);
+                Log.d("Bayesian Msg",  "from bayesian: reward = " + String.valueOf(reward));
             }
         };
 
@@ -903,9 +905,9 @@ import static java.lang.Math.min;
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
 
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 

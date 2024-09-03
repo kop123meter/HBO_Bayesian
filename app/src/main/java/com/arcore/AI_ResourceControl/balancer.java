@@ -11,7 +11,9 @@ package com.arcore.AI_ResourceControl;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,6 +51,7 @@ public class balancer implements Runnable {
     double sensitivity[] ;
     float objquality[];
     double tris_share[];
+    double current_tris;
     Map <Integer, Double> candidate_obj;
     float []coarse_Ratios=new float[]{1f,0.8f, 0.6f , 0.4f, 0.2f, 0.05f};
     //ArrayList <ArrayList<Float>> F_profit= new ArrayList<>();
@@ -62,6 +65,9 @@ public class balancer implements Runnable {
    // int aiIndx;
    TextView posText_re,posText_thr,posText_q,posText_app_hbo;
     double reward=0;
+
+    // Used for collect B_t & triangle count
+    int port = 3434;
 
     public balancer(MainActivity mInstance) {
 
@@ -167,6 +173,8 @@ public class balancer implements Runnable {
 
         int Ai_count = mInstance.mList.size();
         double avg_AIlatencyPeriod=0;
+        double maxAIlatencyPeriod=-1;
+        int maxAIlatencyPeriodIndex=-1;
 
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
 
@@ -203,11 +211,33 @@ public class balancer implements Runnable {
             //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
                 posText_thr.setText("RT3: " + String.valueOf(meanRt));
             }
+            
+            if(maxAIlatencyPeriod < (actual_rpT-expected_time)/actual_rpT){
+                maxAIlatencyPeriod= (actual_rpT-expected_time)/actual_rpT;
+                maxAIlatencyPeriodIndex=aiIndx;
+
+            }
 
 
 
         }
-    //  Uncomment for Bayes auto Trigger
+        if (maxAIlatencyPeriodIndex != -1) {
+            AiItemsViewModel tempView = mInstance.mList.get(maxAIlatencyPeriodIndex);
+            String model_name = tempView.getModels().get(tempView.getCurrentModel());
+            String device_name = tempView.getDevices().get(tempView.getCurrentDevice());
+            System.out.println("Max AI latency period: " + maxAIlatencyPeriod + " AI Model Name: " + model_name + " Device Name: " + device_name );
+
+            if(!device_name.equals("SERVER")){
+                int modelIndex = tempView.getCurrentModel();
+                int serverDeviceIndex = tempView.getDevices().indexOf("SERVER");
+                int pos = mInstance.counter_for_array_i;
+                tempView.setCurrentDevice(serverDeviceIndex);
+                mInstance.adapter.notifyItemChanged(maxAIlatencyPeriodIndex);
+                mInstance.adapter.updateActiveModel(modelIndex, serverDeviceIndex, 0, tempView, pos);
+            }
+        }
+
+        //  Uncomment for Bayes auto Trigger
         if(mInstance.curBysIters==-1)
             mInstance.afterHbo_counter++;// count consecutive HBO activation
 
@@ -218,9 +248,21 @@ public class balancer implements Runnable {
 
         mInstance.best_BT=(double) (Math.round((double) (mInstance.best_BT * 100))) / 100;
 
+
+
         posText_app_hbo.setText("B_t: "+ String.valueOf(reward));
         posText_thr.setText("best_BT: " + String.valueOf(mInstance.best_BT));
 
+        // Test output of B_t and Triangle count:
+        current_tris = mInstance.total_tris;
+        //System.out.println("B_t:"+reward+"  " + "Triangle Count:" + current_tris);
+        // Send Data to server
+    //    try {
+    //        sendBtAndTriToServer(reward,current_tris,avg_AIlatencyPeriod);
+    //        System.out.println("Send Success!");
+    //    } catch (IOException e) {
+    //        throw new RuntimeException(e);
+    //    }
 
 
         if(hbo_trigger) {
@@ -249,6 +291,17 @@ public class balancer implements Runnable {
 
         writequality();
 
+    }
+
+    public void sendBtAndTriToServer(double Bt, double triangle_count,double meanRT) throws IOException {
+        String server_ip = mInstance.server_IP_address;
+        int server_port = port ;
+        Socket socket = new Socket(server_ip,server_port);
+        PrintWriter out = new PrintWriter(socket.getOutputStream(),true);
+
+        String data = Bt+","+triangle_count+","+meanRT;
+        out.println(data);
+        out.flush();
     }
 
     @SuppressLint("SuspiciousIndentation")
@@ -1335,10 +1388,10 @@ public class balancer implements Runnable {
                sb.append(mInstance.afterHbo_counter);
                 sb.append('\n');
                 writer.write(sb.toString());
-                System.out.println("done!");
+//                System.out.println("done!");
             }
         }catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
 
     }
@@ -1411,9 +1464,9 @@ public class balancer implements Runnable {
             }
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
     public void writeWeights( boolean ai_acc,int ai_indx){ // AI throughput information for each task individually and response time for all models
@@ -1430,9 +1483,9 @@ public class balancer implements Runnable {
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -1449,9 +1502,9 @@ public class balancer implements Runnable {
         sb.append('\n');
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -1482,9 +1535,9 @@ public class balancer implements Runnable {
             sb.append(',');  sb.append(duration);
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -1546,6 +1599,7 @@ public class balancer implements Runnable {
 
 
             double curtris = mInstance.renderArray.get(ind).orig_tris * mInstance.ratioArray.get(ind);
+            current_tris = curtris;
 
 
             tris_share[ind] = (curtris / tUP);

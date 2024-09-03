@@ -12,6 +12,10 @@ import org.tensorflow.lite.examples.digitclassification.DigitClassifierHelper
 import org.tensorflow.lite.examples.imagesegmentation.ImageSegmentationHelper
 import java.io.File
 
+import java.io.ByteArrayOutputStream
+import java.net.Socket
+import android.util.Base64
+
 
 /**
  * Code to run inferences on the frames taken from the dispatcher and calculates response time
@@ -33,7 +37,9 @@ class BitmapCollector(
     var newClassifier: ImageClassifierHelper?,
     var imgSegmentation: ImageSegmentationHelper?,
     var gestureClas: GestureClassifierHelper?,
-    var digitClas: DigitClassifierHelper?
+    var digitClas: DigitClassifierHelper?,
+    var device: Int,
+    var model: Int
 
 ): ViewModel() {
 
@@ -58,6 +64,8 @@ class BitmapCollector(
     var run = false
     private var job : Job? = null
     var outputText = SpannableStringBuilder("null")
+
+
 
     /**
      * Resets response time collection data so changing model does not give erroneous first result
@@ -168,8 +176,19 @@ class BitmapCollector(
                     }
 
 //object detection version complex: this is the main
-                   if(objectDetector!= null)
+                   if(device == 3){
+                        val(total_latency ,serverResponse) = sendBitmapToServer(bitmap!!, model)
+                        if (serverResponse != null) {
+                            Log.d("Server Response", serverResponse)
+                        }
+                        else {
+                            Log.e("Server Response", "Error communicating with server")
+                        }
+                        //System.out.println("Time:" + total_latency)
+                   }
+                   else if(objectDetector!= null){
                         objectDetector!!.detect(bitmap!!,0)
+                   }
 
                    else if(classifier!= null)
                         classifier.classifyFrame(bitmap)
@@ -204,6 +223,7 @@ class BitmapCollector(
 
                     totalInferenceTime+=InferenceTime
                     Log.d("times", "${overhead},${InferenceTime},${responseTime}")
+                    //System.out.println("Time:" + totalResponseTime)
                     outputText.append("${overhead},${InferenceTime},${responseTime}\n")
 //                    file.appendText(outputText.toString())
                 }
@@ -214,4 +234,102 @@ class BitmapCollector(
 
 }
 
+/**
+    * Sends a Bitmap to a server and returns the server's response.
+ */
 
+fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
+    val serverIP = "192.168.10.132"  // IP address of the server
+    val serverPort = 4545           // Port number of the server
+    var retryCount = 3               // Number of times to retry sending the image
+    var networkLatency: Long = 0     // Network latency in milliseconds
+    System.out.println(model)
+    
+    while (retryCount > 0) {
+        try {
+            // Connect to the server
+            val socket = Socket(serverIP, serverPort)
+
+            // Since the server expects a base64 encoded image, convert the bitmap to a base64 string
+            val outputStream = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+            val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+
+            val out = socket.getOutputStream()
+            
+            // record the time before sending the image
+            val startNetworkTime = System.nanoTime()
+
+
+            // Send the model index to the server
+            out.write(model.toString().toByteArray(Charsets.UTF_8))
+            out.flush()
+
+            // Data format: modelIndex:base64Image:finish
+            out.write(":".toByteArray(Charsets.UTF_8))
+            out.flush()
+            
+            // Send the image data
+            out.write(base64Image.toByteArray(Charsets.UTF_8))
+
+            out.flush()
+            out.write("finish".toByteArray(Charsets.UTF_8))
+            out.flush()
+            Log.d("BitmapCollector", "Sent image to server")
+            System.out.println("Send Image")
+
+            // Wait for the server to acknowledge the receipt of data
+            val input = socket.getInputStream()
+            val ackBuffer = ByteArray(1024)
+            val ackLength = input.read(ackBuffer)
+            val ackMessage = String(ackBuffer, 0, ackLength)
+            if (ackMessage != "RECEIVED") {
+                Log.e("BitmapCollector", "Server did not acknowledge the receipt of data")
+                return Pair(-1, null)
+            }
+            Log.d("BitmapCollector", "Server acknowledged receipt of data")
+            System.out.println("Server acknowledged receipt of data!")
+//            if (input == null) {
+//                Log.e("BitmapCollector", "Error getting input stream from server")
+//                return Pair(-1, null)
+//            }
+
+            // read the response from the server
+            val resultBuffer = ByteArray(4096)  // 4KB buffer to store the server response locally
+            val length = input.read(resultBuffer)
+            val serverResponse = String(resultBuffer, 0, length)
+
+            // record the time after receiving the response
+            val endNetworkTime = System.nanoTime()
+            networkLatency = (endNetworkTime - startNetworkTime) / 1_000_000  // convert to milliseconds
+
+            // close the input and output streams
+            input.close()
+            out.close()
+            socket.close()
+
+
+
+            val parts = serverResponse.split(":")
+            if (parts.size < 2) {
+                Log.e("BitmapCollector", "Invalid response format")
+                return Pair(-1, null)
+            }
+            System.out.println("PARTS:      " + parts[0])
+            val serverLatency = parts[0].toFloatOrNull()
+            val result = parts.getOrNull(1)
+
+            Log.d("Server Latency", "Server Processing Latency: $serverLatency ms")
+            Log.d("Network Latency", "Network Latency: $networkLatency ms")
+            // return the network latency and the server response
+            return Pair(networkLatency, result)
+
+        } catch (e: Exception) {
+            Log.e("BitmapCollector", "Error communicating with server", e)
+            retryCount--
+        }
+    }
+
+    // return null if the server did not respond
+    return Pair(-1, null)
+}

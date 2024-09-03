@@ -33,7 +33,7 @@ class AiItemsViewModel {
 
         )
     var iD=0
-    val devices = listOf("CPU", "GPU", "NNAPI")
+    val devices = listOf("CPU", "GPU", "NNAPI","SERVER")
     var collector : BitmapCollector? = null
     var classifier: ImageClassifier? = null
     var segm: ImageSegmentor? = null

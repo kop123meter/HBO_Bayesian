@@ -42,7 +42,7 @@ public class ModelRequestManager {
 
     private final BlockingQueue<Runnable> mWorkQueue;
 
-    private final ThreadPoolExecutor mDownloadThreadPool;
+    public final ThreadPoolExecutor mDownloadThreadPool;
 
     private final int CORE_THREAD_POOL_SIZE = 50;
 
@@ -120,6 +120,9 @@ public class ModelRequestManager {
             case DOWNLOAD_FAILED:
                 Log.w("ModelRequest", "Recieved DOWNLOAD_FAILED state");
                 // what do?
+                if (modelRequest.req!=null && modelRequest.req .equals( "delegate")) { // when DOWNLOAD_FAILED state happens while delegate request
+                    // Hey python client, say that again:
+                }
                 break;
         }
     }

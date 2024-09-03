@@ -228,9 +228,9 @@ void printToFile(){
 
     }
     writer.write(sb.toString());
-    System.out.println("done!");
+//    System.out.println("done!");
   } catch (FileNotFoundException e) {
-    System.out.println(e.getMessage());
+//    System.out.println(e.getMessage());
   }
 
 
@@ -309,6 +309,7 @@ void classifyFrame(Bitmap bitmap, SpannableStringBuilder builder) {
       recreateInterpreter();
     }
   }
+
   /** Run AI model on CPU */
   public void useCPU() {
     device = "CPU";
@@ -320,6 +321,14 @@ void classifyFrame(Bitmap bitmap, SpannableStringBuilder builder) {
     tfliteOptions.addDelegate(nnapiDelegate);
     device = "NNAPI";
     recreateInterpreter();
+  }
+  /** Run AI model on Sever */
+  public void useRemote(){
+    device = "SERVER";
+    if(tflite != null){
+      tflite.close();
+      tflite = null;
+    }
   }
   public void setNumThreads(int numThreads) {
     tfliteOptions.setNumThreads(numThreads);

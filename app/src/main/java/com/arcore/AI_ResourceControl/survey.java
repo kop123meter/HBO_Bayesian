@@ -284,10 +284,10 @@ public class survey implements Runnable { // this is for survey2 to collec data 
 
                 sb.append('\n');
                 writer.write(sb.toString());
-                System.out.println("done!");
+//                System.out.println("done!");
             }
         }catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
 
     }
@@ -325,9 +325,9 @@ public class survey implements Runnable { // this is for survey2 to collec data 
             sb.append(',');  sb.append(mInstance.algName[mInstance.alg-1]);
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 

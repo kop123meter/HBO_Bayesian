@@ -105,7 +105,7 @@ public class ModelRequestRunnable implements Runnable {
                 try {
 
                     //@@@pc address
-                    Socket socket = new Socket("192.168.1.42", 4444);
+                    Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
 
 
                     // Open output stream

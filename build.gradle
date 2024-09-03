@@ -1,7 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    ext.kotlin_version = '1.6.20'
+    ext.kotlin_version = '1.6.21'
 
     repositories {
         google()
@@ -14,7 +14,7 @@ buildscript {
 
        // implementation files('/home/niloofar/anaconda3/lib/python3.9/site-packages/jep/jep-4.1.1.jar.jar')
 
-        classpath 'com.android.tools.build:gradle:7.0.2'
+        classpath 'com.android.tools.build:gradle:7.4.2'
        // nil cm tmp
       //  classpath 'com.android.tools.build:gradle:4.2.1'
         classpath 'de.undercouch:gradle-download-task:4.1.2'
