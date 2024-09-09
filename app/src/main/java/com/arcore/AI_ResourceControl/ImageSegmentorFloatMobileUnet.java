@@ -118,12 +118,12 @@ public class ImageSegmentorFloatMobileUnet extends ImageSegmentor {
 
   @Override
   protected void runInference(String device) {
-    if("SERVER".equals(device)){
-      runRemoteInference();
-    }
-    else {
+//    if("SERVER".equals(device)){
+//      runRemoteInference();
+//    }
+
       tflite.run(imgData, segmap);
-    }
+
   }
 
   public void runRemoteInference(){

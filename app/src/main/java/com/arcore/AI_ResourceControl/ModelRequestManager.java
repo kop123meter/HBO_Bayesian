@@ -160,13 +160,14 @@ public class ModelRequestManager {
 //                            return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
 //                        }
 //                    }
-
+                    // Get the reaminging AI Task Number for HBO
+                    double remain_Task = modelRequest.getRemaining_task();
                     dlgRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
                     // un comment parallelism and start sequential  decimation
                     //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                    //  new DelegateRequestRunnable(modelRequest, Instance).run();
-                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance));
+                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
 
                 }
                 else if( modelRequest.req!=null && modelRequest.req .equals("decimate")){ // this is to decimate model

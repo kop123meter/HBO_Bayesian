@@ -34,6 +34,8 @@ public class DelegateRequestRunnable implements Runnable {
 
     private final ModelRequestManager mInstance;
 
+    private double remining_task;
+
     static final int DOWNLOAD_FAILED = -1;
     static final int DOWNLOAD_PENDING = 1;
     static final int DOWNLOAD_STARTED = 2;
@@ -50,13 +52,15 @@ public class DelegateRequestRunnable implements Runnable {
 
     //public ModelRequestRunnable( float cr,String filename, float percReduc, Context context, ModelRequestManager mInstance) {
 
-    public DelegateRequestRunnable(ModelRequest modelRequest, ModelRequestManager mInstance ) {
+    public DelegateRequestRunnable(ModelRequest modelRequest, ModelRequestManager mInstance, double remain_task ) {
         this.modelRequest = modelRequest;
 
 
         this.context = modelRequest.getAppContext();
 
         this.mInstance = mInstance;
+
+        this.remining_task = remain_task;
 
     }
 
@@ -84,12 +88,19 @@ public class DelegateRequestRunnable implements Runnable {
 //                    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
 
-                mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
+                //mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
 
                 ///nill test to trigger HBO-> we write a code to python server and then activate it
+                out.println("tasknum/" + this.remining_task);
+                out.flush();
+
+
                 out.println("delegate/activate");
                 //flush stream
                 out.flush();
+
+                // Send remaining Task Num to Optimize
+
 
 
 
@@ -186,9 +197,11 @@ public class DelegateRequestRunnable implements Runnable {
                         //flush stream
                         out.flush();
                         exploration_phase -= 1;
+                        Log.d("DelegateRequest Msg", "Current Iter:" +modelRequest.activityMain.curBysIters );
                         if(modelRequest.activityMain.curBysIters==max_iteration-1)// should be done all the time after last HBO iteration
                         //&& modelRequest.activityMain.objectCount==1)// this is done just for one time
                         {
+                            Log.d("DelegateRequest Msg", "Sending Best BT");
                             modelRequest.activityMain.avg_reward=(double) (Math.round((double) (modelRequest.activityMain.avg_reward * 100))) / 100;
                             modelRequest.activityMain.best_BT = modelRequest.activityMain.avg_reward;
 

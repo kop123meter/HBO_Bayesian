@@ -230,7 +230,7 @@ class AiRecyclerviewAdapter(
         // Lookup names of parameters.
         val model: String = itemsView.models[itemsView.currentModel]
         val device: String = itemsView.devices[itemsView.currentDevice]
-        System.out.println(device)
+
         val threads = itemsView.currentNumThreads
 
 

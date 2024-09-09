@@ -90,6 +90,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
 //import org.tensorflow.lite.examples.objectdetection.ObjectDetectorHelper;
 //import  javax.imageio;
 //import java.awt.*;
@@ -107,6 +108,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     static List<AiItemsViewModel> mList = new ArrayList<>();
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
     // on onTracking is called. Needed for DynamicBitmapSource
+
+    // Set the AI task List for server and MAX Tasks
+    public static List<AiItemsViewModel> serverList = new ArrayList<>();
+    public static int MAX_SERVER_AITASK_NUMS = 1;
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
     private final int MAX_THREAD_POOL_SIZE = 10;
@@ -118,7 +123,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public int objectCount = 0;
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
-    String server_IP_address = "192.168.10.129";
+
+    String server_IP_address = "192.168.10.164";
     int server_PORT = 1909;
 
     // Using the following variable to track the position
@@ -2272,6 +2278,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         String aiModel = cols[1];
                                         String device = cols[2];
 
+                                        Log.d("Load Model: ", aiModel + ":::" + device);
+
+
                                         AiItemsViewModel taskView = new AiItemsViewModel();
                                         mList.add(taskView);
                                         int last_index = mList.size();
@@ -2290,7 +2299,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         );
 
                                         i[0]++;
-                                        counter_for_array_i = i[0];
                                         textNumOfAiTasks.setText(String.format("%d", i[0]));
 //
                                         //  Toast.makeText(MainActivity.this, String.format("New AI Task %s %s %d", taskView.getClassifier().getModelName(), taskView.getClassifier().getDevice(), taskView.getClassifier().getNumThreads()), Toast.LENGTH_SHORT).show();

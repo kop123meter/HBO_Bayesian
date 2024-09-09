@@ -239,8 +239,10 @@ class BitmapCollector(
  */
 
 fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
-    val serverIP = "192.168.10.132"  // IP address of the server
-    val serverPort = 4545           // Port number of the server
+    val tempAdd = serverAddress();
+
+    val serverIP = "192.168.10.106"  // IP address of the server
+    val serverPort = 4545        // Port number of the server
     var retryCount = 3               // Number of times to retry sending the image
     var networkLatency: Long = 0     // Network latency in milliseconds
     System.out.println(model)
@@ -252,8 +254,13 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 
             // Since the server expects a base64 encoded image, convert the bitmap to a base64 string
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-            val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            var base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
+            val missingPadding = base64Image.length % 4
+            if(missingPadding > 0){
+                base64Image += "=".repeat(4 - missingPadding)
+            }
+            var image_data_length = base64Image.length
 
             val out = socket.getOutputStream()
             
@@ -268,6 +275,14 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             // Data format: modelIndex:base64Image:finish
             out.write(":".toByteArray(Charsets.UTF_8))
             out.flush()
+
+            // Get Data Length
+            out.write(image_data_length.toString().toByteArray(Charsets.UTF_8))
+            out.flush()
+
+            out.write(":".toByteArray(Charsets.UTF_8))
+            out.flush()
+
             
             // Send the image data
             out.write(base64Image.toByteArray(Charsets.UTF_8))
@@ -294,10 +309,17 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 //                return Pair(-1, null)
 //            }
 
+
             // read the response from the server
             val resultBuffer = ByteArray(4096)  // 4KB buffer to store the server response locally
             val length = input.read(resultBuffer)
-            val serverResponse = String(resultBuffer, 0, length)
+            var serverResponse: String? = null
+            if (length >= 0 && length <= resultBuffer.size) {
+                serverResponse = String(resultBuffer, 0, length)
+            } else {
+                // Handle error case here
+                println("Invalid length: $length")
+            }
 
             // record the time after receiving the response
             val endNetworkTime = System.nanoTime()
@@ -310,7 +332,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 
 
 
-            val parts = serverResponse.split(":")
+            val parts = serverResponse?.split(":") ?: emptyList()
             if (parts.size < 2) {
                 Log.e("BitmapCollector", "Invalid response format")
                 return Pair(-1, null)

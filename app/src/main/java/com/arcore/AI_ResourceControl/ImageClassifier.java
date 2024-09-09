@@ -325,10 +325,7 @@ void classifyFrame(Bitmap bitmap, SpannableStringBuilder builder) {
   /** Run AI model on Sever */
   public void useRemote(){
     device = "SERVER";
-    if(tflite != null){
-      tflite.close();
-      tflite = null;
-    }
+    recreateInterpreter();
   }
   public void setNumThreads(int numThreads) {
     tfliteOptions.setNumThreads(numThreads);

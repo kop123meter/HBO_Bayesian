@@ -488,7 +488,8 @@ import static java.lang.Math.min;
                 capacity.set(bestDlg, capacity.get(bestDlg)-1);
                 copyAiItems.remove(taskView);
                 // assign the task
-                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
+
+                if (bestDlg != taskView.getCurrentDevice() && taskView.getCurrentDevice()!=3 )// this means that the model should be updated
                 {
                     mInstance.adapter.setMList(mInstance.mList);
                     mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);

@@ -167,7 +167,7 @@ public abstract class ImageSegmentor {
 
 
   private void recreateInterpreter() {
-    if (tflite != null) {
+     if (tflite != null) {
       tflite.close();
       tflite = new Interpreter(tfliteModel, tfliteOptions);
     }

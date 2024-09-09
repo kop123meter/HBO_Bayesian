@@ -34,6 +34,7 @@ import static java.lang.Math.pow;
 import static java.lang.Math.sqrt;
 
 import android.annotation.SuppressLint;
+import android.util.Log;
 import android.widget.TextView;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -212,8 +213,8 @@ public class balancer implements Runnable {
                 posText_thr.setText("RT3: " + String.valueOf(meanRt));
             }
             
-            if(maxAIlatencyPeriod < (actual_rpT-expected_time)/actual_rpT){
-                maxAIlatencyPeriod= (actual_rpT-expected_time)/actual_rpT;
+            if(maxAIlatencyPeriod < actual_rpT){
+                maxAIlatencyPeriod= actual_rpT;
                 maxAIlatencyPeriodIndex=aiIndx;
 
             }
@@ -222,16 +223,23 @@ public class balancer implements Runnable {
 
         }
         if (maxAIlatencyPeriodIndex != -1) {
-            AiItemsViewModel tempView = mInstance.mList.get(maxAIlatencyPeriodIndex);
+            AiItemsViewModel tempView = MainActivity.mList.get(maxAIlatencyPeriodIndex);
             String model_name = tempView.getModels().get(tempView.getCurrentModel());
             String device_name = tempView.getDevices().get(tempView.getCurrentDevice());
             System.out.println("Max AI latency period: " + maxAIlatencyPeriod + " AI Model Name: " + model_name + " Device Name: " + device_name );
 
-            if(!device_name.equals("SERVER")){
+            if(!device_name.equals("SERVER") && (MainActivity.serverList.size() <= MainActivity.MAX_SERVER_AITASK_NUMS) ){
+
+                System.out.println("Sending Server Now");
+                MainActivity.serverList.add(tempView);
+
+
+                // Offloading
                 int modelIndex = tempView.getCurrentModel();
                 int serverDeviceIndex = tempView.getDevices().indexOf("SERVER");
-                int pos = mInstance.counter_for_array_i;
+                int pos = tempView.getID();
                 tempView.setCurrentDevice(serverDeviceIndex);
+                System.out.println(tempView.getCurrentDevice());
                 mInstance.adapter.notifyItemChanged(maxAIlatencyPeriodIndex);
                 mInstance.adapter.updateActiveModel(modelIndex, serverDeviceIndex, 0, tempView, pos);
             }
@@ -245,6 +253,7 @@ public class balancer implements Runnable {
         double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
         reward =mInstance.avgq - (mInstance.reward_weight*avgAIltcy);
         reward=(double) (Math.round((double) (reward * 100))) / 100;
+
 
         mInstance.best_BT=(double) (Math.round((double) (mInstance.best_BT * 100))) / 100;
 
@@ -266,6 +275,7 @@ public class balancer implements Runnable {
 
 
         if(hbo_trigger) {
+            System.out.println("best_bt:    "+ mInstance.best_BT);
             if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
 
                 if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
