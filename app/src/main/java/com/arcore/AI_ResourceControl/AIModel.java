@@ -30,6 +30,9 @@ class AIModel implements Comparable<AIModel>  {
             case "NNAPI":
                 delegate=2;
                 break;
+            case "SERVER":
+                delegate=3;
+                break;
             default:
                 delegate=0;
         }

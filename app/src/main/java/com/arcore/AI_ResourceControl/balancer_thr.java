@@ -1144,10 +1144,10 @@ public class balancer_thr implements Runnable {
 
                 sb.append('\n');
                 writer.write(sb.toString());
-                System.out.println("done!");
+//                System.out.println("done!");
             }
         }catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
 
     }
@@ -1180,9 +1180,9 @@ public class balancer_thr implements Runnable {
         }
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -1201,9 +1201,9 @@ public class balancer_thr implements Runnable {
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -1220,9 +1220,9 @@ public class balancer_thr implements Runnable {
         sb.append('\n');
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 
@@ -1253,9 +1253,9 @@ public class balancer_thr implements Runnable {
             sb.append(',');  sb.append(duration);
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 

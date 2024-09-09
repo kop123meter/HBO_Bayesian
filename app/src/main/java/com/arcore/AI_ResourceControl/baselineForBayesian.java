@@ -497,9 +497,9 @@ public class baselineForBayesian implements Runnable {// baseline for MIR
             sb.append(",").append( avgAIltcy).append(",").append(avgLatency).append(",").append( bys_Avgltcy).append(",").append( perc_error).append(",").append( selectedRatio);
             sb.append('\n');
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
 
 

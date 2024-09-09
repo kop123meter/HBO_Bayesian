@@ -103,7 +103,7 @@ public class OffloadRequestRunnable implements Runnable {
 
                     // Establish connection with the server
                     //@@@pc address
-                    Socket socket = new Socket("192.168.1.41", 4444);
+                    Socket socket = new Socket(modelRequest.activityMain.server_IP_address, 4444);
                     // Open output stream
                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                     BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -132,7 +132,7 @@ public class OffloadRequestRunnable implements Runnable {
                         long startTime = System.currentTimeMillis();
                         socketOutputStream.write(buffer, 0, read);
                         long endTime = System.currentTimeMillis();
-                        System.out.println("socketOutputStream buffer [" + read + " bytes] write time 1: " + (endTime - startTime) + " milliseconds");
+//                        System.out.println("socketOutputStream buffer [" + read + " bytes] write time 1: " + (endTime - startTime) + " milliseconds");
                          writingtime+= (endTime - startTime);
                         socketOutputStream.flush();
                     }

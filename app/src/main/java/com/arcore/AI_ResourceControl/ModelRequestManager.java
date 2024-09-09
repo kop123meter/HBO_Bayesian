@@ -42,7 +42,7 @@ public class ModelRequestManager {
 
     private final BlockingQueue<Runnable> mWorkQueue;
 
-    private final ThreadPoolExecutor mDownloadThreadPool;
+    public final ThreadPoolExecutor mDownloadThreadPool;
 
     private final int CORE_THREAD_POOL_SIZE = 50;
 
@@ -120,6 +120,9 @@ public class ModelRequestManager {
             case DOWNLOAD_FAILED:
                 Log.w("ModelRequest", "Recieved DOWNLOAD_FAILED state");
                 // what do?
+                if (modelRequest.req!=null && modelRequest.req .equals( "delegate")) { // when DOWNLOAD_FAILED state happens while delegate request
+                    // Hey python client, say that again:
+                }
                 break;
         }
     }
@@ -157,13 +160,14 @@ public class ModelRequestManager {
 //                            return;// remove repeated since in runnable we will redraw obj that are existed in phone mem
 //                        }
 //                    }
-
+                    // Get the reaminging AI Task Number for HBO
+                    double remain_Task = modelRequest.getRemaining_task();
                     dlgRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
                     // un comment parallelism and start sequential  decimation
                     //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                    //  new DelegateRequestRunnable(modelRequest, Instance).run();
-                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance));
+                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
 
                 }
                 else if( modelRequest.req!=null && modelRequest.req .equals("decimate")){ // this is to decimate model

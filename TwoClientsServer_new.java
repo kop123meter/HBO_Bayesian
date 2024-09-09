@@ -35,48 +35,48 @@ public class TwoClientsServer_new {
 		  Socket clientSocket1 = serverSocket.accept(); // second connect the app (Push server Button)
 		  System.out.println("Client1 connected: " + clientSocket1.getInetAddress().getHostAddress());
 
-		  while ( true){ // this runs for each time we trigger HBO
+		//   while ( true){ // this runs for each time we trigger HBO
 
-			 if(client_number!=1)// not for the first round
-			 { clientSocket2 = serverSocket.accept();
-			   System.out.println("Client2_"+client_number+" connected: " + clientSocket2.getInetAddress().getHostAddress());}
+		// 	 if(client_number!=1)// not for the first round
+		// 	 { clientSocket2 = serverSocket.accept();
+		// 	   System.out.println("Client2_"+client_number+" connected: " + clientSocket2.getInetAddress().getHostAddress());}
 
-			System.out.println("Server and Client are Connected");
-			// assume that client2 is python that will send input
-            if (clientSocket2.getInetAddress().getHostAddress().equals( "127.0.0.1")==true)// this is python client
-				{
-					if(client_number>1)// if we have more than one call for HBO, we need to connect to the server again since we have shutdown the connection in the prev cycle through DelegateRequestRunnable class
-					{// we need to wait again for the java server to be connected to
-						clientSocket1 = serverSocket.accept();
-						System.out.println("Client1 connected: " + clientSocket1.getInetAddress().getHostAddress());
-					}
-					// this is to send, we need both directions (send&receive) here on the server
-					System.out.println("is sending activation from app  ");
+		// 	System.out.println("Server and Client are Connected");
+		// 	// assume that client2 is python that will send input
+        //     if (clientSocket2.getInetAddress().getHostAddress().equals( "127.0.0.1")==true)// this is python client
+		// 		{
+		// 			if(client_number>1)// if we have more than one call for HBO, we need to connect to the server again since we have shutdown the connection in the prev cycle through DelegateRequestRunnable class
+		// 			{// we need to wait again for the java server to be connected to
+		// 				clientSocket1 = serverSocket.accept();
+		// 				System.out.println("Client1 connected: " + clientSocket1.getInetAddress().getHostAddress());
+		// 			}
+		// 			// this is to send, we need both directions (send&receive) here on the server
+		// 			System.out.println("is sending activation from app  ");
 
-					javaClientHandler fromJava_sender = new javaClientHandler( clientSocket1,clientSocket2);// this is to recieve a result back from java client
-					fromJava_sender.start();// activate HBO
+		// 			javaClientHandler fromJava_sender = new javaClientHandler( clientSocket1,clientSocket2);// this is to recieve a result back from java client
+		// 			fromJava_sender.start();// activate HBO
 
-					for (int i=0;i<iterations;i++) {//this runs up to the count of iterations in bayesian
+		// 			for (int i=0;i<iterations;i++) {//this runs up to the count of iterations in bayesian
 
-						clientSocket2 = serverSocket.accept();// here python runs the line 95 and connects again for objective function
-						System.out.println("Rcved Activation and is sending BO input from python  ");
-						pythonClientHandler client1Handler = new pythonClientHandler(clientSocket2, clientSocket1);
-						client1Handler.start(); // receive inputs from python and send to java client
+		// 				clientSocket2 = serverSocket.accept();// here python runs the line 95 and connects again for objective function
+		// 				System.out.println("Rcved Activation and is sending BO input from python  ");
+		// 				pythonClientHandler client1Handler = new pythonClientHandler(clientSocket2, clientSocket1);
+		// 				client1Handler.start(); // receive inputs from python and send to java client
 
-						//if(i!=iterations-1) {// we call below lines to get the reward back to the python
-						fromJava_sender = new javaClientHandler(clientSocket1, clientSocket2);
-						fromJava_sender.start();//receive inputs from java client and send to python
-						//}
-						//client_number+=1;
-					}
+		// 				//if(i!=iterations-1) {// we call below lines to get the reward back to the python
+		// 				fromJava_sender = new javaClientHandler(clientSocket1, clientSocket2);
+		// 				fromJava_sender.start();//receive inputs from java client and send to python
+		// 				//}
+		// 				//client_number+=1;
+		// 			}
 
-				}
-			else
-				clientSocket1=clientSocket2;// clientSocket1 is always the java client
+		// 		}
+		// 	else
+		// 		clientSocket1=clientSocket2;// clientSocket1 is always the java client
 
-				client_number+=1;
-				//client1Socket.close();
-		}
+		// 		client_number+=1;
+		// 		//client1Socket.close();
+		// }
 
 
 		} catch (IOException e) {

@@ -19,6 +19,8 @@ public class ModelRequest {
     private WeakReference<MainActivity> mainActivityWeakReference;
     public  final MainActivity activityMain;
     private int ID;
+
+    private double remaining_task;
     private Queue<Integer> similarRequestIDArray;
     private float cache;
     String delegate;
@@ -51,6 +53,10 @@ public class ModelRequest {
         this.appContext = context;
         this.mainActivityWeakReference = new WeakReference<MainActivity>(mainActivity);
         this.ID = id;
+        this.remaining_task = mainActivity.mList.size() - mainActivity.serverList.size();
+        System.out.println("SIZE1 : "  + mainActivity.mList.size());
+        System.out.println("SIZE2 : "  + mainActivity.serverList.size());
+
 
     }
 
@@ -87,6 +93,8 @@ public class ModelRequest {
     {
         return appContext;
     }
+
+    public double getRemaining_task(){return remaining_task;}
 
     public int getID() { return ID; }
     public Queue<Integer> getSimilarRequestIDArray() { return similarRequestIDArray; }

@@ -45,6 +45,7 @@ import static java.lang.Math.min;
  import static java.lang.Thread.sleep;
 
  import android.os.CountDownTimer;
+ import android.util.Log;
  import android.widget.TextView;
 
  public class bayesian implements Runnable {
@@ -487,7 +488,8 @@ import static java.lang.Math.min;
                 capacity.set(bestDlg, capacity.get(bestDlg)-1);
                 copyAiItems.remove(taskView);
                 // assign the task
-                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
+
+                if (bestDlg != taskView.getCurrentDevice() && taskView.getCurrentDevice()!=3 )// this means that the model should be updated
                 {
                     mInstance.adapter.setMList(mInstance.mList);
                     mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
@@ -590,7 +592,8 @@ import static java.lang.Math.min;
 
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
-                System.out.println("reward is "+ reward);
+//                System.out.println("reward is "+ reward);
+                Log.d("Bayesian Msg",  "from bayesian: reward = " + String.valueOf(reward));
             }
         };
 
@@ -903,9 +906,9 @@ import static java.lang.Math.min;
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
 
             writer.write(sb.toString());
-            System.out.println("done!");
+//            System.out.println("done!");
         } catch (FileNotFoundException e) {
-            System.out.println(e.getMessage());
+//            System.out.println(e.getMessage());
         }
     }
 

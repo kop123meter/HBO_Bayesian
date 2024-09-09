@@ -30,6 +30,9 @@ import android.util.Log;
 //import org.opencv.imgproc.Imgproc;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +44,8 @@ import java.util.List;
 //import static org.opencv.imgproc.Imgproc.COLOR_BGR2Lab;
 //import static org.opencv.imgproc.Imgproc.COLOR_BGRA2BGR;
 //import static org.opencv.imgproc.Imgproc.COLOR_Lab2BGR;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 /** This segmentor works with the float mobile-unet model. */
 public class ImageSegmentorFloatMobileUnet extends ImageSegmentor {
@@ -49,6 +54,17 @@ public class ImageSegmentorFloatMobileUnet extends ImageSegmentor {
   private static final float IMAGE_MEAN = 127.5f;
 
   private static final float IMAGE_STD =127.5f;
+
+  /**
+   * Setup Offload Server IP and Port
+   * */
+  private static final String SERVER_ADDRESS = "192.168.10.181";
+  private static final int SERVER_PORT = 45455;
+  /**
+   * Port 3434 used for collecting data
+   * Port 4545 used for testing offload one task
+   * kill thread ps -fA | grep python
+   * */
 
   /**
    * An array to hold inference results, to be feed into Tensorflow Lite as outputs. This isn't part
@@ -101,9 +117,78 @@ public class ImageSegmentorFloatMobileUnet extends ImageSegmentor {
   }
 
   @Override
-  protected void runInference( ) {
+  protected void runInference(String device) {
+//    if("SERVER".equals(device)){
+//      runRemoteInference();
+//    }
 
-    tflite.run(imgData, segmap);
+      tflite.run(imgData, segmap);
+
+  }
+
+  public void runRemoteInference(){
+    try{
+      Socket socket = new Socket(SERVER_ADDRESS,SERVER_PORT);
+      OutputStream out = socket.getOutputStream();
+      InputStream in = socket.getInputStream();
+
+      // Send imgData Size
+      int imgDataSize = imgData.capacity();
+      out.write(intToBytes(imgDataSize));
+
+      byte[] buffer = new byte[4096];
+      imgData.rewind();
+      while(imgData.hasRemaining()){
+        int bytesToWrite = Math.min(imgData.remaining(), buffer.length);
+        imgData.get(buffer, 0, bytesToWrite);
+        out.write(buffer, 0, bytesToWrite);
+        System.out.println("Sending Data success.....");
+      }
+      out.flush();
+
+      // receive segmap size
+      byte[] sizeBuffer = new byte[4];
+      in.read(sizeBuffer);
+      int segmapSize = bytesToInt(sizeBuffer);
+
+      // receive segmap data
+      byte[] segmapBytes = new byte[segmapSize];
+      int totalBytesRead = 0;
+      while (totalBytesRead < segmapSize) {
+        int bytesRead = in.read(segmapBytes, totalBytesRead, segmapSize - totalBytesRead);
+        if (bytesRead == -1) break;
+        totalBytesRead += bytesRead;
+      }
+
+      // transfer segmap data to segmap
+      ByteBuffer segmapBuffer = ByteBuffer.wrap(segmapBytes).order(ByteOrder.nativeOrder());
+      segmapBuffer.asFloatBuffer().get(segmap[0]);
+
+      // close connection
+      out.close();
+      in.close();
+      socket.close();
+      
+
+    }catch (Exception e){
+      e.printStackTrace();
+    }
+
+
+  }
+  /**
+   * Converts an int to a byte array.
+   */
+  private byte[] intToBytes(int value) {
+    return new byte[]{
+            (byte) (value >> 24),
+            (byte) (value >> 16),
+            (byte) (value >> 8),
+            (byte) value
+    };
+  }
+  private int bytesToInt(byte[] bytes) {
+    return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | (bytes[3]);
   }
 
 //  @Override
