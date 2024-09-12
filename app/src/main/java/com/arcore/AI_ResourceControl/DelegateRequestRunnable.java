@@ -95,6 +95,7 @@ public class DelegateRequestRunnable implements Runnable {
                 out.flush();
 
 
+
                 out.println("delegate/activate");
                 //flush stream
                 out.flush();
@@ -204,6 +205,9 @@ public class DelegateRequestRunnable implements Runnable {
                             Log.d("DelegateRequest Msg", "Sending Best BT");
                             modelRequest.activityMain.avg_reward=(double) (Math.round((double) (modelRequest.activityMain.avg_reward * 100))) / 100;
                             modelRequest.activityMain.best_BT = modelRequest.activityMain.avg_reward;
+                            if(modelRequest.activityMain.HBO_COUNTER == 0){
+                                modelRequest.activityMain.HBO_COUNTER += 1;
+                            }
 
                         }
                         modelRequest.activityMain.curBysIters += 1;

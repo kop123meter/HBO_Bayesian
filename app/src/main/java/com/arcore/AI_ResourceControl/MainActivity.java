@@ -112,6 +112,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     // Set the AI task List for server and MAX Tasks
     public static List<AiItemsViewModel> serverList = new ArrayList<>();
     public static int MAX_SERVER_AITASK_NUMS = 1;
+
+    public int HBO_COUNTER = 0;
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
     private final int MAX_THREAD_POOL_SIZE = 10;
@@ -124,7 +126,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.10.164";
+    String server_IP_address = "192.168.1.2";
     int server_PORT = 1909;
 
     // Using the following variable to track the position
@@ -146,6 +148,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     boolean bys_baseline1_2 = true;// this controls if we wanna test baseline1-2 match Q and match latency to compaere with bayesian
     double best_BT = 0;// this is the reward of initial HBO activation with one object on the screen
     int hbo_trigger_false_counter = 0; // counts the # we wait for any possible noise for B_T calculation
+
+    int offload_trigger_counter = 0;
     double reward_weight = 2.5; //was 0.02 before for non normalized vals
     double last_latencyInstanceN = 0;// keeps the latency of AI1 instance to check the noises in bayesian class
     String bayesian_delegate = "";

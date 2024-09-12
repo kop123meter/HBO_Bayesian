@@ -117,65 +117,12 @@ public class ImageSegmentorFloatMobileUnet extends ImageSegmentor {
   }
 
   @Override
-  protected void runInference(String device) {
-//    if("SERVER".equals(device)){
-//      runRemoteInference();
-//    }
-
+  protected void runInference() {
       tflite.run(imgData, segmap);
 
   }
 
-  public void runRemoteInference(){
-    try{
-      Socket socket = new Socket(SERVER_ADDRESS,SERVER_PORT);
-      OutputStream out = socket.getOutputStream();
-      InputStream in = socket.getInputStream();
 
-      // Send imgData Size
-      int imgDataSize = imgData.capacity();
-      out.write(intToBytes(imgDataSize));
-
-      byte[] buffer = new byte[4096];
-      imgData.rewind();
-      while(imgData.hasRemaining()){
-        int bytesToWrite = Math.min(imgData.remaining(), buffer.length);
-        imgData.get(buffer, 0, bytesToWrite);
-        out.write(buffer, 0, bytesToWrite);
-        System.out.println("Sending Data success.....");
-      }
-      out.flush();
-
-      // receive segmap size
-      byte[] sizeBuffer = new byte[4];
-      in.read(sizeBuffer);
-      int segmapSize = bytesToInt(sizeBuffer);
-
-      // receive segmap data
-      byte[] segmapBytes = new byte[segmapSize];
-      int totalBytesRead = 0;
-      while (totalBytesRead < segmapSize) {
-        int bytesRead = in.read(segmapBytes, totalBytesRead, segmapSize - totalBytesRead);
-        if (bytesRead == -1) break;
-        totalBytesRead += bytesRead;
-      }
-
-      // transfer segmap data to segmap
-      ByteBuffer segmapBuffer = ByteBuffer.wrap(segmapBytes).order(ByteOrder.nativeOrder());
-      segmapBuffer.asFloatBuffer().get(segmap[0]);
-
-      // close connection
-      out.close();
-      in.close();
-      socket.close();
-      
-
-    }catch (Exception e){
-      e.printStackTrace();
-    }
-
-
-  }
   /**
    * Converts an int to a byte array.
    */

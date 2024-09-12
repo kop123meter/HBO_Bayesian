@@ -8,7 +8,11 @@
 // @@@ check for  "Uncomment for Bayes auto Trigger" and uncomment those codes for auto trigger in
 package com.arcore.AI_ResourceControl;
 /*for HBO it collects data and checks if HBO trigger is needed*/
-import java.io.File;
+ /**
+  * From around 350 line is offloading part
+  */
+
+ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -44,6 +48,9 @@ import com.google.common.collect.ListMultimap;
 public class balancer implements Runnable {
 
     boolean hbo_trigger=true;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
+    //boolean offload_trigger = true; // After first HBO, we need to trigger offloading and once one offloading done
+                                    // we need set this flag back to false until next HBO finished
+    private double sendResponseTimeCode = -1000000; //set this flag to judge the data we send to data collector server
 
     int binCap=7;
     private final MainActivity mInstance;
@@ -174,8 +181,7 @@ public class balancer implements Runnable {
 
         int Ai_count = mInstance.mList.size();
         double avg_AIlatencyPeriod=0;
-        double maxAIlatencyPeriod=-1;
-        int maxAIlatencyPeriodIndex=-1;
+        double[] AI_latency = new double[Ai_count];
 
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
 
@@ -189,6 +195,7 @@ public class balancer implements Runnable {
                     meanRt = t_h[0];
                 }
 
+                AI_latency[aiIndx] = meanRt;
 
             AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
             // first find the best offline AI response Time = EXPECTED RESPONSE TIme
@@ -196,7 +203,18 @@ public class balancer implements Runnable {
             double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
             // find the actual response Time
             double actual_rpT=meanRt;
+            int device_index = taskView.getCurrentDevice();
+
+//            try {
+//                sendDataToServer(sendResponseTimeCode,0,meanRt,device_index,aiIndx);
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+
+
             avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
+
+
 
 
             if (aiIndx == 0) {
@@ -212,38 +230,19 @@ public class balancer implements Runnable {
             //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
                 posText_thr.setText("RT3: " + String.valueOf(meanRt));
             }
-            
-            if(maxAIlatencyPeriod < actual_rpT){
-                maxAIlatencyPeriod= actual_rpT;
-                maxAIlatencyPeriodIndex=aiIndx;
 
-            }
+
 
 
 
         }
-        if (maxAIlatencyPeriodIndex != -1) {
-            AiItemsViewModel tempView = MainActivity.mList.get(maxAIlatencyPeriodIndex);
-            String model_name = tempView.getModels().get(tempView.getCurrentModel());
-            String device_name = tempView.getDevices().get(tempView.getCurrentDevice());
-            System.out.println("Max AI latency period: " + maxAIlatencyPeriod + " AI Model Name: " + model_name + " Device Name: " + device_name );
-
-            if(!device_name.equals("SERVER") && (MainActivity.serverList.size() <= MainActivity.MAX_SERVER_AITASK_NUMS) ){
-
-                System.out.println("Sending Server Now");
-                MainActivity.serverList.add(tempView);
 
 
-                // Offloading
-                int modelIndex = tempView.getCurrentModel();
-                int serverDeviceIndex = tempView.getDevices().indexOf("SERVER");
-                int pos = tempView.getID();
-                tempView.setCurrentDevice(serverDeviceIndex);
-                System.out.println(tempView.getCurrentDevice());
-                mInstance.adapter.notifyItemChanged(maxAIlatencyPeriodIndex);
-                mInstance.adapter.updateActiveModel(modelIndex, serverDeviceIndex, 0, tempView, pos);
-            }
-        }
+        offloadOptimize(AI_latency);
+
+        // Add HBO Counter flag to make sure we offload our task after first HBO
+
+
 
         //  Uncomment for Bayes auto Trigger
         if(mInstance.curBysIters==-1)
@@ -266,17 +265,18 @@ public class balancer implements Runnable {
         current_tris = mInstance.total_tris;
         //System.out.println("B_t:"+reward+"  " + "Triangle Count:" + current_tris);
         // Send Data to server
-    //    try {
-    //        sendBtAndTriToServer(reward,current_tris,avg_AIlatencyPeriod);
-    //        System.out.println("Send Success!");
-    //    } catch (IOException e) {
-    //        throw new RuntimeException(e);
-    //    }
+//        try {
+//            sendDataToServer(reward,current_tris,0,0,0);
+//            System.out.println("Send Success!");
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
 
 
         if(hbo_trigger) {
             System.out.println("best_bt:    "+ mInstance.best_BT);
             if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
+                System.out.println(mInstance.HBO_COUNTER + " time execute HBO");
 
                 if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
                     mInstance.best_BT = (reward + mInstance.best_BT) / 2;
@@ -303,16 +303,203 @@ public class balancer implements Runnable {
 
     }
 
-    public void sendBtAndTriToServer(double Bt, double triangle_count,double meanRT) throws IOException {
-        String server_ip = mInstance.server_IP_address;
-        int server_port = port ;
+    public void sendDataToServer(double Bt, double triangle_count,double meanRT,int device,int AI_index) throws IOException {
+        String server_ip = "192.168.1.2";
+        int server_port = 6767 ;
         Socket socket = new Socket(server_ip,server_port);
         PrintWriter out = new PrintWriter(socket.getOutputStream(),true);
-
-        String data = Bt+","+triangle_count+","+meanRT;
+        String data = "";
+        if(Bt != sendResponseTimeCode){
+            // Now, we send Bt and tris to server
+            data = "reward/"+Bt+","+triangle_count;
+        }
+        else if(Bt == sendResponseTimeCode){
+            data = "time/" + meanRT+","+device+"," + AI_index;
+        }
+        System.out.println("Sending Data" + data);
         out.println(data);
         out.flush();
     }
+
+
+    public void offloadToServer_test(int maxALatencyPeriodIndex){
+        if (maxALatencyPeriodIndex != -1 ) {
+            Log.d("offload msg","First HBO has done, we need to run offloading");
+            AiItemsViewModel tempView = MainActivity.mList.get(maxALatencyPeriodIndex);
+            String model_name = tempView.getModels().get(tempView.getCurrentModel());
+            String device_name = tempView.getDevices().get(tempView.getCurrentDevice());
+            System.out.println("Max AI latency period: " + maxALatencyPeriodIndex + " AI Model Name: " + model_name + " Device Name: " + device_name );
+
+            System.out.println("size:  "+ MainActivity.serverList.size());
+            if(!device_name.equals("SERVER") && (MainActivity.serverList.size() < MainActivity.MAX_SERVER_AITASK_NUMS) ){
+                System.out.println("offlaoding");
+                MainActivity.serverList.add(tempView);
+
+
+                // Offloading
+                int modelIndex = tempView.getCurrentModel();
+                int serverDeviceIndex = tempView.getDevices().indexOf("SERVER");
+                int pos = tempView.getID();
+                tempView.setCurrentDevice(serverDeviceIndex);
+                System.out.println(tempView.getCurrentDevice());
+
+                mInstance.adapter.updateActiveModel(modelIndex, serverDeviceIndex, 0, tempView, pos);
+            }
+        }
+    }
+
+    public void offloadOptimize(double[] AI_Task_Latency){
+        double old_latency = get_Total_Latency(AI_Task_Latency);
+        double curr_latency;
+        int original_device;
+        int max_offload_NUM = mInstance.mList.size();
+        int task_counter = 1;
+
+        while((max_offload_NUM >= task_counter) && mInstance.offload_trigger_counter == 0){
+            // First, Send the max Latency Ai task to server
+            int task = find_KthMax(AI_Task_Latency,task_counter);
+            original_device = send_Task_To_Server(task);
+
+            // Wait for server
+//            try{
+//                Thread.sleep(20);
+//            }catch (Exception e){
+//                e.printStackTrace();
+//            }
+
+            // Compute new Latency after offloading one task
+            curr_latency = get_Total_Latency(AI_Task_Latency);
+            AiItemsViewModel temp_AI_model = mInstance.mList.get(task);
+            if(change_device(curr_latency,old_latency,original_device,temp_AI_model)){
+                Log.d("OFFLOAD_MSG", "We need to stop offloading since latency may increased");
+                break;
+            }
+
+            // Update latency counter and task counter for next iteration
+            task_counter++;
+            old_latency = curr_latency;
+        }
+        int server_len = mInstance.serverList.size();
+        for(int i = 0; i < server_len; i++){
+            AiItemsViewModel loop_view = mInstance.serverList.get(i);
+            String model_name = loop_view.getModels().get(loop_view.getCurrentModel());
+            Log.d("OFFLOAD_MSG",model_name + " is running on the edge server!");
+        }
+        // One offloading has done
+        mInstance.offload_trigger_counter += 1;
+
+    }
+
+    /**
+     *
+     * @param AI_Task_Latency
+     * @param max_index
+     * @return the AI Task index (e.g AI model index)
+     */
+    public int find_KthMax(double[] AI_Task_Latency, int max_index){
+        double[] array_copy = Arrays.copyOf(AI_Task_Latency,AI_Task_Latency.length);
+        Arrays.sort(array_copy);
+        double kthMax = array_copy[array_copy.length - max_index];
+        Log.d("OFFLOAD_MSG", "MAX LATENCY: " + kthMax);
+
+        for(int i = 0 ; i < AI_Task_Latency.length ; i++){
+            if( kthMax == AI_Task_Latency[i])
+                return i;
+        }
+        return -1;
+    }
+
+    public double get_Total_Latency(double[] AI_Task_Latency){
+        double sum = 0;
+
+        /**
+         * We need to update the latency for every task
+         */
+        int AI_size = mInstance.mList.size();
+        for(int i = 0 ; i < AI_size ; i++){
+            double[] t_h = mInstance.getResponseT(i);
+            double meanRt = t_h[0];
+            double meanThr = t_h[1];
+
+            while (meanThr > 500 ||meanThr < 0.5) // we wanna get a correct value
+            { t_h=mInstance.getResponseT(i);
+                meanThr = t_h[1];
+                meanRt = t_h[0];
+            }
+            if(AI_Task_Latency[i] != meanRt) {
+                Log.d("OFFLOAD_MSG","This AI task Old_latency is " + AI_Task_Latency[i] + "New Latency is " + meanRt);
+                AI_Task_Latency[i] = meanRt;
+            }
+        }
+
+
+        for(int i = 0; i < AI_Task_Latency.length ; i++){
+            sum += AI_Task_Latency[i];
+        }
+        return sum;
+    }
+
+    public boolean change_device(double current_latency, double old_latency, int prev_device, AiItemsViewModel curr_AI){
+        int device_index = curr_AI.getCurrentDevice();
+        int model_index = curr_AI.getCurrentModel();
+        int pos = curr_AI.getID();
+//        int thr = curr_AI.getCurrentNumThreads();
+        int thr = 1;
+        if(old_latency < current_latency){
+            /**
+             * In this case, we need to change our device back to original device
+             */
+            Log.d("OFFLOAD_MSG","Before changing Device Name: " + curr_AI.getDevices().get(curr_AI.getCurrentDevice()));
+            curr_AI.setCurrentDevice(prev_device);
+            //Log.d("OFFLOAD_MSG","The latency of " + curr_AI.getModels().get(curr_AI.getCurrentModel()) +" after offloading is larger");
+            Log.d("OFFLOAD_MSG","Parameter: " + curr_AI.getDevices().get(prev_device));
+            Log.d("OFFLOAD_MSG","After changing Device Name: " + curr_AI.getDevices().get(curr_AI.getCurrentDevice()));
+            mInstance.adapter.updateActiveModel(model_index,device_index,thr,curr_AI,pos);
+            mInstance.serverList.remove(curr_AI);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Send Data(Bitmap) to edge server
+     * @param AI_index
+     * @return original_device_name
+     */
+    public int send_Task_To_Server(int AI_index){
+        int original_Device = -1;
+        if(AI_index != -1){
+            AiItemsViewModel tempView = MainActivity.mList.get(AI_index);
+            String model_name = tempView.getModels().get(tempView.getCurrentModel());
+            original_Device = tempView.getCurrentDevice();
+            String device_name = tempView.getDevices().get(original_Device);
+//            System.out.println("Max AI latency period: " + AI_index + " AI Model Name: " + model_name + " Device Name: " + device_name );
+
+
+
+            // Sending Bitmap to server
+            if(!device_name.equals("SERVER")){
+                Log.d("OFFLOAD_MSG","We are sending Task:  " + model_name);
+                MainActivity.serverList.add(tempView);
+                int modelIndex = tempView.getCurrentModel();
+                int serverDeviceIndex = tempView.getDevices().indexOf("SERVER");
+                int pos = tempView.getID();
+                tempView.setCurrentDevice(serverDeviceIndex);
+//                System.out.println(tempView.getCurrentDevice());
+
+                mInstance.adapter.updateActiveModel(modelIndex, serverDeviceIndex, 0, tempView, pos);
+
+                Log.d("OFFLOAD_MSG","SERVER has done!");
+
+            }
+
+        }
+
+        return  original_Device;
+    }
+
+
+
 
     @SuppressLint("SuspiciousIndentation")
     public void run_old() {
