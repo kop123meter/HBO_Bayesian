@@ -241,7 +241,7 @@ class BitmapCollector(
 fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
     val tempAdd = serverAddress();
 
-    val serverIP = "192.168.10.106"  // IP address of the server
+    val serverIP = "192.168.1.2"  // IP address of the server
     val serverPort = 4545        // Port number of the server
     var retryCount = 3               // Number of times to retry sending the image
     var networkLatency: Long = 0     // Network latency in milliseconds
@@ -254,7 +254,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 
             // Since the server expects a base64 encoded image, convert the bitmap to a base64 string
             val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
             var base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.DEFAULT)
             val missingPadding = base64Image.length % 4
             if(missingPadding > 0){
@@ -303,7 +303,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
                 return Pair(-1, null)
             }
             Log.d("BitmapCollector", "Server acknowledged receipt of data")
-            System.out.println("Server acknowledged receipt of data!")
+            //System.out.println("Server acknowledged receipt of data!")
 //            if (input == null) {
 //                Log.e("BitmapCollector", "Error getting input stream from server")
 //                return Pair(-1, null)
@@ -337,17 +337,17 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
                 Log.e("BitmapCollector", "Invalid response format")
                 return Pair(-1, null)
             }
-            System.out.println("PARTS:      " + parts[0])
+            //System.out.println("PARTS:      " + parts[0])
             val serverLatency = parts[0].toFloatOrNull()
             val result = parts.getOrNull(1)
 
-            Log.d("Server Latency", "Server Processing Latency: $serverLatency ms")
-            Log.d("Network Latency", "Network Latency: $networkLatency ms")
+            Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
+            Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
             // return the network latency and the server response
             return Pair(networkLatency, result)
 
         } catch (e: Exception) {
-            Log.e("BitmapCollector", "Error communicating with server", e)
+            Log.e("OFFLOAD_MSG", "Error communicating with server", e)
             retryCount--
         }
     }

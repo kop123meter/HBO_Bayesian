@@ -140,7 +140,8 @@ public abstract class ImageSegmentor {
     // Here's where the magic happens!!!
     long startTime = SystemClock.uptimeMillis();
     System.out.println("Current Device:" + getDevice());
-    runInference(getDevice());
+    runInference();
+    System.out.println("Run seg success");
 
 
    //Log.d("MODE", String.valueOf(mode));
@@ -302,7 +303,7 @@ public abstract class ImageSegmentor {
    */
   protected abstract void addPixelValue(int pixelValue);
 
-  protected abstract void runInference(String device);
+  protected abstract void runInference();
 
   /**
    * Define Offload Server Ip and Port

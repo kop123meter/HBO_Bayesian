@@ -486,7 +486,7 @@ class AiRecyclerviewAdapter(
 
                  itemsView.digitClas?.currentDelegate=3
                  itemsView.digitClas?.clearDigitClassifier()
-                 Log.d("SERVER","Using Server")
+
 
 
              }
