@@ -10,6 +10,9 @@ package com.arcore.AI_ResourceControl;
 /*for HBO it collects data and checks if HBO trigger is needed*/
  /**
   * From around 350 line is offloading part
+  * At Around 246 line, I add my own offload optimize function
+  * Author @Ze Li for Offload part
+  *Edited: 09/12/2024
   */
 
  import java.io.File;
@@ -19,7 +22,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
+ import java.time.LocalDate;
+ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -44,6 +48,10 @@ import android.widget.TextView;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
+
+
+
+
 
 public class balancer implements Runnable {
 
@@ -238,7 +246,7 @@ public class balancer implements Runnable {
         }
 
 
-        offloadOptimize(AI_latency);
+        //offloadOptimize(AI_latency);
 
         // Add HBO Counter flag to make sure we offload our task after first HBO
 
@@ -274,9 +282,9 @@ public class balancer implements Runnable {
 
 
         if(hbo_trigger) {
-            System.out.println("best_bt:    "+ mInstance.best_BT);
+
             if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
-                System.out.println(mInstance.HBO_COUNTER + " time execute HBO");
+//                System.out.println(mInstance.HBO_COUNTER + " time execute HBO");
 
                 if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
                     mInstance.best_BT = (reward + mInstance.best_BT) / 2;
@@ -289,6 +297,7 @@ public class balancer implements Runnable {
                     if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
                     {
                         mInstance.hbo_trigger_false_counter = 0;
+                        Log.d("HBO_MSG", "New delegate request has send");
                         ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
                         mInstance.deleg_req += 1;
                     }

@@ -5,8 +5,8 @@ from datetime import datetime
 # from bayesian_client_new import BayesianOptimizationRunner
 import os
 import json
-import numpy as np 
-from GPyOpt.methods import BayesianOptimization 
+import numpy as np # type: ignore
+from GPyOpt.methods import BayesianOptimization # type: ignore
 
 import colorama
 from colorama import Fore, Style
@@ -40,7 +40,7 @@ class TwoClientsServer:
 
             python_client = PythonClient(num_tasks=self.NUM_TASKS,
                                          max_iter=self.MAX_ITER,
-                                         host='192.168.1.6',
+                                         host='192.168.10.122',
                                          port=self.PORT,
                                          output_dir=self.output_dir,
                                          stop_event=self.stop_event)
@@ -59,13 +59,6 @@ class TwoClientsServer:
 
             android_handler = ClientHandler(client_socket1, client_socket2, is_android=True, output_dir=self.output_dir, stop_event=self.stop_event)
             android_handler.start()
-            NUM_TASKS = android_handler.get_NUM_TASKS() # get the number of tasks from the android client
-
-            python_handler.set_NUM_TASKS(NUM_TASKS) # set the number of tasks to the python client
-            python_client.set_NUM_TASKS(NUM_TASKS) # set the number of tasks to the python client
-            print(f"SERVER: Number of tasks is set to {NUM_TASKS}")
-
-
             self.client_threads.append(android_handler)
             
             while android_handler.is_done == False:
@@ -92,9 +85,6 @@ class PythonClient(threading.Thread):
         super().__init__()
         self.runner = BayesianOptimizationRunner(num_tasks, max_iter, host, port, output_dir)
         self.stop_event = stop_event
-    
-    def set_NUM_TASKS(self, num_tasks):
-        self.runner.set_num_tasks(num_tasks)
 
     def run(self):
         time.sleep(1)  # wait for the server to be ready to accept 
@@ -102,8 +92,6 @@ class PythonClient(threading.Thread):
 
 
 class ClientHandler(threading.Thread):
-    NUM_TASKS = 5
-
     def __init__(self, client_socket, other_client_socket, is_android=False, output_dir=None, stop_event=None):
         super().__init__()
         self.client_socket = client_socket
@@ -121,12 +109,6 @@ class ClientHandler(threading.Thread):
     
         red_printer = printer('red')
         self.printRed = red_printer.print
-    
-    def set_NUM_TASKS(self, num_tasks):
-        self.NUM_TASKS = num_tasks
-    
-    def get_NUM_TASKS(self):
-        return self.NUM_TASKS
                         
     def run(self):
         try:
@@ -170,12 +152,6 @@ class ClientHandler(threading.Thread):
                     
             elif "delegate/" in input_data:
                 self.other_client_socket.sendall((input_data + '\n').encode()) 
-            
-            elif "tasknum/" in input_data:
-                print("tasknum received" + ":::::" + "Current task number is: " + input_data[len('tasknum/'):])
-                NUM_TASKS = int(float(input_data[len('tasknum/'):]))
-                self.set_NUM_TASKS(NUM_TASKS)
-                 
             else:
                 self.other_client_socket.sendall((input_data + '\n').encode())
 
@@ -192,9 +168,6 @@ class BayesianOptimizationRunner:
 
         color_printer = printer('blue')
         self.print = color_printer.print
-
-    def set_num_tasks(self, num_tasks):
-        self.NUM_TASKS = num_tasks
 
 
 
@@ -280,6 +253,11 @@ class BayesianOptimizationRunner:
         self.print("OPTIMIZER:  first Received: " + str(received_data))
 
         if 'activate' in received_data:
+            act_msg, num_tasks = received_data.split(':',1)
+            num_tasks = int(float(num_tasks))
+            print(f"OPTIMIZER:  num_tasks: {num_tasks}")
+            self.setNumTasks(num_tasks)
+            self.print(f"OPTIMIZER:  num_tasks: {self.getNumTasks()}")
             time.sleep(10)
             with open(f"{self.output_dir}/Bayesian_OUTPUT.csv", "a") as out:
                 out.write("time,,cu,,gu,,nu,,tris,,,ct,,gt,,nt,,ttris,,reward\n")
@@ -320,7 +298,7 @@ class BayesianOptimizationRunner:
             with open(f"{self.output_dir}/Bayesian_OUTPUT.csv", "a") as out:
                 out.write(f"{best_input[0]},{X_list2[0]}\n")
 
-            #problem.plot_convergence(filename=f"{self.output_dir}/convergence_plot")
+            # problem.plot_convergence(filename=f"{self.output_dir}/convergence_plot")
             problem.save_report(f"{self.output_dir}/report.txt")
 
     def client(self, msg_to_send=None):
@@ -336,6 +314,12 @@ class BayesianOptimizationRunner:
             self.client_socket.connect((self.HOST, self.PORT))
             self.run()
             self.print(f"OPTIMIZER:  Done!")
+    
+    def setNumTasks(self, num_tasks):
+        self.NUM_TASKS = num_tasks
+    
+    def getNumTasks(self):
+        return self.NUM_TASKS
 
 
 class printer:

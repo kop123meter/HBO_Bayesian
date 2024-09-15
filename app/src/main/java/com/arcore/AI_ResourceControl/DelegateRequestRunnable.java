@@ -12,6 +12,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.Buffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -85,18 +87,17 @@ public class DelegateRequestRunnable implements Runnable {
                 Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
                 // Open output stream
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-//                    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
 
                 //mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
 
                 ///nill test to trigger HBO-> we write a code to python server and then activate it
-                out.println("tasknum/" + this.remining_task);
-                out.flush();
 
-
-
-                out.println("delegate/activate");
+                String activate_msg = "delegate/activate:" + remining_task;
+                Log.d("HBO_MSG", "Remaining Task: " + remining_task);
+                out.println(activate_msg);
+                Log.d("HBO_MSG","Send Active MSG" + activate_msg);
                 //flush stream
                 out.flush();
 

@@ -54,8 +54,8 @@ public class ModelRequest {
         this.mainActivityWeakReference = new WeakReference<MainActivity>(mainActivity);
         this.ID = id;
         this.remaining_task = mainActivity.mList.size() - mainActivity.serverList.size();
-        System.out.println("SIZE1 : "  + mainActivity.mList.size());
-        System.out.println("SIZE2 : "  + mainActivity.serverList.size());
+//        System.out.println("SIZE1 : "  + mainActivity.mList.size());
+//        System.out.println("SIZE2 : "  + mainActivity.serverList.size());
 
 
     }
