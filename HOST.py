@@ -13,7 +13,7 @@ from colorama import Fore, Style
 
 class TwoClientsServer:
 
-    MAX_ITER = 15
+    MAX_ITER = 15 # 15
     EXPLORATION_n = 5
     NUM_TASKS = 5
     PORT = 1909  
@@ -36,38 +36,40 @@ class TwoClientsServer:
             self.server_socket.bind(('0.0.0.0', self.PORT))
             self.server_socket.listen(5)
 
-            print("SERVER: Waiting for the Python client...")
+           
+            while not self.stop_event.is_set():
+                print("SERVER: Waiting for the Python client...")
 
-            python_client = PythonClient(num_tasks=self.NUM_TASKS,
+                python_client = PythonClient(num_tasks=self.NUM_TASKS,
                                          max_iter=self.MAX_ITER,
-                                         host='192.168.10.122',
+                                         host='192.168.1.3',
                                          port=self.PORT,
                                          output_dir=self.output_dir,
                                          stop_event=self.stop_event)
-            python_client.start()
-            self.client_threads.append(python_client)
-                
-            client_socket2, addr2 = self.server_socket.accept()
-            print(f"SERVER: Python client connected: {addr2[0]} \n        now Waiting for Android client...")
-                
-            client_socket1, addr1 = self.server_socket.accept()
-            print(f"SERVER: Android client connected: {addr1[0]}")
-
-            python_handler = ClientHandler(client_socket2, client_socket1, is_android=False, output_dir=self.output_dir, stop_event=self.stop_event)
-            python_handler.start()
-            self.client_threads.append(python_handler)
-
-            android_handler = ClientHandler(client_socket1, client_socket2, is_android=True, output_dir=self.output_dir, stop_event=self.stop_event)
-            android_handler.start()
-            self.client_threads.append(android_handler)
             
-            while android_handler.is_done == False:
-                time.sleep(1)
+                self.client_threads.append(python_client)
+                python_client.start()
+                client_socket2, addr2 = self.server_socket.accept()
+                print(f"SERVER: Python client connected: {addr2[0]} \n        now Waiting for Android client...")
+                
+                print(python_client.is_alive)
+                client_socket1, addr1 = self.server_socket.accept()
+                print(f"SERVER: Android client connected: {addr1[0]}")
+
+                python_handler = ClientHandler(client_socket2, client_socket1, is_android=False, output_dir=self.output_dir, stop_event=self.stop_event)
+                python_handler.start()
+                self.client_threads.append(python_handler)
+
+                android_handler = ClientHandler(client_socket1, client_socket2, is_android=True, output_dir=self.output_dir, stop_event=self.stop_event)
+                android_handler.start()
+                self.client_threads.append(android_handler)
+            
+                while android_handler.is_done == False:
+                    time.sleep(1)
 
         except Exception as e:
             print(f"SERVER: Exception: {e}")
-        finally:
-            self.stop()
+       
 
     def stop(self):
         self.stop_event.set()
@@ -122,7 +124,8 @@ class ClientHandler(threading.Thread):
             self.print(f"SERVER: {'Android' if self.is_android else 'Python'} handler is Done")
             self.client_socket.close()
             self.is_done = True
-            # self.other_client_socket.close()
+            self.other_client_socket.close()
+            
             
     def python_client(self):
         while not self.stop_event.is_set():
@@ -348,6 +351,7 @@ class printer:
 if __name__ == "__main__":
     colorama.init(autoreset=True)
     server = TwoClientsServer()
+    
     try:
         server.run()
     except KeyboardInterrupt:

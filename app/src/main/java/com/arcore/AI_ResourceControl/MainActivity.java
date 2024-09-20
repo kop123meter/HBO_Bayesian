@@ -126,7 +126,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.10.122";
+    String server_IP_address = "192.168.1.3";
     int server_PORT = 1909;
 
     // Using the following variable to track the position
@@ -542,7 +542,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         adapter = new AiRecyclerviewAdapter(mList, source, this, MainActivity.this);
 
         // set the adapter and layout manager for the recycler view
-        recyclerView_aiSettings.setAdapter(new AiRecyclerviewAdapter(mList, source, this, MainActivity.this));
+        //recyclerView_aiSettings.setAdapter(new AiRecyclerviewAdapter(mList, source, this, MainActivity.this));
+        recyclerView_aiSettings.setAdapter(adapter);
         recyclerView_aiSettings.setLayoutManager(new LinearLayoutManager(this, RecyclerView.HORIZONTAL, false));
 
 
@@ -2218,6 +2219,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                     //**** this is temp for survey
                                     if (survey == true) {
                                         renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris / 10));
+                                        Log.d("HBO_MSG", "OPPS!, we trigered the decimate function");
 
                                         Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(objectCount).fileName + "0.1.sfb"));
                                         addObject(objUri, renderArray.get(objectCount), xOffset, yOffset);
@@ -2229,7 +2231,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);
                                     }//
                                     // comment below lines if you want to deactive HBO auto trigger
-                                    Thread.sleep(700);
+                                    // Don't sleep too much time it may cause crushed
+                                    Thread.sleep(7);
 //
 //hbo trigger to run a baseline
                                     if (objectCount == 0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
@@ -2848,6 +2851,19 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             }
         }
     }
+
+
+    /**
+     * Reset Data for offloading server
+     * When we offload / restart task locally, we need to restart task first
+     * @param aiIndx
+     */
+    public void resetTimer(int aiIndx){
+        BitmapCollector tempCollector = mList.get(aiIndx).getCollector();
+        tempCollector.setMInstance(MainActivity.this);
+        tempCollector.resetRtData();
+    }
+
 
     double[] getResponseT(int aiIndx) {// returns average thr of each model
 

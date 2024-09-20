@@ -206,9 +206,11 @@ public class DelegateRequestRunnable implements Runnable {
                             Log.d("DelegateRequest Msg", "Sending Best BT");
                             modelRequest.activityMain.avg_reward=(double) (Math.round((double) (modelRequest.activityMain.avg_reward * 100))) / 100;
                             modelRequest.activityMain.best_BT = modelRequest.activityMain.avg_reward;
-                            if(modelRequest.activityMain.HBO_COUNTER == 0){
-                                modelRequest.activityMain.HBO_COUNTER += 1;
-                            }
+                            // Used to trigger Offload
+                            //E.g when counter = 1, we will trigger offload service
+
+                            modelRequest.activityMain.HBO_COUNTER += 1;
+
 
                         }
                         modelRequest.activityMain.curBysIters += 1;

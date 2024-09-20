@@ -107,6 +107,10 @@ public class ModelRequest {
         return mainActivityWeakReference;
     }
 
+    public void setRemaining_task(int task_num){
+        this.remaining_task = task_num;
+    }
+
 
 
 

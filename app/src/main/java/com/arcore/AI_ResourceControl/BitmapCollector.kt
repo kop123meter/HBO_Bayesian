@@ -291,7 +291,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             out.write("finish".toByteArray(Charsets.UTF_8))
             out.flush()
             Log.d("BitmapCollector", "Sent image to server")
-            System.out.println("Send Image")
+
 
             // Wait for the server to acknowledge the receipt of data
             val input = socket.getInputStream()
@@ -340,6 +340,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             //System.out.println("PARTS:      " + parts[0])
             val serverLatency = parts[0].toFloatOrNull()
             val result = parts.getOrNull(1)
+
 
             Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
             Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
