@@ -5,6 +5,9 @@ import android.content.Context;
 import android.media.Image;
 import android.util.Log;
 
+import java.io.BufferedReader;
+import java.io.PrintWriter;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.lang.ref.WeakReference;
@@ -21,6 +24,9 @@ public class ModelRequest {
     private int ID;
 
     private double remaining_task;
+    private Socket socket;
+    private PrintWriter out;
+    private BufferedReader in;
     private Queue<Integer> similarRequestIDArray;
     private float cache;
     String delegate;

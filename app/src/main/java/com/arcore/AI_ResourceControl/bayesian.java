@@ -450,7 +450,9 @@ import static java.lang.Math.min;
         double selectedTRatio= selected_combinations[selected_combinations.length - 1];
         double nextTris =selectedTRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
         curIteration=mInstance.curBysIters;
-        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
+        if(curIteration != -1) {
+            mInstance.bysTratioLog.set(curIteration, selectedTRatio);
+        }
 
         // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
         List<Integer> capacity = new ArrayList();
@@ -473,7 +475,20 @@ import static java.lang.Math.min;
         while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
+
+            if (assignedModel == null) {
+                Log.e("DEBUG_MSG", "assignedModel is null");
+                delegatedM -=1 ;
+                continue;
+            }
+
+            if (assignedModel.delegate == null) {
+                Log.e("DEBUG_MSG", "assignedModel.delegate is null for model ID: " + assignedModel.getID());
+                continue;
+            }
+
             int bestDlg=assignedModel.delegate;
+
             for (AiItemsViewModel item : copyAiItems) {
                 if (item.getID()==assignedModel.getID()){
                     //     getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
@@ -488,7 +503,9 @@ import static java.lang.Math.min;
                 capacity.set(bestDlg, capacity.get(bestDlg)-1);
                 copyAiItems.remove(taskView);
                 // assign the task
-
+                if(taskView.getCurrentDevice() == 3){
+                    Log.d("OFFLOAD_MSG", "This guy using server");
+                }
                 if (bestDlg != taskView.getCurrentDevice() && taskView.getCurrentDevice()!=3 )// this means that the model should be updated
                 {
                     mInstance.adapter.setMList(mInstance.mList);
@@ -586,9 +603,10 @@ import static java.lang.Math.min;
                 mInstance.avg_reward=   reward;
 //                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
 //                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
-
-                mInstance.bysRewardsLog.set(curIteration,reward);
-                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
+                if(curIteration!=-1) {
+                    mInstance.bysRewardsLog.set(curIteration, reward);
+                    mInstance.bysAvgLcyLog.set(curIteration, avgLatency);
+                }
 
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();

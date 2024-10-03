@@ -69,6 +69,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -113,7 +114,17 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public static List<AiItemsViewModel> serverList = new ArrayList<>();
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
-    public int HBO_COUNTER = 0;
+    public boolean hbo_is_done = false;
+
+    public int kthTask = 0; // to record the k Th max latency
+    public double old_reward = 0; // Record old reward to help offloading
+    public int previous_device = -1; // Record previous device index before we start next turn
+
+    public boolean is_changed = false;
+
+
+    public int[] offload_task_list ; // Record the sort of offloading task
+
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
     private final int MAX_THREAD_POOL_SIZE = 10;
@@ -126,8 +137,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.1.3";
+    String server_IP_address = "192.168.1.4";
     int server_PORT = 1909;
+
+
 
     // Using the following variable to track the position
     int counter_for_array_i = 0;
@@ -475,6 +488,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private ArrayList<ArrayList<Float>> nextfivesec = new ArrayList<ArrayList<Float>>();
     //  private final ThreadPoolExecutor algoThreadPool=new ThreadPoolExecutor(CORE_THREAD_POOL_SIZE, MAX_THREAD_POOL_SIZE, KEEP_ALIVE_TIME, KEEP_ALIVE_TIME_UNIT, mWorkQueue);
     private float alpha = 0.7f;
+
+    public MainActivity() throws IOException {
+    }
 
     private static Map<Integer, Float> sortByValue(Map<Integer, Float> unsortMap, final boolean order) {
         List<Entry<Integer, Float>> list = new LinkedList<>(unsortMap.entrySet());
@@ -1088,7 +1104,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             sbb.append("hbo_running");
             sbb.append('\n');
             writer.write(sbb.toString());
-            System.out.println("done!");
+           // System.out.println("done!");
 
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
@@ -1629,8 +1645,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         server_Butt.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
-                ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, true);
-                deleg_req += 1;
+                //ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, true);
+                //deleg_req += 1;
 
             }
         });
@@ -2235,9 +2251,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                     Thread.sleep(7);
 //
 //hbo trigger to run a baseline
-                                    if (objectCount == 0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
+                                    if (objectCount == 0 && deleg_req==0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
                                     {
-                                        // if(objectCount%2==0){//uncomment  for HBO baseline periodic
                                         ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
                                         deleg_req += 1;
                                     }
@@ -2759,6 +2774,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                             {
                                 /// this is for data collection bayesian
                                 new balancer(MainActivity.this).run(); // balancer
+                                Log.d("DEBUG_MSG","Success!!!");
 // this is for MIr
                                 // new Mir(MainActivity.this).run();
 //

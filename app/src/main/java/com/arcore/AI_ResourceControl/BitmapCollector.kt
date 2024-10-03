@@ -241,11 +241,11 @@ class BitmapCollector(
 fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
     val tempAdd = serverAddress();
 
+
     val serverIP = "192.168.1.2"  // IP address of the server
     val serverPort = 4545        // Port number of the server
     var retryCount = 3               // Number of times to retry sending the image
     var networkLatency: Long = 0     // Network latency in milliseconds
-    System.out.println(model)
     
     while (retryCount > 0) {
         try {
@@ -342,8 +342,9 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             val result = parts.getOrNull(1)
 
 
-            Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
-            Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
+           // Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
+           // Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
+
             // return the network latency and the server response
             return Pair(networkLatency, result)
 
