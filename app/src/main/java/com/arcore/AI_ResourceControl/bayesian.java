@@ -26,6 +26,7 @@ package com.arcore.AI_ResourceControl;
  import java.util.Comparator;
  import java.util.Date;
  import java.util.HashMap;
+ import java.util.Iterator;
  import java.util.LinkedHashMap;
  import java.util.LinkedList;
  import java.util.List;
@@ -468,17 +469,47 @@ import static java.lang.Math.min;
 
         List<AIModel> copuCurModels = new ArrayList<>();
         copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
+
+
+        for(AiItemsViewModel updateView : mInstance.serverList){
+            String modelServerName = updateView.getModels().get(updateView.getCurrentModel());
+            Log.d("F_MSG", "ServerModel Name: "  + modelServerName);
+            Iterator<AIModel> iterator = copuCurModels.iterator();
+            while(iterator.hasNext()){
+                AIModel tempModel = iterator.next();
+                if(tempModel.name.equals(modelServerName)){
+                    iterator.remove();
+                }
+            }
+        }
+
+
         List<AiItemsViewModel> copyAiItems = new ArrayList<>();
         copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
-        int delegatedM=mInstance.mList.size();// num of current tasks
+        int delegatedM=mInstance.mList.size() - mInstance.serverList.size();// num of current tasks
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
-        while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
+
+
+        // When deleg_req >= 2 this means we have done offloading once, so we need to update current running model.
+        if(mInstance.deleg_req >= 2){
+
+            Log.d("F_MSG", "**************************View current running Model*******************");
+            for(int i = 0; i < copuCurModels.size(); i++){
+                AIModel temp = copuCurModels.get(i);
+                Log.d("F_MSG", "Model Name: "  + temp.name);
+                Log.d("F_MSG", "Model device:  " + temp.delegate);
+            }
+            Log.d("F_MSG", "**************************************************************************");
+        }
+
+        while(delegatedM!= 0){// do this till all tasks are assingned t their best delegate
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
 
+
             if (assignedModel == null) {
-                Log.e("DEBUG_MSG", "assignedModel is null");
-                delegatedM -=1 ;
+               Log.e("DEBUG_MSG", "assignedModel is null");
+               // delegatedM -=1 ;
                 continue;
             }
 
@@ -504,7 +535,7 @@ import static java.lang.Math.min;
                 copyAiItems.remove(taskView);
                 // assign the task
                 if(taskView.getCurrentDevice() == 3){
-                    Log.d("OFFLOAD_MSG", "This guy using server");
+                    Log.d("OFFLOAD_MSG", "This guy using server " + "Current Best Dlg: " + bestDlg);
                 }
                 if (bestDlg != taskView.getCurrentDevice() && taskView.getCurrentDevice()!=3 )// this means that the model should be updated
                 {
@@ -521,6 +552,8 @@ import static java.lang.Math.min;
                                     finalTaskView,
                                     finalI// this is the index of mlist
                             ));
+                    Log.d("DEBUG_MSG", "In Bayesian, Model Name: " + finalTaskView.getModels().get(finalTaskView.getCurrentModel())
+                                                   + "Device Name: " + finalTaskView.getDevices().get(finalNew_device));
                 }
                 try {
                     sleep(30);

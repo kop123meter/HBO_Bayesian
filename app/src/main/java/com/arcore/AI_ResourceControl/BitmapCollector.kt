@@ -334,12 +334,13 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 
             val parts = serverResponse?.split(":") ?: emptyList()
             if (parts.size < 2) {
-                Log.e("BitmapCollector", "Invalid response format")
+                Log.d("BitmapCollector", "Invalid response format")
                 return Pair(-1, null)
             }
             //System.out.println("PARTS:      " + parts[0])
             val serverLatency = parts[0].toFloatOrNull()
             val result = parts.getOrNull(1)
+            Log.d("BitmapCollector", "Receive Message");
 
 
            // Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")

@@ -393,7 +393,7 @@ public class balancer implements Runnable {
                     mInstance.best_BT = (reward + mInstance.best_BT) / 2;
 
                 double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
-                if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
+ //               if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
 //                // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
                 {
 //                    mInstance.hbo_trigger_false_counter++;
@@ -406,7 +406,7 @@ public class balancer implements Runnable {
 //                    }
 
                 }
-                else if(offload_is_triggered){
+                if(offload_is_triggered){
                     offload_is_triggered =false;
                     Log.d("OFFLOAD_MSG", "Final Bt: " + reward);
 //                    Log.d("HBO_MSG", "Delegate req: " + mInstance.deleg_req);
@@ -478,13 +478,16 @@ public class balancer implements Runnable {
         Log.d("OFFLOAD_MSG" , "Model Name is "  + curr_AI.getModels().get(curr_AI.getCurrentModel()));
         int newDevice = curr_AI.getCurrentDevice();
 
-        mInstance.adapter.updateActiveModel(
-                    model_index,
-                    newDevice,
-                    1,
-                    curr_AI,
-                    pos
-        );
+        mInstance.runOnUiThread(()->
+                mInstance.adapter.updateActiveModel(
+                        model_index,
+                        newDevice,
+                        1,
+                        curr_AI,
+                        pos
+                ));
+
+
         if(newDevice!=3){
             mInstance.serverList.remove(curr_AI);
         }
@@ -516,13 +519,16 @@ public class balancer implements Runnable {
 
                 tempView.setCurrentDevice(serverDeviceIndex);
                 int newDevice = tempView.getCurrentDevice();
-                mInstance.adapter.updateActiveModel(
-                        modelIndex,
-                        newDevice,
-                        0,
-                        tempView,
-                        pos
+                mInstance.runOnUiThread( ()->
+                        mInstance.adapter.updateActiveModel(
+                                modelIndex,
+                                newDevice,
+                                0,
+                                tempView,
+                                pos
+                        )
                 );
+
             }
 
         }
