@@ -184,6 +184,7 @@ class BitmapCollector(
                         else {
                             Log.e("Server Response", "Error communicating with server")
                         }
+                       InferenceTime = total_latency
                         //System.out.println("Time:" + total_latency)
                    }
                    else if(objectDetector!= null){
@@ -215,7 +216,9 @@ class BitmapCollector(
                        digitClas?.classify(bitmap!!)
 
                     end = System.nanoTime()/1000000
-                    InferenceTime = end-start
+                    if(device!=3){
+                        InferenceTime = end-start
+                    }
                     totalOverhead+=overhead
                     responseTime=overhead+InferenceTime
                     numOfTimesExecuted++
@@ -338,13 +341,13 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
                 return Pair(-1, null)
             }
             //System.out.println("PARTS:      " + parts[0])
-            val serverLatency = parts[0].toFloatOrNull()
+            var serverLatency = parts[0].toFloatOrNull()
             val result = parts.getOrNull(1)
             Log.d("BitmapCollector", "Receive Message");
 
 
-           // Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
-           // Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
+//            Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
+            //Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
 
             // return the network latency and the server response
             return Pair(networkLatency, result)

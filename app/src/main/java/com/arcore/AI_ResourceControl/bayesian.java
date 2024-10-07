@@ -471,36 +471,58 @@ import static java.lang.Math.min;
         copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
 
 
-        for(AiItemsViewModel updateView : mInstance.serverList){
-            String modelServerName = updateView.getModels().get(updateView.getCurrentModel());
-            Log.d("F_MSG", "ServerModel Name: "  + modelServerName);
-            Iterator<AIModel> iterator = copuCurModels.iterator();
-            while(iterator.hasNext()){
-                AIModel tempModel = iterator.next();
-                if(tempModel.name.equals(modelServerName)){
-                    iterator.remove();
-                }
+        List<AiItemsViewModel> copyAiItems = new ArrayList<>();
+        copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
+
+        // Remove those task which has running on Edge Server
+        Iterator<AiItemsViewModel> iterator1 = copyAiItems.iterator();
+        while (iterator1.hasNext()){
+            AiItemsViewModel testView = iterator1.next();
+            if(testView.getCurrentDevice() == 3){
+                iterator1.remove();
             }
         }
 
 
-        List<AiItemsViewModel> copyAiItems = new ArrayList<>();
-        copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
+        // Get remaining Task Set
+//        for(AiItemsViewModel updateView : mInstance.serverList){
+//            String modelServerName = updateView.getModels().get(updateView.getCurrentModel());
+//            Log.d("F_MSG", "ServerModel Name: "  + modelServerName);
+//            Iterator<AIModel> iterator = copuCurModels.iterator();
+//            while(iterator.hasNext()){
+//                AIModel tempModel = iterator.next();
+//                if(tempModel.name.equals(modelServerName)){
+//                    int remove_flag = 0;
+//                    for(AiItemsViewModel remainTask : copyAiItems){
+//                        if(tempModel.getID() == remainTask.getID()){
+//                            remove_flag = 1;
+//                            break;
+//                        }
+//                    }
+//                    if(remove_flag == 0)
+//                        iterator.remove();
+//                }
+//            }
+//
+//        }
+
+
         int delegatedM=mInstance.mList.size() - mInstance.serverList.size();// num of current tasks
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
 
 
         // When deleg_req >= 2 this means we have done offloading once, so we need to update current running model.
-        if(mInstance.deleg_req >= 2){
-
-            Log.d("F_MSG", "**************************View current running Model*******************");
-            for(int i = 0; i < copuCurModels.size(); i++){
-                AIModel temp = copuCurModels.get(i);
-                Log.d("F_MSG", "Model Name: "  + temp.name);
-                Log.d("F_MSG", "Model device:  " + temp.delegate);
-            }
-            Log.d("F_MSG", "**************************************************************************");
-        }
+//        if(mInstance.deleg_req >= 2){
+//
+//            Log.d("F_MSG", "**************************View current running Model*******************");
+//            for(int i = 0; i < copuCurModels.size(); i++){
+//                AIModel temp = copuCurModels.get(i);
+//                Log.d("F_MSG", "Model Name: "  + temp.name);
+//                Log.d("F_MSG", "Model device:  " + temp.delegate);
+//            }
+//            Log.d("F_MSG", "**************************************************************************");
+//        }
+//        int dele_Counter = 0;
 
         while(delegatedM!= 0){// do this till all tasks are assingned t their best delegate
             AiItemsViewModel taskView = null;
@@ -508,8 +530,8 @@ import static java.lang.Math.min;
 
 
             if (assignedModel == null) {
-               Log.e("DEBUG_MSG", "assignedModel is null");
-               // delegatedM -=1 ;
+               //Log.e("DEBUG_MSG", "assignedModel is null");
+               //delegatedM -=1 ;
                 continue;
             }
 
@@ -527,16 +549,21 @@ import static java.lang.Math.min;
                     break;
                 }
             }
+            if(taskView == null)
+                continue;
             int tasksIndx = mInstance.mList.indexOf(taskView);
             if(capacity.get(bestDlg) !=0)// you can easily assing the task and update delgate
             {
                 delegatedM-=1;
-                capacity.set(bestDlg, capacity.get(bestDlg)-1);
+
+                if(taskView.getCurrentDevice() == 3){
+                    Log.d("F_MSG", "This guy using server " + "Current Best Dlg: " + bestDlg);
+                }
+
+                capacity.set(bestDlg, capacity.get(bestDlg) - 1);
                 copyAiItems.remove(taskView);
                 // assign the task
-                if(taskView.getCurrentDevice() == 3){
-                    Log.d("OFFLOAD_MSG", "This guy using server " + "Current Best Dlg: " + bestDlg);
-                }
+
                 if (bestDlg != taskView.getCurrentDevice() && taskView.getCurrentDevice()!=3 )// this means that the model should be updated
                 {
                     mInstance.adapter.setMList(mInstance.mList);
@@ -629,7 +656,7 @@ import static java.lang.Math.min;
                     reward-=0.18;
                 else
                     if(mInstance.curBysIters <4 )
-                    reward-=0.1;
+                        reward-=0.1;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;

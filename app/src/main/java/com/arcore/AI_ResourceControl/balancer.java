@@ -51,8 +51,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 
-
-
+import org.checkerframework.checker.index.qual.LengthOf;
 
 
 public class balancer implements Runnable {
@@ -123,6 +122,7 @@ public class balancer implements Runnable {
 
 
     public void run() {
+        Log.d("OFFLOAD_MSG", "Balancer!");
 
         boolean accmodel = true;// all AI throughput trained models and RE are accurate
         boolean accRe = true;// this is to check if the trained model for re is accurate
@@ -210,7 +210,7 @@ public class balancer implements Runnable {
                 meanRt = t_h[0];
             }
 
-            AI_latency[aiIndx] = meanRt;
+
 
             AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
             // first find the best offline AI response Time = EXPECTED RESPONSE TIme
@@ -220,20 +220,21 @@ public class balancer implements Runnable {
             double actual_rpT=meanRt;
 
             avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
+            AI_latency[aiIndx] = meanRt;
 
 
             if (aiIndx == 0) {
                 // TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
-                posText_re.setText("RT1: " + String.valueOf(meanRt));
+               // posText_re.setText("RT1: " + String.valueOf(meanRt));
             } else if (aiIndx == 1) {
 
                 //  TextView posText2 = mInstance.findViewById(R.id.rspT1);
-                posText_q.setText("RT2: " + String.valueOf(meanRt));
+                //posText_q.setText("RT2: " + String.valueOf(meanRt));
             }
 //
             else if (aiIndx == 2) {
                 //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
-                posText_thr.setText("RT3: " + String.valueOf(meanRt));
+               // posText_thr.setText("RT3: " + String.valueOf(meanRt));
             }
 
 
@@ -262,126 +263,52 @@ public class balancer implements Runnable {
 //        current_tris = mInstance.total_tris;
         //System.out.println("B_t:"+reward+"  " + "Triangle Count:" + current_tris);
         // Send Data to server
-        try {
-            sendDataToServer(reward,avgQ,avgAIltcy);
-            //Log.d("OFFLOAD_MSG","Sending Data to collector server");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            if(mInstance.offload_req == 2){
+//                savedData();
+//                Log.d("OFFLOAD_MSG", "SAVED DATA!");
+//            }
+//            sendDataToServer(reward,avgQ,avgAIltcy);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
 
-
-
-
-        if(mInstance.hbo_is_done){
+        if (mInstance.hbo_is_done) {
             // This means we have done the one HBO
             // At this time, we need to run offload
             // To run offload, we need to get the kTh max latency
 
             // And we don't want to run hbo when we offload our task
             // Set the trigger to false first
-
             int kTh_Task = mInstance.kthTask;
-            if(kTh_Task < Ai_count){
-                this.hbo_trigger = false;
-                // we use offload_task_num to save the kTh max latency
-                // For example, offload_task_num = 1 means we need to find the max value of array
-                // when this number goes to the size of task, we have done one offload task.
-                Log.d("OFFLOAD_MSG","Old Reward: " + mInstance.old_reward + "  Current Reward: " + reward);
-
-                if(mInstance.old_reward == 0){
-                    // In this case, it's our first time to offload
-                    // So, we just send the max Latency to our server
-                    // Record current reward and latency task first
-                    mInstance.old_reward= reward;
-                    Log.d("OFFLOAD_MSG","After HBO The reward is " + reward);
-                    mInstance.offload_task_list = record_latency(AI_latency);
-                    viewLatencyArray(mInstance.offload_task_list,AI_latency);
-
-                    int maxAiTask = mInstance.offload_task_list[kTh_Task];
-                    AiItemsViewModel temp = mInstance.mList.get(maxAiTask);
-                    int modelIndex = temp.getCurrentModel();
-                    mInstance.previous_device = send_Task_To_Server(maxAiTask);
-//                    if(modelIndex == 0 || modelIndex == 8 || modelIndex == 9 || modelIndex == 10){
-//                        mInstance.previous_device = send_Task_To_Server(maxAiTask);
-//                    }
-
-                    // Let the task run until next period (2000 ms)
-                } else if (mInstance.is_changed) {
-                    mInstance.is_changed = false;
-                    mInstance.old_reward = reward;
-                    int sendIndex = mInstance.offload_task_list[kTh_Task];
-                    AiItemsViewModel temp = mInstance.mList.get(sendIndex);
-                    int modelIndex = temp.getCurrentModel();
-                    mInstance.previous_device = send_Task_To_Server(sendIndex);
-
-                } else if(mInstance.old_reward > reward){
-                    // In this case, the old_latency > 0 means we have do one offloading
-                    // we need to judge whether we need to offload previous task or not
-
-
-                        // This means after offloading previous task, we have bad reward
-                        // So, we will change this back
-                        int previous_index = mInstance.offload_task_list[kTh_Task - 1];
-
-                        int prev_device = mInstance.previous_device;
-                        AiItemsViewModel temp = mInstance.mList.get(previous_index);
-                        int modelIndex = temp.getCurrentModel();
-
-                        if(temp.getCurrentDevice() == 3){
-                            change_device(previous_index, prev_device);
-                            mInstance.is_changed = true;
-                        }
-                        mInstance.kthTask-- ;
-//                    if(modelIndex == 0 || modelIndex == 8 || modelIndex == 9 || modelIndex == 10){
-//                            mInstance.previous_device = send_Task_To_Server(sendIndex);
-//                    }
-                }
-                else {
-                    mInstance.old_reward = reward;
-                    int sendIndex = mInstance.offload_task_list[kTh_Task];
-//                                AiItemsViewModel temp = mInstance.mList.get(sendIndex);
-//                                int modelIndex = temp.getCurrentModel();
-                    mInstance.previous_device = send_Task_To_Server(sendIndex);
-
-                }
-
-
-                mInstance.kthTask++;
-            }
-            else if(kTh_Task == Ai_count){
-                this.hbo_trigger = false;
-                if(mInstance.old_reward > reward){
-                    int previous_index = mInstance.offload_task_list[kTh_Task - 1];
-                    Log.d("OFFLOAD_MSG","Start to change Device: " + mInstance.old_reward + "Current Reward: " + reward);
-                    int prev_device = mInstance.previous_device;
-                    change_device(previous_index, prev_device);
-                }
-                mInstance.kthTask++;
+            Log.d("OFFLOAD_MSG", "Current Kth Task   "+ kTh_Task);
+            this.hbo_trigger = false;
+            // Only proceed if we haven't processed all tasks
+            if (kTh_Task < Ai_count) {
+                // Function to handle the task offloading logic
+                handleOffloadTask(kTh_Task, reward,AI_latency);
             }
 
-            else if(kTh_Task > Ai_count){
-                Log.d("OFFLOAD_MSG", "We will do HBO later");
-                // Trigger the HBO again, we have finished all offload task
-                this.hbo_trigger = true;
-                offload_is_triggered = true;
-
-                // Set the flagger back to false to wait for next HBO optimization
-                mInstance.hbo_is_done = false;
-                mInstance.curBysIters = -1;
-
-                // Initial kth flagger
-                mInstance.kthTask = 0;
-                mInstance.old_reward = 0;
-
+            // If all tasks are done, reset the HBO trigger and flags
+            if (kTh_Task == Ai_count) {
+                handleEndOfOffload(reward);
             }
 
+            // If kTh_Task exceeds task count, reset HBO for the next optimization period
+            if (kTh_Task > Ai_count) {
+                resetHBOForNextPeriod();
+            }
         }
 
 
 
 
-        if(mInstance.hbo_is_done == false)
-            hbo_trigger = true;
+
+
+
+
+//        if(mInstance.hbo_is_done == false)
+//            hbo_trigger = true;
 
 
         if(hbo_trigger) {
@@ -443,6 +370,25 @@ public class balancer implements Runnable {
         out.close();
     }
 
+    public void savedData(){
+        String server_ip = "192.168.1.2";
+        int server_port = 6767 ;
+        Socket socket = null;
+        PrintWriter out = null;
+        try {
+            socket = new Socket(server_ip,server_port);
+            out = new PrintWriter(socket.getOutputStream(),true);
+            String saveData = "save/saved";
+            out.println(saveData);
+            out.close();
+            socket.close();
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
 
 
     public int[] record_latency(double[] Ai_task_latency) {
@@ -455,27 +401,22 @@ public class balancer implements Runnable {
     }
 
 
-    public double get_Total_Latency(double[] AI_Task_Latency){
-        double sum = 0;
-        for(int i = 0; i < AI_Task_Latency.length ; i++){
-            sum += AI_Task_Latency[i];
-        }
-        return sum;
-    }
+
 
     public void change_device(int Ai_indx, int previous_device){
         AiItemsViewModel curr_AI = mInstance.mList.get(Ai_indx);
         int device_index = curr_AI.getCurrentDevice();
         int model_index = curr_AI.getCurrentModel();
         int pos = mInstance.mList.indexOf(curr_AI);
+        mInstance.resetTimer(Ai_indx);
 
         //mInstance.resetTimer(Ai_indx);
-        Log.d("OFFLOAD_MSG","Before changing Device Name: " + curr_AI.getDevices().get(curr_AI.getCurrentDevice()));
+        //Log.d("OFFLOAD_MSG","Before changing Device Name: " + curr_AI.getDevices().get(curr_AI.getCurrentDevice()));
         curr_AI.setCurrentDevice(previous_device);
         //Log.d("OFFLOAD_MSG","The latency of " + curr_AI.getModels().get(curr_AI.getCurrentModel()) +" after offloading is larger");
         //Log.d("OFFLOAD_MSG","Parameter: " + curr_AI.getDevices().get(prev_device));
-        Log.d("OFFLOAD_MSG","After changing Device Name: " + curr_AI.getDevices().get(curr_AI.getCurrentDevice()));
-        Log.d("OFFLOAD_MSG" , "Model Name is "  + curr_AI.getModels().get(curr_AI.getCurrentModel()));
+        //Log.d("OFFLOAD_MSG","After changing Device Name: " + curr_AI.getDevices().get(curr_AI.getCurrentDevice()));
+        Log.d("OFFLOAD_MSG" , "Changed Model Name is "  + curr_AI.getModels().get(curr_AI.getCurrentModel()));
         int newDevice = curr_AI.getCurrentDevice();
 
         mInstance.runOnUiThread(()->
@@ -517,6 +458,7 @@ public class balancer implements Runnable {
                 int pos = mInstance.mList.indexOf(tempView);
 //                Log.d("OFFLOAD_MSG" , "POS: " + pos + " ID:" + tempView.getID());
 
+
                 tempView.setCurrentDevice(serverDeviceIndex);
                 int newDevice = tempView.getCurrentDevice();
                 mInstance.runOnUiThread( ()->
@@ -533,6 +475,77 @@ public class balancer implements Runnable {
 
         }
         return  original_Device;
+    }
+    // Extracted methods to simplify the logic
+    private void handleOffloadTask(int kTh_Task, double reward,double[] AI_latency) {
+
+        if (mInstance.old_reward == 0) {
+            // First offload, send max latency to server
+            mInstance.offload_req++;
+            mInstance.old_reward = reward;
+            mInstance.offload_task_list = record_latency(AI_latency);
+           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
+
+            int maxAiTask = mInstance.offload_task_list[kTh_Task];
+            AiItemsViewModel taskModel = mInstance.mList.get(maxAiTask);
+            mInstance.previous_device = send_Task_To_Server(maxAiTask);
+
+        } else if (mInstance.is_changed) {
+            mInstance.is_changed = false;
+            mInstance.old_reward = reward;
+            executeTaskOffload(kTh_Task);
+            //viewLatencyArray(mInstance.offload_task_list, AI_latency);
+
+        } else if (mInstance.old_reward > reward) {
+            // If reward decreases after offloading, revert to previous task
+            revertToPreviousTask(kTh_Task);
+           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
+        } else {
+            // Continue with offloading
+            mInstance.old_reward = reward;
+            executeTaskOffload(kTh_Task);
+           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
+        }
+
+        // Update kth task
+        mInstance.kthTask++;
+    }
+
+    private void executeTaskOffload(int kTh_Task) {
+        int taskIndex = mInstance.offload_task_list[kTh_Task];
+        AiItemsViewModel taskModel = mInstance.mList.get(taskIndex);
+        mInstance.previous_device = send_Task_To_Server(taskIndex);
+    }
+
+    private void revertToPreviousTask(int kTh_Task) {
+        int previousTaskIndex = mInstance.offload_task_list[kTh_Task - 1];
+        AiItemsViewModel previousTask = mInstance.mList.get(previousTaskIndex);
+
+        if (previousTask.getCurrentDevice() == 3) {
+            change_device(previousTaskIndex, mInstance.previous_device);
+            mInstance.is_changed = true;
+        }
+
+        // Move back kth task
+        mInstance.kthTask--;
+    }
+
+    private void handleEndOfOffload(double reward) {
+        if (mInstance.old_reward > reward) {
+            int previousTaskIndex = mInstance.offload_task_list[mInstance.kthTask - 1];
+            Log.d("OFFLOAD_MSG", "Start to change Device: " + mInstance.old_reward + " Current Reward: " + reward);
+            change_device(previousTaskIndex, mInstance.previous_device);
+        }
+        mInstance.kthTask++;
+    }
+
+    private void resetHBOForNextPeriod() {
+        this.hbo_trigger = true;
+        offload_is_triggered = true;
+        mInstance.hbo_is_done = false;
+        mInstance.curBysIters = -1;
+        mInstance.kthTask = 0;
+        mInstance.old_reward = 0;
     }
 
     // This function is used for looking the latency array

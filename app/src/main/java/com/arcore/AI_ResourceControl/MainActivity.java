@@ -121,6 +121,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public int previous_device = -1; // Record previous device index before we start next turn
 
     public boolean is_changed = false;
+    public int offload_req = 0;
 
 
     public int[] offload_task_list ; // Record the sort of offloading task
@@ -2774,7 +2775,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                             {
                                 /// this is for data collection bayesian
                                 new balancer(MainActivity.this).run(); // balancer
-                                Log.d("DEBUG_MSG","Success!!!");
 // this is for MIr
                                 // new Mir(MainActivity.this).run();
 //
@@ -4663,8 +4663,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                         float cpuPer = 0;
                         try {
 
-                            String[] cmd = {"top", "-d", "6"};// this is for google pixel 7  top -n 1
-                            //  String[] cmd = {"top", "-m", "10"};// this is for google pixel 7 continious reading
+                            //String[] cmd = {"top", "-n", "1"};// this is for google pixel 7  top -n 1
+                            String[] cmd = {"top", "-m", "10"};// this is for google pixel 7 continious reading
                             // String[] cmd = {"top", "-s", "6"};// this is for galaxy s10
                             //{"top", "-n", "1"};
 
