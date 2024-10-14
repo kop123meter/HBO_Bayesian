@@ -178,6 +178,8 @@ public class DelegateRequestRunnable implements Runnable {
                             modelRequest.activityMain.all_delegates_LstHBO=doubleArray;// save it for mainactivity as well
 
                             int bestInd=modelRequest.activityMain.bysRewardsLog.indexOf(reward);
+                            Log.d("OFFLOAD_MSG","BEST REWARD:     " + reward);
+//                            modelRequest.activityMain.best_BT = reward;
                             modelRequest.activityMain.bayesian1_bestTR=modelRequest.activityMain.bysTratioLog.get(bestInd);
                             modelRequest.activityMain.bayesian1_bestLcty=modelRequest.activityMain.bysAvgLcyLog.get(bestInd);
                         }

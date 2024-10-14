@@ -56,7 +56,7 @@ import org.checkerframework.checker.index.qual.LengthOf;
 
 public class balancer implements Runnable {
 
-    boolean hbo_trigger=false;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
+    boolean hbo_trigger=true;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
     //boolean offload_trigger = true; // After first HBO, we need to trigger offloading and once one offloading done
     // we need set this flag back to false until next HBO finished
     private double sendResponseTimeCode = -1000000; //set this flag to judge the data we send to data collector server
@@ -82,6 +82,9 @@ public class balancer implements Runnable {
     // int aiIndx;
     TextView posText_re,posText_thr,posText_q,posText_app_hbo;
     double reward=0;
+    double reward_server = 0;
+    double reward_locally = 0;
+
 
     // Used for collect B_t & triangle count
     int port = 3434;
@@ -122,7 +125,7 @@ public class balancer implements Runnable {
 
 
     public void run() {
-        Log.d("OFFLOAD_MSG", "Balancer!");
+        Log.d("OFFLOAD_MSG", "*************Balancer********");
 
         boolean accmodel = true;// all AI throughput trained models and RE are accurate
         boolean accRe = true;// this is to check if the trained model for re is accurate
@@ -142,8 +145,8 @@ public class balancer implements Runnable {
 
         int re_window = 12;
 
-
-        double period_init_tris = mInstance.total_tris;// this is the starting triangle count
+        Log.d("OFFLOAD_MSG", "Initial Set complete");
+       double period_init_tris = mInstance.total_tris;// this is the starting triangle count
 
 
         for (int i = 0; i < mInstance.objectCount; i++) {
@@ -154,7 +157,7 @@ public class balancer implements Runnable {
         }
 
         int objc = mInstance.objectCount;
-        ///totTris = mInstance.total_tris;// this might change in the middle of call, so it's better to directly use total_tris , not this local variable
+        //totTris = mInstance.total_tris;// this might change in the middle of call, so it's better to directly use total_tris , not this local variable
 
 
         if (objc > 0) {
@@ -174,12 +177,12 @@ public class balancer implements Runnable {
                 pred_meanD = meanDk; // for the first objects
 
         }
+        Log.d("OFFLOAD_MSG", "meanDk Set Complete");
 
 
         //I got an error for regression since decimation occurs in UI thread and Modeling runs at the same time
         // solution is to start data collection after one period passes from algorithm
         // else{ // just collect data when algorithm was applied in the last period
-
 
 
 // Train the H model for each AI task from line 127 to
@@ -193,9 +196,11 @@ public class balancer implements Runnable {
 
         // mInstance.trisMeanDisk.put(totTris, pred_meanD); //one-time correct: should have predicted value dist => removes from the head (older data) -> to then add to the tail
 // this gets above bincap sooner than the rest of lists, so, we need to keep the size not more than 5
-
+        Log.d("OFFLOAD_MSG", "Start compute latency ");
         int Ai_count = mInstance.mList.size();
-        double avg_AIlatencyPeriod=0;
+        double avg_AIlatencyPeriod=0;               // This is used for the total cost
+        double avg_AIlatencyPeriod_server = 0;      // This is used for the cost of the server
+        double avg_AIlatencyPeriod_local = 0;       // This is used for the tasks locally
         double[] AI_latency = new double[Ai_count];
 
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
@@ -204,42 +209,74 @@ public class balancer implements Runnable {
             meanRt = t_h[0];
             meanThr = t_h[1];
 
+            AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
+            int deviceIdx = taskView.getCurrentDevice();
+
             while (meanThr > 500 ||meanThr < 0.5) // we wanna get a correct value
-            { t_h=mInstance.getResponseT(aiIndx);
+            {   t_h=mInstance.getResponseT(aiIndx);
                 meanThr = t_h[1];
                 meanRt = t_h[0];
+               // Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
+                if(deviceIdx == 3) {
+                    break; // Sometimes it will cause balancer crushed since GPU has its own queue
+                }
+            }
+
+            if(deviceIdx == 3){
+                Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
+                //Since I only have one GPU, the GPU also has a queue to execute the inference
+                // When we have one more inferences at same time, we need to get the true latency for the
+                // waiting Task
+                if(meanRt==0){
+                    meanRt = mInstance.offload_task_latency[aiIndx];
+                }
+                else{
+                    //Update new latency
+                    mInstance.offload_task_latency[aiIndx] = meanRt;
+                }
+                
             }
 
 
 
-            AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
             // first find the best offline AI response Time = EXPECTED RESPONSE TIme
             int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));
             double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
             // find the actual response Time
             double actual_rpT=meanRt;
+            //Log.d("OFFLOAD_ERR", " MEAN RT:  " + meanRt);
 
             avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
+
+            if(deviceIdx == 3){
+                avg_AIlatencyPeriod_server += (actual_rpT-expected_time)/actual_rpT;
+            }
+            else{
+                avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT;
+            }
+
             AI_latency[aiIndx] = meanRt;
 
 
-            if (aiIndx == 0) {
-                // TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
-               // posText_re.setText("RT1: " + String.valueOf(meanRt));
-            } else if (aiIndx == 1) {
-
-                //  TextView posText2 = mInstance.findViewById(R.id.rspT1);
-                //posText_q.setText("RT2: " + String.valueOf(meanRt));
-            }
+//            if (aiIndx == 0) {
+//                // TextView posText = (TextView) mInstance.findViewById(R.id.rspT);
+//               // posText_re.setText("RT1: " + String.valueOf(meanRt));
+//            } else if (aiIndx == 1) {
 //
-            else if (aiIndx == 2) {
-                //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
-               // posText_thr.setText("RT3: " + String.valueOf(meanRt));
-            }
+//                //  TextView posText2 = mInstance.findViewById(R.id.rspT1);
+//                //posText_q.setText("RT2: " + String.valueOf(meanRt));
+//            }
+////
+//            else if (aiIndx == 2) {
+//                //    TextView posText3 = mInstance.findViewById(R.id.rspT2);
+//               // posText_thr.setText("RT3: " + String.valueOf(meanRt));
+//            }
 
 
         }
+        Log.d("OFFLOAD_MSG", "Latency Computation successful!");
 
+        Log.d("OFFLOAD_MSG", "Compute Reward");
 
         //  Uncomment for Bayes auto Trigger
         if(mInstance.curBysIters==-1)
@@ -251,29 +288,41 @@ public class balancer implements Runnable {
         reward =avgQ - (mInstance.reward_weight*avgAIltcy);
         reward=(double) (Math.round((double) (reward * 100))) / 100;
 
+        if(mInstance.serverList.size() > 0 ){
+            double avgAIltcy_server = avg_AIlatencyPeriod_server/mInstance.serverList.size();
+            reward_server = avgQ - (mInstance.reward_weight*avgAIltcy_server);
+            reward_server = (double) (Math.round((double) (reward_server * 100))) / 100;
+        }
 
+        int remain_size = mInstance.mList.size() - mInstance.serverList.size();
+        if(remain_size > 0){
+            double avgAIltcy_local = avg_AIlatencyPeriod_local/remain_size;
+            reward_locally = avgQ - (mInstance.reward_weight * avgAIltcy_local);
+            reward_locally = (double) (Math.round((double) (reward_locally * 100))) / 100;
+        }
+
+        mInstance.remin_reward = reward_locally;
         mInstance.best_BT=(double) (Math.round((double) (mInstance.best_BT * 100))) / 100;
 
 
-
-        posText_app_hbo.setText("B_t: "+ String.valueOf(reward));
-        posText_thr.setText("best_BT: " + String.valueOf(mInstance.best_BT));
+        Log.d("OFFLOAD_MSG", "All Reward Computation success!!!!"
+                                        + "  Reward: " + reward
+                                        + "   Server Reward: " + reward_server
+                                        + "    Local  reward:  " + reward_locally
+                                        +"     OldReward:   " + mInstance.old_reward);
+       // posText_app_hbo.setText("B_t: "+ String.valueOf(reward));
+        //posText_thr.setText("best_BT: " + String.valueOf(mInstance.best_BT));
 
         // Test output of B_t and Triangle count:
 //        current_tris = mInstance.total_tris;
         //System.out.println("B_t:"+reward+"  " + "Triangle Count:" + current_tris);
-        // Send Data to server
-//        try {
-//            if(mInstance.offload_req == 2){
-//                savedData();
-//                Log.d("OFFLOAD_MSG", "SAVED DATA!");
-//            }
-//            sendDataToServer(reward,avgQ,avgAIltcy);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
 
-        if (mInstance.hbo_is_done) {
+
+
+        // I set offload_control_flag to execute offloading once since I need to collect the data to
+        //Compare with original Design
+        if (mInstance.hbo_is_done && mInstance.offload_execute && mInstance.offload_control_flag) {
+            Log.d("OFFLOAD_MSG", "Start Offloading");
             // This means we have done the one HBO
             // At this time, we need to run offload
             // To run offload, we need to get the kTh max latency
@@ -281,7 +330,7 @@ public class balancer implements Runnable {
             // And we don't want to run hbo when we offload our task
             // Set the trigger to false first
             int kTh_Task = mInstance.kthTask;
-            Log.d("OFFLOAD_MSG", "Current Kth Task   "+ kTh_Task);
+            //Log.d("OFFLOAD_MSG", "Current Kth Task   "+ kTh_Task);
             this.hbo_trigger = false;
             // Only proceed if we haven't processed all tasks
             if (kTh_Task < Ai_count) {
@@ -298,20 +347,23 @@ public class balancer implements Runnable {
             if (kTh_Task > Ai_count) {
                 resetHBOForNextPeriod();
             }
+        } else if (mInstance.hbo_is_done) {
+            mInstance.offload_execute = true;
+            if(mInstance.deleg_req == 1){
+                mInstance.offload_control_flag = true;
+                Log.d("OFFLOAD_MSG", "Waiting for HBO arrangement !!!");
+            }
         }
 
 
 
-
-
-
-
-
-//        if(mInstance.hbo_is_done == false)
-//            hbo_trigger = true;
+        if(mInstance.hbo_is_done == true && mInstance.deleg_req == 2){
+            mInstance.curBysIters = -1;
+        }
 
 
         if(hbo_trigger) {
+            Log.d("OFFLOAD_MSG", "Start HBO " + mInstance.curBysIters);
 
             if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
 //                System.out.println(mInstance.HBO_COUNTER + " time execute HBO");
@@ -320,20 +372,47 @@ public class balancer implements Runnable {
                     mInstance.best_BT = (reward + mInstance.best_BT) / 2;
 
                 double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
- //               if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
-//                // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
+                Log.d("OFFLOAD_MSG"," Perc_error" + perc_error);
+                if ((perc_error > 0.05 || perc_error < -0.1) && offload_is_triggered==false)// below is the function of server button
+                // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
                 {
-//                    mInstance.hbo_trigger_false_counter++;
-//                    if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
-//                    {
-//                        mInstance.hbo_trigger_false_counter = 0;
-//                        Log.d("HBO_MSG", "New delegate request has send");
-//                        ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
-//                        mInstance.deleg_req += 1;
-//                    }
+                    mInstance.hbo_trigger_false_counter++;
+                    if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
+                    {
+                        Log.d("OFFLOAD_MSG", "Distance Has Changed, we will trigger HBO again");
+                        mInstance.hbo_trigger_false_counter = 0;
+                        // In this case, we need to reset the Task arrangement
+                        for(int i = 0; i < Ai_count ;i++){
+                            AiItemsViewModel tempView = mInstance.mList.get(i);
+                            int device = tempView.getCurrentDevice();
+                            int model_index = tempView.getCurrentModel();
+                            int default_device = 1; // GPU
+                            int pos = mInstance.mList.indexOf(tempView);
+
+                            if(device == 3){
+                                // we need to stop this task and set this task locally
+                                // The default device is GPU
+                                tempView.setCurrentDevice(default_device);
+                                mInstance.runOnUiThread(()->
+                                        mInstance.adapter.updateActiveModel(
+                                                model_index,
+                                                default_device,
+                                                1,
+                                                tempView,
+                                                pos
+                                        ));
+                                mInstance.serverList.remove(tempView);
+
+                            }
+                        }
+
+                        Log.d("HBO_MSG", "New delegate request has send");
+                        ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+                        mInstance.deleg_req += 1;
+                    }
 
                 }
-                if(offload_is_triggered){
+                else if(offload_is_triggered){
                     offload_is_triggered =false;
                     Log.d("OFFLOAD_MSG", "Final Bt: " + reward);
 //                    Log.d("HBO_MSG", "Delegate req: " + mInstance.deleg_req);
@@ -351,44 +430,13 @@ public class balancer implements Runnable {
         }
 
 
-
+        Log.d("OFFLOAD_MSG", "Start to write Quality");
         writequality();
+        writeRewards();
+        Log.d("OFFLOAD_MSG", "write Quality and rewards success");
+
 
     }
-
-    public void sendDataToServer(double Bt, double triangle_count,double total_RT) throws IOException {
-        String server_ip = "192.168.1.2";
-        int server_port = 6767 ;
-        Socket socket = new Socket(server_ip,server_port);
-        PrintWriter out = new PrintWriter(socket.getOutputStream(),true);
-        String data = "";
-        data = "msg/" + Bt + "," + triangle_count + "," + total_RT;
-        //System.out.println("Sending Data" + data);
-        out.println(data);
-        out.flush();
-        socket.close();
-        out.close();
-    }
-
-    public void savedData(){
-        String server_ip = "192.168.1.2";
-        int server_port = 6767 ;
-        Socket socket = null;
-        PrintWriter out = null;
-        try {
-            socket = new Socket(server_ip,server_port);
-            out = new PrintWriter(socket.getOutputStream(),true);
-            String saveData = "save/saved";
-            out.println(saveData);
-            out.close();
-            socket.close();
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-    }
-
 
 
     public int[] record_latency(double[] Ai_task_latency) {
@@ -488,15 +536,12 @@ public class balancer implements Runnable {
 
             int maxAiTask = mInstance.offload_task_list[kTh_Task];
             AiItemsViewModel taskModel = mInstance.mList.get(maxAiTask);
+            int modelIndx = taskModel.getCurrentModel();
             mInstance.previous_device = send_Task_To_Server(maxAiTask);
 
-        } else if (mInstance.is_changed) {
-            mInstance.is_changed = false;
-            mInstance.old_reward = reward;
-            executeTaskOffload(kTh_Task);
-            //viewLatencyArray(mInstance.offload_task_list, AI_latency);
+        }
 
-        } else if (mInstance.old_reward > reward) {
+        else if (mInstance.old_reward > reward) {
             // If reward decreases after offloading, revert to previous task
             revertToPreviousTask(kTh_Task);
            // viewLatencyArray(mInstance.offload_task_list, AI_latency);
@@ -522,10 +567,11 @@ public class balancer implements Runnable {
         AiItemsViewModel previousTask = mInstance.mList.get(previousTaskIndex);
 
         if (previousTask.getCurrentDevice() == 3) {
-            change_device(previousTaskIndex, mInstance.previous_device);
-            mInstance.is_changed = true;
+//            if(previousTask.getCurrentDevice() != mInstance.previous_device) {
+                change_device(previousTaskIndex, mInstance.previous_device);
+                mInstance.is_changed = true;
+            //}
         }
-
         // Move back kth task
         mInstance.kthTask--;
     }
@@ -543,6 +589,8 @@ public class balancer implements Runnable {
         this.hbo_trigger = true;
         offload_is_triggered = true;
         mInstance.hbo_is_done = false;
+        mInstance.offload_execute = false;
+        mInstance.offload_control_flag = false;  // Only del_req = 1 since we need to run once to collect data
         mInstance.curBysIters = -1;
         mInstance.kthTask = 0;
         mInstance.old_reward = 0;
@@ -656,7 +704,7 @@ public class balancer implements Runnable {
             meanRt = t_h[0];
             meanThr = t_h[1];
 
-            while (meanThr > 400 ||meanThr < 0.5) // we wanna get a correct value
+            while (meanThr > 500 ||meanThr < 0.5) // we wanna get a correct value
             { t_h=mInstance.getResponseT(aiIndx);
                 meanThr = t_h[1];
                 meanRt = t_h[0];
@@ -1578,6 +1626,40 @@ public class balancer implements Runnable {
         return idx;
     }
 
+    public void writeRewards(){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "Rewards"+mInstance. fileseries+".csv";
+        File file = new File(FILEPATH);
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+
+
+            if (file.length() == 0) {
+                StringBuilder header = new StringBuilder();
+                header.append("Timestamp,Reward,Reward_Server,Reward_Locally,Best_BT,Reward_Difference_Percentage\n");
+                writer.write(header.toString());
+            }
+                StringBuilder sb = new StringBuilder();
+                sb.append(dateFormat.format(new Date()));
+                sb.append(',');
+                sb.append(reward);
+                sb.append(',');
+                sb.append(reward_server);
+                sb.append(',');
+                sb.append(reward_locally);
+                sb.append(',');
+                sb.append(mInstance.best_BT);
+                sb.append(',');
+                sb.append((mInstance.best_BT-reward)/mInstance.best_BT);
+                sb.append('\n');
+                writer.write(sb.toString());
+
+        }catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
+    }
+
     public void writequality(){
 
 
@@ -1805,6 +1887,7 @@ public class balancer implements Runnable {
     public float calculateMeanQuality( ) {
 
         float sumQual=0;
+//        objquality = new float[mInstance.objectCount + 1];  // sometimes will cause some wrong
         for (int ind = 0; ind < mInstance.objectCount; ind++)
         {
             int i =  mInstance.excelname.indexOf( mInstance.renderArray.get(ind).fileName);

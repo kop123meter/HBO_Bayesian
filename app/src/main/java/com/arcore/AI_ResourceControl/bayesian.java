@@ -643,7 +643,8 @@ import static java.lang.Math.min;
 
 
                 if(mInstance.bys_baseline1_2)// this is for HBO compared to the frist two baselines
-                 reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
+                    reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
+                    //reward = mInstance.remin_reward;
 
                 else // this is for baseline #3 without triangle count change
                     reward=- (avgLatency);// I don't use weight here becuase there is no use
@@ -660,6 +661,11 @@ import static java.lang.Math.min;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;
+                Log.d(
+                        "OFFLOAD_MSG", "Reward From Bayesian:  " + reward
+                                                + " avgq: "  + mInstance.avgq
+                                                + "avgLatency  " + avgLatency
+                );
                 mInstance.avg_reward=   reward;
 //                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
 //                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
@@ -1001,8 +1007,9 @@ import static java.lang.Math.min;
 
         StringBuilder sb = new StringBuilder();
         sb.append(dateFormat.format(new Date()));
-        
+
         double avg_AIlatencyPeriod=0;// this is to calculate sum of each AI model response time per period
+        double avg_AIlatencyPeriod_local = 0;
         mInstance.avgq = calculateMeanQuality();
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
@@ -1011,6 +1018,7 @@ import static java.lang.Math.min;
 
 
                 AiItemsViewModel taskView=mInstance.mList.get(i);
+                int deviceIdx = taskView.getCurrentDevice();
 
                 // first find the best offline AI response Time = EXPECTED RESPONSE TIme
                 int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
@@ -1018,21 +1026,35 @@ import static java.lang.Math.min;
                 double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
                 // find the actual response Time
 
+
                 meanRt = mInstance.mList.get(i).getTot_rps();
                 //double[] t_h = mInstance.getResponseT(i);
 
-                while (meanRt==0) // we wanna get a correct value
-                    meanRt= mInstance.mList.get(i).getTot_rps();
+                while (meanThr > 500 ||meanThr < 0.5 || meanRt==0) { // we wanna get a correct value and avoid noisy
+                    double[] th = mInstance.getResponseT(i);
+                    meanRt = th[0];
+                    meanThr = th[1];
+                    meanRt = mInstance.mList.get(i).getTot_rps();
+                    Log.d("OFFLOAD_ERR", "Current :" + meanRt);
+                }
+
 
                 double actual_rpT=meanRt;
+
 
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
                 //meanRt = t_h[0];
                 // calculate the latency
+
+
                 avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;//normalized over curr time this is because we want to have this value minimized
 
-                double cur_latency=actual_rpT-expected_time;
+                if(deviceIdx != 3){
+                    avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT ;
+                }
+
                 double tmp_lastLatency=mInstance.last_latencyInstanceN;
+                double cur_latency=actual_rpT-expected_time;
 ///* tmp deactivate maybe not necessary
                // if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)
                if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)// we check atleast one instance to make sure our latency is not noisy
@@ -1046,13 +1068,15 @@ import static java.lang.Math.min;
                 if(cur_latency<0)
                     isnoisy=true;
 
+
+
                 //if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
                 if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
                    mInstance.last_latencyInstanceN =cur_latency;
 
 ////********** bellow line is for the function of finding the offline Response time which I already did,I changed it to calculate the latency
              ///   avg_AIlatencyPeriod=actual_rpT;
-                
+
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
                         .append(",").append(actual_rpT) .append(",").append(expected_time).append(",").append(cur_latency);
@@ -1060,7 +1084,13 @@ import static java.lang.Math.min;
             }
 
 // avg_AIperK is to calculate average of all AI model  response time  per period
+            //In this case we only consider the local reward.
+
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+            int reamain_tasks = mInstance.mList.size() - mInstance.serverList.size();
+            if(reamain_tasks != 0) {
+                avgAIltcy = avg_AIlatencyPeriod_local /reamain_tasks;
+            }
             boolean isempty=mInstance.avg_AIperK.isEmpty();
             if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
             {
@@ -1110,7 +1140,7 @@ import static java.lang.Math.min;
         return list.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
     }
-    
+
 
 
 

@@ -115,16 +115,19 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
     public boolean hbo_is_done = false;
-
+    public boolean offload_execute = false; // Set this flag to trigger Offload after HBO has set best cost.
+    public boolean offload_control_flag =false;
     public int kthTask = 0; // to record the k Th max latency
     public double old_reward = 0; // Record old reward to help offloading
+    public double remin_reward = 0;
     public int previous_device = -1; // Record previous device index before we start next turn
 
     public boolean is_changed = false;
     public int offload_req = 0;
 
-
+    public int MAX_OFFLOAD_TAKS = 6;
     public int[] offload_task_list ; // Record the sort of offloading task
+    public double[] offload_task_latency = new double[MAX_OFFLOAD_TAKS]; // Record offload task latency to compute reward
 
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
@@ -2249,7 +2252,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                     }//
                                     // comment below lines if you want to deactive HBO auto trigger
                                     // Don't sleep too much time it may cause crushed
-                                    Thread.sleep(7);
+                                    Thread.sleep(200);
 //
 //hbo trigger to run a baseline
                                     if (objectCount == 0 && deleg_req==0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
