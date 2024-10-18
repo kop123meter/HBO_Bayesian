@@ -629,7 +629,7 @@ import static java.lang.Math.min;
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
        // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
       // original of Dec 2023 tests CountDownTimer sceneTimer = new CountDownTimer(18000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
-        CountDownTimer sceneTimer = new CountDownTimer(6000, 1500) {
+        CountDownTimer sceneTimer = new CountDownTimer(20000, 4000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 writeRT();
@@ -1030,16 +1030,21 @@ import static java.lang.Math.min;
                 meanRt = mInstance.mList.get(i).getTot_rps();
                 //double[] t_h = mInstance.getResponseT(i);
 
-                while (meanThr > 500 ||meanThr < 0.5 || meanRt==0) { // we wanna get a correct value and avoid noisy
-                    double[] th = mInstance.getResponseT(i);
-                    meanRt = th[0];
-                    meanThr = th[1];
+                while (meanRt==0) { // we wanna get a correct value and avoid noisy
+//                    double[] th = mInstance.getResponseT(i);
+//                    meanRt = th[0];
+//                    meanThr = th[1];
                     meanRt = mInstance.mList.get(i).getTot_rps();
                     Log.d("OFFLOAD_ERR", "Current :" + meanRt);
                 }
 
 
+
                 double actual_rpT=meanRt;
+                if(actual_rpT < expected_time){
+                    expected_time = actual_rpT;
+                    mInstance.excel_BestofflineAIRT.set(indq,expected_time);
+                }
 
 
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
@@ -1049,9 +1054,9 @@ import static java.lang.Math.min;
 
                 avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;//normalized over curr time this is because we want to have this value minimized
 
-                if(deviceIdx != 3){
-                    avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT ;
-                }
+//                if(deviceIdx != 3){
+//                    avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT ;
+//                }
 
                 double tmp_lastLatency=mInstance.last_latencyInstanceN;
                 double cur_latency=actual_rpT-expected_time;
@@ -1087,10 +1092,10 @@ import static java.lang.Math.min;
             //In this case we only consider the local reward.
 
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
-            int reamain_tasks = mInstance.mList.size() - mInstance.serverList.size();
-            if(reamain_tasks != 0) {
-                avgAIltcy = avg_AIlatencyPeriod_local /reamain_tasks;
-            }
+//            int reamain_tasks = mInstance.mList.size() - mInstance.serverList.size();
+//            if(reamain_tasks != 0) {
+//                avgAIltcy = avg_AIlatencyPeriod_local /reamain_tasks;
+//            }
             boolean isempty=mInstance.avg_AIperK.isEmpty();
             if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
             {

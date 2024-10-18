@@ -117,6 +117,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public boolean hbo_is_done = false;
     public boolean offload_execute = false; // Set this flag to trigger Offload after HBO has set best cost.
     public boolean offload_control_flag =false;
+
+    public boolean distance_changed_flag = false;
     public int kthTask = 0; // to record the k Th max latency
     public double old_reward = 0; // Record old reward to help offloading
     public double remin_reward = 0;
@@ -124,6 +126,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     public boolean is_changed = false;
     public int offload_req = 0;
+    public int waitcount = 30;
 
     public int MAX_OFFLOAD_TAKS = 6;
     public int[] offload_task_list ; // Record the sort of offloading task

@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.lang.Math.abs;
+import static java.lang.Math.floorMod;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.pow;
@@ -211,7 +212,6 @@ public class balancer implements Runnable {
 
             AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
             int deviceIdx = taskView.getCurrentDevice();
-
             while (meanThr > 500 ||meanThr < 0.5) // we wanna get a correct value
             {   t_h=mInstance.getResponseT(aiIndx);
                 meanThr = t_h[1];
@@ -221,9 +221,9 @@ public class balancer implements Runnable {
                     break; // Sometimes it will cause balancer crushed since GPU has its own queue
                 }
             }
-
+            Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
             if(deviceIdx == 3){
-                Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
+                //Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
                 //Since I only have one GPU, the GPU also has a queue to execute the inference
                 // When we have one more inferences at same time, we need to get the true latency for the
                 // waiting Task
@@ -245,6 +245,11 @@ public class balancer implements Runnable {
             // find the actual response Time
             double actual_rpT=meanRt;
             //Log.d("OFFLOAD_ERR", " MEAN RT:  " + meanRt);
+            // Update Expected Time when we get better performance
+            if(actual_rpT < expected_time){
+                expected_time = actual_rpT;
+                mInstance.excel_BestofflineAIRT.set(indq,expected_time);
+            }
 
             avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
 
@@ -305,7 +310,7 @@ public class balancer implements Runnable {
         mInstance.best_BT=(double) (Math.round((double) (mInstance.best_BT * 100))) / 100;
 
 
-        Log.d("OFFLOAD_MSG", "All Reward Computation success!!!!"
+        Log.d("OBS_MSG", "All Reward Computation success!!!!"
                                         + "  Reward: " + reward
                                         + "   Server Reward: " + reward_server
                                         + "    Local  reward:  " + reward_locally
@@ -349,17 +354,21 @@ public class balancer implements Runnable {
             }
         } else if (mInstance.hbo_is_done) {
             mInstance.offload_execute = true;
+            mInstance.curBysIters = -1;
             if(mInstance.deleg_req == 1){
                 mInstance.offload_control_flag = true;
                 Log.d("OFFLOAD_MSG", "Waiting for HBO arrangement !!!");
+            } else if (mInstance.distance_changed_flag) {
+                mInstance.offload_control_flag = true;
+                mInstance.distance_changed_flag = false; // used for next distance changed
+                Log.d("OFFLOAD_MSG", "We will offload again!");
             }
+
         }
 
 
 
-        if(mInstance.hbo_is_done == true && mInstance.deleg_req == 2){
-            mInstance.curBysIters = -1;
-        }
+
 
 
         if(hbo_trigger) {
@@ -409,10 +418,13 @@ public class balancer implements Runnable {
                         Log.d("HBO_MSG", "New delegate request has send");
                         ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
                         mInstance.deleg_req += 1;
+                        mInstance.distance_changed_flag = true;
                     }
 
                 }
-                else if(offload_is_triggered){
+                // When we have done offloading and has offloaded some tasks to server
+                // We need to re trigger Bayesian Request again.
+                else if(offload_is_triggered && mInstance.serverList.size() != 0){
                     offload_is_triggered =false;
                     Log.d("OFFLOAD_MSG", "Final Bt: " + reward);
 //                    Log.d("HBO_MSG", "Delegate req: " + mInstance.deleg_req);
@@ -494,6 +506,8 @@ public class balancer implements Runnable {
             String model_name = tempView.getModels().get(tempView.getCurrentModel());
             original_Device = tempView.getCurrentDevice();
             String device_name = tempView.getDevices().get(original_Device);
+            int modelIdx = tempView.getCurrentModel();
+
 //            System.out.println("Max AI latency period: " + AI_index + " AI Model Name: " + model_name + " Device Name: " + device_name );
 
             // Sending Bitmap to server
@@ -526,6 +540,11 @@ public class balancer implements Runnable {
     }
     // Extracted methods to simplify the logic
     private void handleOffloadTask(int kTh_Task, double reward,double[] AI_latency) {
+        double current_time = 0;
+        if(mInstance.old_reward !=0 ){
+            int current_idx = mInstance.offload_task_list[kTh_Task];
+            current_time = AI_latency[current_idx];
+        }
 
         if (mInstance.old_reward == 0) {
             // First offload, send max latency to server
@@ -540,12 +559,23 @@ public class balancer implements Runnable {
             mInstance.previous_device = send_Task_To_Server(maxAiTask);
 
         }
-
-        else if (mInstance.old_reward > reward) {
+        else if (mInstance.is_changed) {
+            if(mInstance.waitcount >=0 ){
+                mInstance.waitcount --; //Let's run 30 times
+            }
+            else{
+                mInstance.is_changed = false;
+                mInstance.waitcount = 30;
+                mInstance.old_reward = reward;
+                executeTaskOffload(kTh_Task);
+            }
+        }
+        else if (mInstance.old_reward > reward || current_time >= 1000) {
             // If reward decreases after offloading, revert to previous task
             revertToPreviousTask(kTh_Task);
            // viewLatencyArray(mInstance.offload_task_list, AI_latency);
-        } else {
+        }
+        else {
             // Continue with offloading
             mInstance.old_reward = reward;
             executeTaskOffload(kTh_Task);
@@ -566,12 +596,12 @@ public class balancer implements Runnable {
         int previousTaskIndex = mInstance.offload_task_list[kTh_Task - 1];
         AiItemsViewModel previousTask = mInstance.mList.get(previousTaskIndex);
 
-        if (previousTask.getCurrentDevice() == 3) {
+//        if (previousTask.getCurrentDevice() == 3) {
 //            if(previousTask.getCurrentDevice() != mInstance.previous_device) {
-                change_device(previousTaskIndex, mInstance.previous_device);
-                mInstance.is_changed = true;
+        change_device(previousTaskIndex, mInstance.previous_device);
+        mInstance.is_changed = true;
             //}
-        }
+        //}
         // Move back kth task
         mInstance.kthTask--;
     }
@@ -591,6 +621,7 @@ public class balancer implements Runnable {
         mInstance.hbo_is_done = false;
         mInstance.offload_execute = false;
         mInstance.offload_control_flag = false;  // Only del_req = 1 since we need to run once to collect data
+        mInstance.distance_changed_flag = false;
         mInstance.curBysIters = -1;
         mInstance.kthTask = 0;
         mInstance.old_reward = 0;
@@ -1904,7 +1935,7 @@ public class balancer implements Runnable {
 
             float cur_degerror = deg_error / max_nrmd;
             float quality= 1- cur_degerror;
-            objquality[ind]=quality;
+            //objquality[ind]=quality;
             sumQual+=quality;
 
 
