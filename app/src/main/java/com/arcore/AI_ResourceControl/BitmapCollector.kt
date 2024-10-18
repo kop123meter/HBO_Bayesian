@@ -184,6 +184,7 @@ class BitmapCollector(
                         else {
                             Log.e("Server Response", "Error communicating with server")
                         }
+                       InferenceTime = total_latency
                         //System.out.println("Time:" + total_latency)
                    }
                    else if(objectDetector!= null){
@@ -215,7 +216,9 @@ class BitmapCollector(
                        digitClas?.classify(bitmap!!)
 
                     end = System.nanoTime()/1000000
-                    InferenceTime = end-start
+                    if(device!=3){
+                        InferenceTime = end-start
+                    }
                     totalOverhead+=overhead
                     responseTime=overhead+InferenceTime
                     numOfTimesExecuted++
@@ -241,11 +244,11 @@ class BitmapCollector(
 fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
     val tempAdd = serverAddress();
 
+
     val serverIP = "192.168.1.2"  // IP address of the server
     val serverPort = 4545        // Port number of the server
     var retryCount = 3               // Number of times to retry sending the image
     var networkLatency: Long = 0     // Network latency in milliseconds
-    System.out.println(model)
     
     while (retryCount > 0) {
         try {
@@ -291,7 +294,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             out.write("finish".toByteArray(Charsets.UTF_8))
             out.flush()
             Log.d("BitmapCollector", "Sent image to server")
-            System.out.println("Send Image")
+
 
             // Wait for the server to acknowledge the receipt of data
             val input = socket.getInputStream()
@@ -334,15 +337,18 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 
             val parts = serverResponse?.split(":") ?: emptyList()
             if (parts.size < 2) {
-                Log.e("BitmapCollector", "Invalid response format")
+                Log.d("BitmapCollector", "Invalid response format")
                 return Pair(-1, null)
             }
             //System.out.println("PARTS:      " + parts[0])
-            val serverLatency = parts[0].toFloatOrNull()
+            var serverLatency = parts[0].toFloatOrNull()
             val result = parts.getOrNull(1)
+            Log.d("BitmapCollector", "Receive Message");
 
-            Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
-            Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
+
+//            Log.d("OFFLOAD_MSG", "Server Processing Latency: $serverLatency ms")
+            //Log.d("OFFLOAD_MSG", "Total Latency: $networkLatency ms")
+
             // return the network latency and the server response
             return Pair(networkLatency, result)
 

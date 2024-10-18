@@ -32,7 +32,12 @@ public class DelegateRequestRunnable implements Runnable {
     // Context needed to save the image in the internal storage
     private final Context context;
 
-    String bayesian_delg="";
+    Socket socket = null;
+    PrintWriter out = null;
+    BufferedReader in = null;
+
+
+
 
     private final ModelRequestManager mInstance;
 
@@ -54,7 +59,7 @@ public class DelegateRequestRunnable implements Runnable {
 
     //public ModelRequestRunnable( float cr,String filename, float percReduc, Context context, ModelRequestManager mInstance) {
 
-    public DelegateRequestRunnable(ModelRequest modelRequest, ModelRequestManager mInstance, double remain_task ) {
+    public DelegateRequestRunnable(ModelRequest modelRequest, ModelRequestManager mInstance, double remain_task) {
         this.modelRequest = modelRequest;
 
 
@@ -64,7 +69,13 @@ public class DelegateRequestRunnable implements Runnable {
 
         this.remining_task = remain_task;
 
+
     }
+
+    public void setRemainTask(double num){
+        this.remining_task = num;
+    }
+
 
 
 
@@ -84,20 +95,21 @@ public class DelegateRequestRunnable implements Runnable {
                 //@@@pc address
                 modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
 
-                Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
-                // Open output stream
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+
+                socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
+                    // Open output stream
+                out = new PrintWriter(socket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
 
-                //mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
 
                 ///nill test to trigger HBO-> we write a code to python server and then activate it
 
                 String activate_msg = "delegate/activate:" + remining_task;
                 Log.d("HBO_MSG", "Remaining Task: " + remining_task);
                 out.println(activate_msg);
-                Log.d("HBO_MSG","Send Active MSG" + activate_msg);
+                Log.d("OFFLOAD_MSG","Send Active MSG  " + activate_msg);
+
                 //flush stream
                 out.flush();
 
@@ -166,6 +178,8 @@ public class DelegateRequestRunnable implements Runnable {
                             modelRequest.activityMain.all_delegates_LstHBO=doubleArray;// save it for mainactivity as well
 
                             int bestInd=modelRequest.activityMain.bysRewardsLog.indexOf(reward);
+                            Log.d("OFFLOAD_MSG","BEST REWARD:     " + reward);
+//                            modelRequest.activityMain.best_BT = reward;
                             modelRequest.activityMain.bayesian1_bestTR=modelRequest.activityMain.bysTratioLog.get(bestInd);
                             modelRequest.activityMain.bayesian1_bestLcty=modelRequest.activityMain.bysAvgLcyLog.get(bestInd);
                         }
@@ -195,7 +209,7 @@ public class DelegateRequestRunnable implements Runnable {
                         Log.d("DelegateRequest Msg",  "from Delegate: ave_reward = " + String.valueOf(modelRequest.activityMain.avg_reward));
                         String msg_toserver="reward/"+String.valueOf(modelRequest.activityMain.avg_reward);
                         out.println(msg_toserver);
-                        Log.d("DelegateRequest Msg", "Sent successfully");
+                        Log.d("DelegateRequest Msg", "Sent successfully   " + msg_toserver);
                         //flush stream
                         out.flush();
                         exploration_phase -= 1;
@@ -203,12 +217,13 @@ public class DelegateRequestRunnable implements Runnable {
                         if(modelRequest.activityMain.curBysIters==max_iteration-1)// should be done all the time after last HBO iteration
                         //&& modelRequest.activityMain.objectCount==1)// this is done just for one time
                         {
-                            Log.d("DelegateRequest Msg", "Sending Best BT");
+                            Log.d("DelegateRequest Msg", "Sending Best BT  " + modelRequest.activityMain.avg_reward);
                             modelRequest.activityMain.avg_reward=(double) (Math.round((double) (modelRequest.activityMain.avg_reward * 100))) / 100;
                             modelRequest.activityMain.best_BT = modelRequest.activityMain.avg_reward;
-                            if(modelRequest.activityMain.HBO_COUNTER == 0){
-                                modelRequest.activityMain.HBO_COUNTER += 1;
-                            }
+
+                            // Used to trigger Offload
+                            modelRequest.activityMain.hbo_is_done = true;
+
 
                         }
                         modelRequest.activityMain.curBysIters += 1;
@@ -261,6 +276,9 @@ public class DelegateRequestRunnable implements Runnable {
 //                    outM.close();
 //                    in.close();
                 //fout.close();
+
+                //Comment for second iteration
+//
                 out.close();
                 socket.close();
 

@@ -11,7 +11,10 @@ import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
+import java.io.BufferedReader;
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
+import java.net.Socket;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -92,6 +95,8 @@ public class ModelRequestManager {
     }
 
 
+
+
     public void handleState(int state, ModelRequest modelRequest)
     {
         switch(state)
@@ -162,11 +167,13 @@ public class ModelRequestManager {
 //                    }
                     // Get the reaminging AI Task Number for HBO
                     double remain_Task = modelRequest.getRemaining_task();
+
                     dlgRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
                     // un comment parallelism and start sequential  decimation
                     //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                    //  new DelegateRequestRunnable(modelRequest, Instance).run();
+
                     Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
 
                 }
@@ -195,7 +202,7 @@ public class ModelRequestManager {
                     mRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
                     // un comment parallelism and start sequential  decimation
-                    Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
+                    //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                     // new ModelRequestRunnable(modelRequest, Instance).run();
                 }
 

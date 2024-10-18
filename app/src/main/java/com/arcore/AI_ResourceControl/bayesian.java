@@ -26,6 +26,7 @@ package com.arcore.AI_ResourceControl;
  import java.util.Comparator;
  import java.util.Date;
  import java.util.HashMap;
+ import java.util.Iterator;
  import java.util.LinkedHashMap;
  import java.util.LinkedList;
  import java.util.List;
@@ -450,7 +451,9 @@ import static java.lang.Math.min;
         double selectedTRatio= selected_combinations[selected_combinations.length - 1];
         double nextTris =selectedTRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
         curIteration=mInstance.curBysIters;
-        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
+        if(curIteration != -1) {
+            mInstance.bysTratioLog.set(curIteration, selectedTRatio);
+        }
 
         // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
         List<Integer> capacity = new ArrayList();
@@ -466,14 +469,79 @@ import static java.lang.Math.min;
 
         List<AIModel> copuCurModels = new ArrayList<>();
         copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
+
+
         List<AiItemsViewModel> copyAiItems = new ArrayList<>();
         copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
-        int delegatedM=mInstance.mList.size();// num of current tasks
+
+        // Remove those task which has running on Edge Server
+        Iterator<AiItemsViewModel> iterator1 = copyAiItems.iterator();
+        while (iterator1.hasNext()){
+            AiItemsViewModel testView = iterator1.next();
+            if(testView.getCurrentDevice() == 3){
+                iterator1.remove();
+            }
+        }
+
+
+        // Get remaining Task Set
+//        for(AiItemsViewModel updateView : mInstance.serverList){
+//            String modelServerName = updateView.getModels().get(updateView.getCurrentModel());
+//            Log.d("F_MSG", "ServerModel Name: "  + modelServerName);
+//            Iterator<AIModel> iterator = copuCurModels.iterator();
+//            while(iterator.hasNext()){
+//                AIModel tempModel = iterator.next();
+//                if(tempModel.name.equals(modelServerName)){
+//                    int remove_flag = 0;
+//                    for(AiItemsViewModel remainTask : copyAiItems){
+//                        if(tempModel.getID() == remainTask.getID()){
+//                            remove_flag = 1;
+//                            break;
+//                        }
+//                    }
+//                    if(remove_flag == 0)
+//                        iterator.remove();
+//                }
+//            }
+//
+//        }
+
+
+        int delegatedM=mInstance.mList.size() - mInstance.serverList.size();// num of current tasks
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
-        while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
+
+
+        // When deleg_req >= 2 this means we have done offloading once, so we need to update current running model.
+//        if(mInstance.deleg_req >= 2){
+//
+//            Log.d("F_MSG", "**************************View current running Model*******************");
+//            for(int i = 0; i < copuCurModels.size(); i++){
+//                AIModel temp = copuCurModels.get(i);
+//                Log.d("F_MSG", "Model Name: "  + temp.name);
+//                Log.d("F_MSG", "Model device:  " + temp.delegate);
+//            }
+//            Log.d("F_MSG", "**************************************************************************");
+//        }
+//        int dele_Counter = 0;
+
+        while(delegatedM!= 0){// do this till all tasks are assingned t their best delegate
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
+
+
+            if (assignedModel == null) {
+               //Log.e("DEBUG_MSG", "assignedModel is null");
+               //delegatedM -=1 ;
+                continue;
+            }
+
+            if (assignedModel.delegate == null) {
+                Log.e("DEBUG_MSG", "assignedModel.delegate is null for model ID: " + assignedModel.getID());
+                continue;
+            }
+
             int bestDlg=assignedModel.delegate;
+
             for (AiItemsViewModel item : copyAiItems) {
                 if (item.getID()==assignedModel.getID()){
                     //     getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
@@ -481,11 +549,18 @@ import static java.lang.Math.min;
                     break;
                 }
             }
+            if(taskView == null)
+                continue;
             int tasksIndx = mInstance.mList.indexOf(taskView);
             if(capacity.get(bestDlg) !=0)// you can easily assing the task and update delgate
             {
                 delegatedM-=1;
-                capacity.set(bestDlg, capacity.get(bestDlg)-1);
+
+                if(taskView.getCurrentDevice() == 3){
+                    Log.d("F_MSG", "This guy using server " + "Current Best Dlg: " + bestDlg);
+                }
+
+                capacity.set(bestDlg, capacity.get(bestDlg) - 1);
                 copyAiItems.remove(taskView);
                 // assign the task
 
@@ -504,6 +579,7 @@ import static java.lang.Math.min;
                                     finalTaskView,
                                     finalI// this is the index of mlist
                             ));
+
                 }
                 try {
                     sleep(30);
@@ -552,7 +628,7 @@ import static java.lang.Math.min;
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
        // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
       // original of Dec 2023 tests CountDownTimer sceneTimer = new CountDownTimer(18000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
-        CountDownTimer sceneTimer = new CountDownTimer(6000, 1500) {
+        CountDownTimer sceneTimer = new CountDownTimer(10000, 2000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 writeRT();
@@ -566,7 +642,8 @@ import static java.lang.Math.min;
 
 
                 if(mInstance.bys_baseline1_2)// this is for HBO compared to the frist two baselines
-                 reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
+                    reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
+                    //reward = mInstance.remin_reward;
 
                 else // this is for baseline #3 without triangle count change
                     reward=- (avgLatency);// I don't use weight here becuase there is no use
@@ -579,16 +656,22 @@ import static java.lang.Math.min;
                     reward-=0.18;
                 else
                     if(mInstance.curBysIters <4 )
-                    reward-=0.1;
+                        reward-=0.1;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;
+                Log.d(
+                        "OFFLOAD_MSG", "Reward From Bayesian:  " + reward
+                                                + " avgq: "  + mInstance.avgq
+                                                + "avgLatency  " + avgLatency
+                );
                 mInstance.avg_reward=   reward;
 //                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
 //                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
-
-                mInstance.bysRewardsLog.set(curIteration,reward);
-                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
+                if(curIteration!=-1) {
+                    mInstance.bysRewardsLog.set(curIteration, reward);
+                    mInstance.bysAvgLcyLog.set(curIteration, avgLatency);
+                }
 
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
@@ -923,8 +1006,9 @@ import static java.lang.Math.min;
 
         StringBuilder sb = new StringBuilder();
         sb.append(dateFormat.format(new Date()));
-        
+
         double avg_AIlatencyPeriod=0;// this is to calculate sum of each AI model response time per period
+        double avg_AIlatencyPeriod_local = 0;
         mInstance.avgq = calculateMeanQuality();
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
@@ -933,6 +1017,7 @@ import static java.lang.Math.min;
 
 
                 AiItemsViewModel taskView=mInstance.mList.get(i);
+                int deviceIdx = taskView.getCurrentDevice();
 
                 // first find the best offline AI response Time = EXPECTED RESPONSE TIme
                 int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
@@ -940,21 +1025,40 @@ import static java.lang.Math.min;
                 double expected_time = mInstance.excel_BestofflineAIRT.get(indq);
                 // find the actual response Time
 
+
                 meanRt = mInstance.mList.get(i).getTot_rps();
                 //double[] t_h = mInstance.getResponseT(i);
 
-                while (meanRt==0) // we wanna get a correct value
-                    meanRt= mInstance.mList.get(i).getTot_rps();
+                while (meanRt==0) { // we wanna get a correct value and avoid noisy
+//                    double[] th = mInstance.getResponseT(i);
+//                    meanRt = th[0];
+//                    meanThr = th[1];
+                    meanRt = mInstance.mList.get(i).getTot_rps();
+                    Log.d("OFFLOAD_ERR", "Current :" + meanRt);
+                }
+
+
 
                 double actual_rpT=meanRt;
+                if(actual_rpT < expected_time){
+                    expected_time = actual_rpT;
+                    mInstance.excel_BestofflineAIRT.set(indq,expected_time);
+                }
+
 
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
                 //meanRt = t_h[0];
                 // calculate the latency
+
+
                 avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;//normalized over curr time this is because we want to have this value minimized
 
-                double cur_latency=actual_rpT-expected_time;
+//                if(deviceIdx != 3){
+//                    avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT ;
+//                }
+
                 double tmp_lastLatency=mInstance.last_latencyInstanceN;
+                double cur_latency=actual_rpT-expected_time;
 ///* tmp deactivate maybe not necessary
                // if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)
                if(i==mInstance.mList.size()-1 && tmp_lastLatency!=0)// we check atleast one instance to make sure our latency is not noisy
@@ -968,13 +1072,15 @@ import static java.lang.Math.min;
                 if(cur_latency<0)
                     isnoisy=true;
 
+
+
                 //if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
                 if(i==mInstance.mList.size()-1 && isnoisy==false)// update last latency
                    mInstance.last_latencyInstanceN =cur_latency;
 
 ////********** bellow line is for the function of finding the offline Response time which I already did,I changed it to calculate the latency
              ///   avg_AIlatencyPeriod=actual_rpT;
-                
+
                 sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
                         .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
                         .append(",").append(actual_rpT) .append(",").append(expected_time).append(",").append(cur_latency);
@@ -982,7 +1088,13 @@ import static java.lang.Math.min;
             }
 
 // avg_AIperK is to calculate average of all AI model  response time  per period
+            //In this case we only consider the local reward.
+
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+//            int reamain_tasks = mInstance.mList.size() - mInstance.serverList.size();
+//            if(reamain_tasks != 0) {
+//                avgAIltcy = avg_AIlatencyPeriod_local /reamain_tasks;
+//            }
             boolean isempty=mInstance.avg_AIperK.isEmpty();
             if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
             {
@@ -1032,7 +1144,7 @@ import static java.lang.Math.min;
         return list.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b, LinkedHashMap::new));
 
     }
-    
+
 
 
 

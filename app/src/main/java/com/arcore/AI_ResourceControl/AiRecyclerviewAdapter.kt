@@ -511,6 +511,7 @@ class AiRecyclerviewAdapter(
         itemsView.digitClas?.numThreads= threads // NEW object classification
         itemsView.digitClas?.clearDigitClassifier()
 
+//        Log.d("OFFLOAD_MSG","Device: ${device} Model: ${model} Threads: ${threads}")
 
         System.out.println("Device: ${device} Model: ${model} Threads: ${threads}")
         // the collector generally runs for all AI models but inside it we have a condition to run just the models we have
