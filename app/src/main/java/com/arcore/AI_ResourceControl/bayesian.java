@@ -579,8 +579,7 @@ import static java.lang.Math.min;
                                     finalTaskView,
                                     finalI// this is the index of mlist
                             ));
-                    Log.d("DEBUG_MSG", "In Bayesian, Model Name: " + finalTaskView.getModels().get(finalTaskView.getCurrentModel())
-                                                   + "Device Name: " + finalTaskView.getDevices().get(finalNew_device));
+
                 }
                 try {
                     sleep(30);
@@ -629,7 +628,7 @@ import static java.lang.Math.min;
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
        // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
       // original of Dec 2023 tests CountDownTimer sceneTimer = new CountDownTimer(18000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
-        CountDownTimer sceneTimer = new CountDownTimer(20000, 4000) {
+        CountDownTimer sceneTimer = new CountDownTimer(10000, 2000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 writeRT();
