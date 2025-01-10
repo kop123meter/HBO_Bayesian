@@ -137,6 +137,7 @@ public class balancer implements Runnable {
         double minTrisThreshold = maxTrisThreshold * mInstance.coarse_Ratios[mInstance.coarse_Ratios.length - 1];
         double meanRt = 0;
         double meanThr = 0;
+        double meanNt = 0;
         //totTris;
         double meanDk = 0; // mean current dis
         double meanDkk = 0; // mean of d in the next period-> you need to cal the average of predicted d for all the objects
@@ -202,6 +203,7 @@ public class balancer implements Runnable {
         double avg_AIlatencyPeriod=0;               // This is used for the total cost
         double avg_AIlatencyPeriod_server = 0;      // This is used for the cost of the server
         double avg_AIlatencyPeriod_local = 0;       // This is used for the tasks locally
+        double avg_NetLatency = 0;
         double[] AI_latency = new double[Ai_count];
 
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
@@ -209,6 +211,7 @@ public class balancer implements Runnable {
             double[] t_h = mInstance.getResponseT(aiIndx);
             meanRt = t_h[0];
             meanThr = t_h[1];
+            meanNt = t_h[3];
 
             AiItemsViewModel taskView=mInstance.mList.get(aiIndx);
             int deviceIdx = taskView.getCurrentDevice();
@@ -216,6 +219,7 @@ public class balancer implements Runnable {
             {   t_h=mInstance.getResponseT(aiIndx);
                 meanThr = t_h[1];
                 meanRt = t_h[0];
+                meanNt = t_h[3];
                // Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
                 if(deviceIdx == 3) {
                     break; // Sometimes it will cause balancer crushed since GPU has its own queue
@@ -229,10 +233,12 @@ public class balancer implements Runnable {
                 // waiting Task
                 if(meanRt==0){
                     meanRt = mInstance.offload_task_latency[aiIndx];
+                    meanNt = mInstance.Network_latency[aiIndx];
                 }
                 else{
                     //Update new latency
                     mInstance.offload_task_latency[aiIndx] = meanRt;
+                    mInstance.Network_latency[aiIndx] = meanNt;
                 }
                 
             }
@@ -255,6 +261,7 @@ public class balancer implements Runnable {
 
             if(deviceIdx == 3){
                 avg_AIlatencyPeriod_server += (actual_rpT-expected_time)/actual_rpT;
+                avg_NetLatency += meanNt;
             }
             else{
                 avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT;
@@ -289,6 +296,7 @@ public class balancer implements Runnable {
 
         mInstance.avgq = calculateMeanQuality();
         double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+        double avgNt = 0;
         double avgQ = mInstance.avgq;
         reward =avgQ - (mInstance.reward_weight*avgAIltcy);
         reward=(double) (Math.round((double) (reward * 100))) / 100;
@@ -297,6 +305,7 @@ public class balancer implements Runnable {
             double avgAIltcy_server = avg_AIlatencyPeriod_server/mInstance.serverList.size();
             reward_server = avgQ - (mInstance.reward_weight*avgAIltcy_server);
             reward_server = (double) (Math.round((double) (reward_server * 100))) / 100;
+            avgNt = avg_NetLatency  / mInstance.serverList.size();
         }
 
         int remain_size = mInstance.mList.size() - mInstance.serverList.size();
@@ -312,9 +321,10 @@ public class balancer implements Runnable {
 
         Log.d("OBS_MSG", "All Reward Computation success!!!!"
                                         + "  Reward: " + reward
-                                        + "   Server Reward: " + reward_server
-                                        + "    Local  reward:  " + reward_locally
-                                        +"     OldReward:   " + mInstance.old_reward);
+//
+                                        +"     OldReward:   " + mInstance.old_reward
+                                        + "    Avg_Quality:    " + mInstance.avgq
+                                        + " Tasks:    " + (mInstance.mList.size() - mInstance.serverList.size()));
        // posText_app_hbo.setText("B_t: "+ String.valueOf(reward));
         //posText_thr.setText("best_BT: " + String.valueOf(mInstance.best_BT));
 
@@ -451,7 +461,8 @@ public class balancer implements Runnable {
 
         Log.d("OFFLOAD_MSG", "Start to write Quality");
         writequality();
-        writeRewards();
+
+        writeRewards(avgAIltcy,avgNt);
         Log.d("OFFLOAD_MSG", "write Quality and rewards success");
 
 
@@ -518,6 +529,9 @@ public class balancer implements Runnable {
             int modelIdx = tempView.getCurrentModel();
 
 //            System.out.println("Max AI latency period: " + AI_index + " AI Model Name: " + model_name + " Device Name: " + device_name );
+//            if(modelIdx == 4 || modelIdx==5 ||modelIdx==7){
+//                return original_Device;
+//            }
 
             // Sending Bitmap to server
             if(!device_name.equals("SERVER")){
@@ -556,51 +570,77 @@ public class balancer implements Runnable {
     }
     // Extracted methods to simplify the logic
     private void handleOffloadTask(int kTh_Task, double reward,double[] AI_latency) {
-//        double current_time = 0;
-//        if(mInstance.old_reward !=0 ){
-//            int current_idx = mInstance.offload_task_list[kTh_Task];
-//            current_time = AI_latency[current_idx];
-//        }
-
-        if (mInstance.old_reward == 0) {
-            // First offload, send max latency to server
+        if(mInstance.old_reward == 0){
             mInstance.offload_req++;
-            mInstance.old_reward = reward;
             mInstance.offload_task_list = record_latency(AI_latency);
-           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
-
-            int maxAiTask = mInstance.offload_task_list[kTh_Task];
-            AiItemsViewModel taskModel = mInstance.mList.get(maxAiTask);
-            int modelIndx = taskModel.getCurrentModel();
-            mInstance.previous_device = send_Task_To_Server(maxAiTask);
-
+            mInstance.old_reward = reward;
+            executeTaskOffload(kTh_Task);
+            mInstance.kthTask ++;
         }
+
+        else if(mInstance.old_reward !=0 ){
+            double perc_error = (mInstance.old_reward - reward) / mInstance.old_reward;
+            if(mInstance.old_reward > reward){
+                    revertToPreviousTask(kTh_Task);
+            }
+            else if(mInstance.is_changed){
+                if(perc_error < 0.03 && perc_error > -0.03){
+                    mInstance.is_changed = false;
+                    mInstance.old_reward = reward;
+                    executeTaskOffload(kTh_Task);
+                    mInstance.kthTask ++;
+                }
+            }
+            else{
+                mInstance.old_reward = reward;
+                executeTaskOffload(kTh_Task);
+                mInstance.kthTask ++;
+            }
+        }
+
+
+
+
+//        if (mInstance.old_reward == 0) {
+//            // First offload, send max latency to server
+//            mInstance.offload_req++;
+//            mInstance.old_reward = reward;
+//            mInstance.offload_task_list = record_latency(AI_latency);
+//           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
+//
+//            int maxAiTask = mInstance.offload_task_list[kTh_Task];
+//            AiItemsViewModel taskModel = mInstance.mList.get(maxAiTask);
+//            int modelIndx = taskModel.getCurrentModel();
+//
+//            mInstance.previous_device = send_Task_To_Server(maxAiTask);
+//
+//        }
+//
 //        else if (mInstance.is_changed) {
-//            if(mInstance.waitcount >=0 ){
-//                mInstance.waitcount --; //Let's run 30 times
-//                mInstance.kthTask --;
-//            }
-//            else{
+//            double err = reward - mInstance.old_reward;
+//            if(err > -0.1 ){
 //                mInstance.is_changed = false;
-//                mInstance.waitcount = 30;
 //                mInstance.old_reward = reward;
 //                executeTaskOffload(kTh_Task);
 //            }
+//            else{
+//                mInstance.kthTask--;
+//            }
 //        }
-        else if (mInstance.old_reward > reward) {
-            // If reward decreases after offloading, revert to previous task
-            revertToPreviousTask(kTh_Task);
-           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
-        }
-        else {
-            // Continue with offloading
-            mInstance.old_reward = reward;
-            executeTaskOffload(kTh_Task);
-           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
-        }
-
-        // Update kth task
-        mInstance.kthTask++;
+//        else if (mInstance.old_reward > reward) {
+//            // If reward decreases after offloading, revert to previous task
+//            revertToPreviousTask(kTh_Task);
+//           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
+//        }
+//        else {
+//            // Continue with offloading
+//            mInstance.old_reward = reward;
+//            executeTaskOffload(kTh_Task);
+//           // viewLatencyArray(mInstance.offload_task_list, AI_latency);
+//        }
+//
+//        // Update kth task
+//        mInstance.kthTask++;
     }
 
     private void executeTaskOffload(int kTh_Task) {
@@ -620,7 +660,7 @@ public class balancer implements Runnable {
             //}
         //}
         // Move back kth task
-        mInstance.kthTask--;
+//        mInstance.kthTask--;
     }
 
     private void handleEndOfOffload(double reward) {
@@ -1674,7 +1714,7 @@ public class balancer implements Runnable {
         return idx;
     }
 
-    public void writeRewards(){
+    public void writeRewards(double AiLatency, double NetLatency1){
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         String currentFolder = mInstance.getExternalFilesDir(null).getAbsolutePath();
         String FILEPATH = currentFolder + File.separator + "Rewards"+mInstance. fileseries+".csv";
@@ -1684,7 +1724,7 @@ public class balancer implements Runnable {
 
             if (file.length() == 0) {
                 StringBuilder header = new StringBuilder();
-                header.append("Timestamp,Reward,Reward_Server,Reward_Locally,Best_BT,Reward_Difference_Percentage\n");
+                header.append("Timestamp,Reward,Reward_Server,Reward_Locally,Best_BT,Reward_Difference_Percentage,TTris,Quality,Avg_Latency, Net_Latency1, Net_Latency2\n");
                 writer.write(header.toString());
             }
                 StringBuilder sb = new StringBuilder();
@@ -1699,7 +1739,15 @@ public class balancer implements Runnable {
                 sb.append(mInstance.best_BT);
                 sb.append(',');
                 sb.append((mInstance.best_BT-reward)/mInstance.best_BT);
-                sb.append('\n');
+                sb.append(",");
+                sb.append(mInstance.total_tris);
+                sb.append(",");
+                sb.append(mInstance.avgq);
+                sb.append(",");
+                sb.append(AiLatency);
+                sb.append(',');
+                sb.append(NetLatency1);
+                sb.append("\n");
                 writer.write(sb.toString());
 
         }catch (FileNotFoundException e) {

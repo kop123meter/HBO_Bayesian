@@ -131,7 +131,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public int MAX_OFFLOAD_TAKS = 6;
     public int[] offload_task_list ; // Record the sort of offloading task
     public double[] offload_task_latency = new double[MAX_OFFLOAD_TAKS]; // Record offload task latency to compute reward
-
+    public double[] Network_latency = new double[MAX_OFFLOAD_TAKS];
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
     private final int MAX_THREAD_POOL_SIZE = 10;
@@ -170,7 +170,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     int hbo_trigger_false_counter = 0; // counts the # we wait for any possible noise for B_T calculation
 
     int offload_trigger_counter = 0;
-    double reward_weight = 2.5; //was 0.02 before for non normalized vals
+    double reward_weight = 25.0; //was 0.02 before for non normalized vals   2.5 orginal
     double last_latencyInstanceN = 0;// keeps the latency of AI1 instance to check the noises in bayesian class
     String bayesian_delegate = "";
     int deleg_req = 0;
@@ -2895,6 +2895,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         double meaninfT;
         double meanRT = 0;// changed it for new weights
         double acc = 0;
+        double meanNetLatency = 0;
         BitmapCollector tempCollector;
         int i = aiIndx;
 //        for(int i=0; i<mList.size(); i++) {
@@ -2915,6 +2916,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             meaninfT = (double) Math.round(tempCollector.getTotalInferenceTime() * 100 / tempCollector.getNumOfTimesExecuted()) / 100;
             double meanPureinf = (double) Math.round(tempCollector.getTotalPureInf() * 100 / tempCollector.getNumOfTimesExecuted()) / 100;
             acc = tempCollector.getInfAcc();
+            meanNetLatency = (double) Math.round(((double) tempCollector.getTotal_NetworkLatency() * 100) / tempCollector.getNumOfTimesExecuted()) / 100;
 
             mList.get(i).getCollector().resetRtData();
 
@@ -2930,7 +2932,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             mList.get(i).setTot_rps((double) Math.round((double) meanRT * 100) / 100);
         }
 
-        double[] rT_thr = new double[]{meanRT, meanthr, acc};
+        double[] rT_thr = new double[]{meanRT, meanthr, acc,meanNetLatency};
 
 
         // return meanRT;
