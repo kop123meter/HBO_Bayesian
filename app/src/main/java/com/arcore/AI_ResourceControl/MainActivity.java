@@ -126,8 +126,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.10.122";
-    int server_PORT = 1909;
+    String server_IP_address = "192.168.1.2";
+    int server_PORT = 12345;
 
     // Using the following variable to track the position
     int counter_for_array_i = 0;
@@ -149,7 +149,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     double best_BT = 0;// this is the reward of initial HBO activation with one object on the screen
     int hbo_trigger_false_counter = 0; // counts the # we wait for any possible noise for B_T calculation
 
-    int offload_trigger_counter = 0;
     double reward_weight = 2.5; //was 0.02 before for non normalized vals
     double last_latencyInstanceN = 0;// keeps the latency of AI1 instance to check the noises in bayesian class
     String bayesian_delegate = "";
@@ -167,6 +166,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     // double tris_factor=100000; // to normalize tris and have a better parameters for throughput model
     // double tris_factor=1; // to normalize tris and have a better parameters for throughput model
     double avgq = 1;
+    double avgl = 1;
     int maxtime = 6; // 20 means calculates data for next 10 sec ->>>should be even num
     // if 5, goes up to 2.5 s. if 10, goes up to 5s
     double pred_meanD_cur = 0; // predicted mean distance in next two second saved as current d in dataCol for next period
@@ -389,6 +389,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                 Log.d("ModelRequest", "renderArray[" + i + "] ID: " + renderArray.get(i).getID()
                                         + " matches tempModelRequest SimilarRequestID: " + tempIDArray.peek());
                                 renderArray.get(i).redraw(i);
+                                float temp_dis = renderArray.get(i).return_distance();
+
                             }
                         }
                         tempIDArray.remove();
@@ -423,6 +425,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                     bys.afinity_heuristic(capacity);
 
                 }
+            } else if(tempModelRequest.req.equals("fast")){
+                avg_AIperK.clear();
+                bayesian bys = new bayesian(MainActivity.this);
+                bys.apply_delegate_tris(tempModelRequest.all_delegates);
             }
 
         }
@@ -2238,6 +2244,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);
                                         deleg_req += 1;
                                     }
+
 
 
                                 } catch (IOException e) {

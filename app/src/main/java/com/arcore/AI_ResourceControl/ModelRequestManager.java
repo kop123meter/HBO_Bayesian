@@ -198,6 +198,12 @@ public class ModelRequestManager {
                     Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                     // new ModelRequestRunnable(modelRequest, Instance).run();
                 }
+                else if(modelRequest.req!=null && modelRequest.req.equals("fast")){
+                    double remain_Task = modelRequest.getRemaining_task();
+                    mRequestList.offer(modelRequest);
+                    Log.d("FastRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
+                    Instance.mDownloadThreadPool.execute(new FastDelegateRequestRunnable(modelRequest, Instance, remain_Task));
+                }
 
 
             }
