@@ -432,7 +432,19 @@ import static java.lang.Math.min;
         startSceneTimer();// this has the loop of i=0 to i=3 in it
 
         }// function
-
+    public int get_max_capacity_index(List<Integer> capacity){
+        int max_capacity_Resources = -1;
+        int max_capacity = -1;
+        // Find the maximum capacity
+        for(int i = 0; i < capacity.size();i++){
+            int sub_capacity = capacity.get(i);
+            if(sub_capacity > max_capacity){
+                max_capacity = sub_capacity;
+                max_capacity_Resources = i;
+            }
+        }
+        return max_capacity_Resources;
+    }
     public void apply_delegate_tris_for_Agent(double []delegatesAndTris){
         mInstance.avg_AIperK.clear();// restart data collection
         mInstance.last_latencyInstanceN =0;
@@ -458,28 +470,20 @@ import static java.lang.Math.min;
         copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
         int delegatedM=mInstance.mList.size();// num of current tasks
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>((a, b) -> Double.compare(b.avgInfTime, a.avgInfTime));
-
-
-
+        sortedCurModels.addAll(copuCurModels);
+        int change_device_flag = 1; // This flag is used for changing device allocation
         while(delegatedM!=0){
             // Try its best to apply delegate to the suggested delegates
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
+
             int bestDlg = -1;
-            int max_capacity_Resources = -1;
-            int max_capacity = -1;
-            // Find the maximum capacity
-            for(int i = 0; i < capacity.size();i++){
-                int sub_capacity = capacity.get(i);
-                if(sub_capacity > max_capacity){
-                    max_capacity = sub_capacity;
-                    max_capacity_Resources = i;
-                }
+
+            if(change_device_flag == 1){
+                bestDlg = get_max_capacity_index(capacity);
+                change_device_flag = 0;
             }
-            if(max_capacity == 0){
-                break;
-            }
-            bestDlg = max_capacity_Resources;
+
 
             for (AiItemsViewModel item : copyAiItems) {
                 if (item.getID()==assignedModel.getID()){
@@ -489,38 +493,58 @@ import static java.lang.Math.min;
                 }
             }
             int tasksIndx = mInstance.mList.indexOf(taskView);
-            if(capacity.get(bestDlg) !=0 && bestDlg!=-1)// you can easily assing the task and update delgate
-            {
-                delegatedM-=1;
-                capacity.set(bestDlg, capacity.get(bestDlg)-1);
-                copyAiItems.remove(taskView);
-                // assign the task
 
-                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
-                {
-                    mInstance.adapter.setMList(mInstance.mList);
-                    mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
-                    int finalI = tasksIndx;
-                    int finalNew_device = bestDlg;
-                    AiItemsViewModel finalTaskView = taskView;
-                    mInstance.runOnUiThread(() ->
-                            mInstance.adapter.updateActiveModel(
-                                    finalTaskView.getCurrentModel() ,
-                                    finalNew_device,
-                                    1,
-                                    finalTaskView,
-                                    finalI// this is the index of mlist
-                            ));
-                }
-                try {
-                    sleep(30);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }// this is to make sure the device is updated
-                sortedCurModels.removeIf(modl -> modl.id==(assignedModel.id));
+            delegatedM-=1;
+            capacity.set(bestDlg, capacity.get(bestDlg)-1);
+
+            copyAiItems.remove(taskView);
+            // assign the task
+
+            if (bestDlg != taskView.getCurrentDevice()){// this means that the model should be updated
+                mInstance.adapter.setMList(mInstance.mList);
+                mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+                int finalI = tasksIndx;
+                int finalNew_device = bestDlg;
+                AiItemsViewModel finalTaskView = taskView;
+                mInstance.runOnUiThread(() ->
+                        mInstance.adapter.updateActiveModel(
+                                finalTaskView.getCurrentModel() ,
+                                finalNew_device,
+                                1,
+                                finalTaskView,
+                                finalI// this is the index of mlist
+                        ));
+            }
+            try {
+                sleep(30);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }// this is to make sure the device is updated
+            sortedCurModels.removeIf(modl -> modl.id==(assignedModel.id));
+
+            if (capacity.get(bestDlg) == 0){
+                change_device_flag = 1; // This means current device has completed to allocate
             }
 
         }
+
+        //  Part 2:  start to apply the triangle count and OTDA
+        try {
+            long time1 = System.nanoTime() / 1000000; //starting first loop
+            // nextTris=0.435;
+            otdaRevised(nextTris);// this is OTDA algorithm
+            //odraAlg(nextTris);// this is OTDA algorithm
+            long time2 = System.nanoTime() / 1000000;
+            // long t2 = System.nanoTime() / 1000000;
+            mInstance.t_loop1 = time2 - time1 - (sleepTime * (objC));
+            // mInstance.t_loop2 = t2 - t1;
+            mInstance.lastConscCounter = 0;// we let the effect of change in triangle count stand for at least 4 times by reseting this counter. if you don't reset, by any chance new re might be <08 and then the orda happens again
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        startSceneTimer();
 
     }
 
@@ -674,11 +698,10 @@ import static java.lang.Math.min;
 
 
 
-                if(mInstance.curBysIters ==0 ||mInstance.curBysIters ==1 )
-                    reward-=0.18;
-                else
-                    if(mInstance.curBysIters <4 )
-                    reward-=0.1;
+//                if(mInstance.curBysIters ==0 ||mInstance.curBysIters ==1 )
+//                    reward-=0.18;
+//                else if(mInstance.curBysIters <4 )
+//                    reward-=0.1;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;

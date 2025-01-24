@@ -429,7 +429,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             } else if(tempModelRequest.req.equals("fast")){
                 avg_AIperK.clear();
                 bayesian bys = new bayesian(MainActivity.this);
-                bys.apply_delegate_tris(tempModelRequest.all_delegates);
+                bys.apply_delegate_tris_for_Agent(tempModelRequest.all_delegates);
             }
 
         }
