@@ -292,8 +292,10 @@ public class balancer implements Runnable {
                 // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
                 {
                     mInstance.hbo_trigger_false_counter++;
+                    Log.d("DelegateRequest Msg", "Current perc_error:   " + perc_error);
                     if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
                     {
+
                         mInstance.hbo_trigger_false_counter = 0;
                         mInstance.runOnUiThread(() -> {
                             AlertDialog.Builder builder = new AlertDialog.Builder(mInstance);

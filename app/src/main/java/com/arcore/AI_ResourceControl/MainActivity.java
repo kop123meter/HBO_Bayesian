@@ -128,7 +128,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public double avg_reward = 0;// this is the bayesian average reward
 
     String server_IP_address = "192.168.1.2";
-    int server_PORT = 12345;
+    int server_PORT = 1909;
 
     // Using the following variable to track the position
     int counter_for_array_i = 0;

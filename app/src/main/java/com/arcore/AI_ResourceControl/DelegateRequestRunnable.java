@@ -147,6 +147,7 @@ public class DelegateRequestRunnable implements Runnable {
                     Log.d("DelegateRequest Msg","msg: "+message);
                     // you need to gain the msg either from file stored in java_cleint.txt or the direct msg from java that comes from python client
                     long startTime = System.currentTimeMillis();
+                    Log.d("DelegateRequest Msg", "Get into the area0!");
                     //  fout.write(buffer1, 0, read1);
 
                     //if (modelRequest.activityMain.curBysIters < max_iteration-1){// this is for all bayesian trials - before Dec 2023
@@ -155,7 +156,7 @@ public class DelegateRequestRunnable implements Runnable {
 
                         if(modelRequest.activityMain.curBysIters == max_iteration-1 && baseline1_2)// get the best reward to find avg Latency for baseline SML
                         {// Here, we not only apply the best input, but also we take the best reward for baseline of SML = User study
-
+                            Log.d("DelegateRequest Msg", "Get into the area 1!");
                             double reward= Double.parseDouble(elements[elements.length-1].trim());
 
                             double[] doubleArray = new double[elements.length-1];// this is because the last data of elements is the best reward
@@ -163,16 +164,19 @@ public class DelegateRequestRunnable implements Runnable {
                             for (int i = 0; i < elements.length-1; i++) {
                                 doubleArray[i] = Double.parseDouble(elements[i].trim());
                             }
+                            Log.d("DelegateRequest Msg", "Get into the area 2!");
                             modelRequest.all_delegates = doubleArray;
                             modelRequest.activityMain.all_delegates_LstHBO=doubleArray;// save it for mainactivity as well
-
+                            Log.d("DelegateRequest Msg", "Get into the area 3!");
                             int bestInd=modelRequest.activityMain.bysRewardsLog.indexOf(reward);
                             modelRequest.activityMain.bayesian1_bestTR=modelRequest.activityMain.bysTratioLog.get(bestInd);
                             modelRequest.activityMain.bayesian1_bestLcty=modelRequest.activityMain.bysAvgLcyLog.get(bestInd);
+                            Log.d("DelegateRequest Msg", "Get into the area 4!");
                         }
 
                         else {// find the delegate to apply
                             // Create a double array to store the converted elements
+                            Log.d("DelegateRequest Msg", "Get into the area 5!");
                             double[] doubleArray = new double[elements.length];
                             // Convert the elements to double and store them in the double array
                             for (int i = 0; i < elements.length; i++) {
@@ -190,7 +194,7 @@ public class DelegateRequestRunnable implements Runnable {
 
                         long endTime = System.currentTimeMillis();
                         //  Log.d("DelegateReq", "Buffer write time: " + (endTime - startTime) + " milliseconds");
-
+                        Log.d("DelegateRequest Msg", "Get into the area 6!");
                         while (modelRequest.activityMain.avg_reward == 0);
                         //    Log.d("data received on java client, reward is: ", String.valueOf(modelRequest.activityMain.avg_reward));
                         Log.d("DelegateRequest Msg",  "from Delegate: ave_reward = " + String.valueOf(modelRequest.activityMain.avg_reward));
@@ -258,7 +262,7 @@ public class DelegateRequestRunnable implements Runnable {
                     Log.d("DelegateRequest Msg","reading 2");
                     while (read1 == -1) // wait and listen
                         read1 = socketInputStream1.read(buffer1);
-                    Log.d("DelegateRequest Msg","done reading");
+                    Log.d("DelegateRequest Msg","done reading" + modelRequest.activityMain.curBysIters + ":  " + max_iteration);
                 }
 
                 modelRequest.activityMain.curBysIters=-1;// reset it for the next runs of Bayesian

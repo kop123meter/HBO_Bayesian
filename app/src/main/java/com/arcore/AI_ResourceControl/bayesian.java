@@ -540,9 +540,9 @@ import static java.lang.Math.min;
 
         double selectedTRatio= selected_combinations[selected_combinations.length - 1];
         double nextTris =selectedTRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
-        // Following Code used for Bayesian, we don't need this now
-//        curIteration=mInstance.curBysIters;
-//        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
+
+        curIteration=mInstance.curBysIters;
+        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
 
         // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
         List<Integer> capacity = new ArrayList();
@@ -676,18 +676,17 @@ import static java.lang.Math.min;
 
                 if(mInstance.curBysIters ==0 ||mInstance.curBysIters ==1 )
                     reward-=0.18;
-                else
-                    if(mInstance.curBysIters <4 )
+                else if(mInstance.curBysIters <4 )
                     reward-=0.1;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;
                 mInstance.avg_reward=   reward;
-//                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
-//                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
+                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
+                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
 
-//                mInstance.bysRewardsLog.set(curIteration,reward);
-//                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
+                mInstance.bysRewardsLog.set(curIteration,reward);
+                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
 
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
