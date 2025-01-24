@@ -1,5 +1,6 @@
 package com.arcore.AI_ResourceControl;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.os.Message;
 import android.os.SystemClock;
@@ -209,7 +210,19 @@ public class DelegateRequestRunnable implements Runnable {
                             if(modelRequest.activityMain.HBO_COUNTER == 0){
                                 modelRequest.activityMain.HBO_COUNTER += 1;
                             }
-
+                            modelRequest.activityMain.runOnUiThread(() -> {
+                                AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
+                                builder.setTitle("HBO message")
+                                        .setMessage("HBO has finished!")
+                                        .setPositiveButton("OK", (dialog, which) -> {
+                                            dialog.dismiss();
+                                        })
+                                        .setNegativeButton("Cancel", (dialog, which) -> {
+                                            dialog.dismiss();
+                                        })
+                                        .show();
+                                Log.d("HandlerExample", "This is running on the main thread.");
+                            });
                         }
                         modelRequest.activityMain.curBysIters += 1;
                         modelRequest.activityMain.avg_reward = 0; // restart the reWARD

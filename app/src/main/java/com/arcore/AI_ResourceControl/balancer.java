@@ -33,7 +33,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.stream.Collectors;
+ import java.util.logging.Handler;
+ import java.util.stream.Collectors;
 
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
@@ -42,7 +43,9 @@ import static java.lang.Math.pow;
 import static java.lang.Math.sqrt;
 
 import android.annotation.SuppressLint;
-import android.util.Log;
+ import android.app.AlertDialog;
+ import android.os.Looper;
+ import android.util.Log;
 import android.widget.TextView;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -267,39 +270,51 @@ public class balancer implements Runnable {
          * As we original design, we may need to use Bayesian optimization to get a basement policy for RL
          * Then, we will let our agent start to play
          */
-        if(mInstance.RL_COUNTER == 0){
-            ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "fast"), false, false);
-            mInstance.RL_COUNTER = 1;
-        }
+//        if(mInstance.RL_COUNTER == 0){
+//            ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "fast"), false, false);
+//            mInstance.RL_COUNTER = 1;
+//        }
 
 
 /**
  * Following code are used for HBO project
  */
-//        if(hbo_trigger) {
-//
-//            if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
-////                System.out.println(mInstance.HBO_COUNTER + " time execute HBO");
-//
-//                if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
-//                    mInstance.best_BT = (reward + mInstance.best_BT) / 2;
-//
-//                double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
-//                if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
-//                // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
-//                {
-//                    mInstance.hbo_trigger_false_counter++;
-//                    if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
-//                    {
-//                        mInstance.hbo_trigger_false_counter = 0;
-//                        Log.d("HBO_MSG", "New delegate request has send");
-//                        ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
-//                        mInstance.deleg_req += 1;
-//                    }
-//                } else
-//                    mInstance.hbo_trigger_false_counter = 0;// we want to get 5 Bts consecutively with error
-//            }
-//        }
+        if(hbo_trigger) {
+
+            if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
+
+
+                if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
+                    mInstance.best_BT = (reward + mInstance.best_BT) / 2;
+
+                double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
+                if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
+                // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
+                {
+                    mInstance.hbo_trigger_false_counter++;
+                    if (mInstance.hbo_trigger_false_counter >= 3)// we won't iimmidiately trigger HBO, we'll wait till
+                    {
+                        mInstance.hbo_trigger_false_counter = 0;
+                        mInstance.runOnUiThread(() -> {
+                            AlertDialog.Builder builder = new AlertDialog.Builder(mInstance);
+                            builder.setTitle("HBO message")
+                                    .setMessage("HBO is triggered since distance has changed")
+                                    .setPositiveButton("OK", (dialog, which) -> {
+                                        dialog.dismiss();
+                                    })
+                                    .setNegativeButton("Cancel", (dialog, which) -> {
+                                        dialog.dismiss();
+                                    })
+                                    .show();
+                            Log.d("HandlerExample", "This is running on the main thread.");
+                        });
+                        ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+                        mInstance.deleg_req += 1;
+                    }
+                } else
+                    mInstance.hbo_trigger_false_counter = 0;// we want to get 5 Bts consecutively with error
+            }
+        }
 
 
 
