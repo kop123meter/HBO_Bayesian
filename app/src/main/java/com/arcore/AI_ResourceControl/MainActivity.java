@@ -114,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
     public int HBO_COUNTER = 0;
+    public int RL_COUNTER = 0;
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
     private final int MAX_THREAD_POOL_SIZE = 10;
@@ -628,6 +629,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                      */
                     // This is to create the list of M*N offline analyzed data where M is count of current models and N is delegate
                     if (curModels.isEmpty()) {
+
                         for (int id = 0; id < mList.size(); id++) {// if we have all modls of similar type , we need to add an id for it
                             AiItemsViewModel taskView = mList.get(id);
                             String mdl_name = taskView.getModels().get(taskView.getCurrentModel());// the name of running model
@@ -645,6 +647,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                             }
 
                         }
+                    }
+                    if(curModels == null){
+                        Log.d("fast_sc", "Cur Model initial failed");
                     }
 
                     boolean noNullModelRunner = true;

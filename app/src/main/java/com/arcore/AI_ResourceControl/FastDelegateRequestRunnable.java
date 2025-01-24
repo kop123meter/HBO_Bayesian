@@ -58,10 +58,11 @@ public class FastDelegateRequestRunnable implements Runnable{
                     if(finish_flag){
                         break;
                     }
-                    if(send_message != null){
+                    if(send_message != null && !send_message.isEmpty()){
                         Log.d("fast_sc", "Send to server:    " + send_message);
                         out.println(send_message);
                         out.flush();
+                        send_message = "";
                     }
                     message = in.readLine();
                 }
@@ -85,6 +86,7 @@ public class FastDelegateRequestRunnable implements Runnable{
         double quality = modelRequest.activityMain.avgq;
         double latency = modelRequest.activityMain.avgl;
         String msg = "state:" + quality + "," +latency;
+        modelRequest.activityMain.avg_reward = 0;
         return msg;
     }
 
@@ -99,7 +101,7 @@ public class FastDelegateRequestRunnable implements Runnable{
 
 
         if(message.startsWith(reset)) {
-            send_message = getQualityAndLatency();
+            send_message = getQualityAndLatency() + "," + modelRequest.getRemaining_task();
         }
 
         else if(message.startsWith(action)){
@@ -108,12 +110,11 @@ public class FastDelegateRequestRunnable implements Runnable{
             // Message format: [50% TaskCPU, GPU, NPU, Triangle count]
             String[] parts1 = message.split(":");
             String[] parts = parts1[1].split(",");
-            Log.d("fast_sc",parts.length + "Parts:   " + parts);
-            if(parts.length == 4){
-                for(int i = 0; i < 3; i++) {
-                    double percent = Double.parseDouble(parts[i].trim());
-                    delegate_array[i] = modelRequest.activityMain.mList.size() * percent;
 
+            if(parts.length == 4){
+                for(int i = 0; i < 4; i++) {
+                    delegate_array[i]  = Double.parseDouble(parts[i].trim());
+                    Log.d("fast_sc", "R" + i + ":     " +delegate_array[i]);
                 }
                 delegate_array[3] = Double.parseDouble(parts[3].trim());
                 Log.d("fast_sc","CPU:  " + delegate_array[0]
@@ -121,10 +122,16 @@ public class FastDelegateRequestRunnable implements Runnable{
                                         + "NPU:    " + delegate_array[2]
                                         + "Triangle Count" + delegate_array[3]);
                 modelRequest.all_delegates = delegate_array;
+                Log.d("fast_sc","Starting to send message to main");
                 Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
                 msg.obj = modelRequest;
                 modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
-                while (modelRequest.activityMain.avg_reward == 0);
+                Log.d("fast_sc","Send success and waiting for new reward");
+                while (modelRequest.activityMain.avg_reward == 0){
+//                    Log.d("fast_sc","avg_reward: " + modelRequest.activityMain.avg_reward);
+                }
+                Log.d("fast_sc","Reward:    " + modelRequest.activityMain.avg_reward);
+                modelRequest.activityMain.avg_reward = 0;
                 send_message = getQualityAndLatency();
 
             }
@@ -134,10 +141,6 @@ public class FastDelegateRequestRunnable implements Runnable{
 
         return false;
     }
-
-    /**
-     * Send Next States to server
-     */
 
 
 }

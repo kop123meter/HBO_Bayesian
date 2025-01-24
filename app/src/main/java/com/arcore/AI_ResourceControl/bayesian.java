@@ -433,6 +433,97 @@ import static java.lang.Math.min;
 
         }// function
 
+    public void apply_delegate_tris_for_Agent(double []delegatesAndTris){
+        mInstance.avg_AIperK.clear();// restart data collection
+        mInstance.last_latencyInstanceN =0;
+        double[] selected_combinations = delegatesAndTris;
+
+        double selectedTRatio= selected_combinations[selected_combinations.length - 1];
+        double nextTris =selectedTRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
+
+
+        List<Integer> capacity = new ArrayList();
+
+        for (double value : selected_combinations) {
+            capacity.add((int) value); // Cast each element of A to an integer
+        }
+
+        capacity.remove(3); // remove the triangle
+
+
+
+        List<AIModel> copuCurModels = new ArrayList<>();
+        copuCurModels.addAll(mInstance.curModels);// this is copy of all models currently running
+        List<AiItemsViewModel> copyAiItems = new ArrayList<>();
+        copyAiItems.addAll(mInstance.mList);// this is copy of all models currently running
+        int delegatedM=mInstance.mList.size();// num of current tasks
+        PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>((a, b) -> Double.compare(b.avgInfTime, a.avgInfTime));
+
+
+
+        while(delegatedM!=0){
+            // Try its best to apply delegate to the suggested delegates
+            AiItemsViewModel taskView = null;
+            AIModel assignedModel = sortedCurModels.poll();
+            int bestDlg = -1;
+            int max_capacity_Resources = -1;
+            int max_capacity = -1;
+            // Find the maximum capacity
+            for(int i = 0; i < capacity.size();i++){
+                int sub_capacity = capacity.get(i);
+                if(sub_capacity > max_capacity){
+                    max_capacity = sub_capacity;
+                    max_capacity_Resources = i;
+                }
+            }
+            if(max_capacity == 0){
+                break;
+            }
+            bestDlg = max_capacity_Resources;
+
+            for (AiItemsViewModel item : copyAiItems) {
+                if (item.getID()==assignedModel.getID()){
+                    //     getModels().get(item.getCurrentModel()).equals( assignedModel.name)) {
+                    taskView = item;
+                    break;
+                }
+            }
+            int tasksIndx = mInstance.mList.indexOf(taskView);
+            if(capacity.get(bestDlg) !=0 && bestDlg!=-1)// you can easily assing the task and update delgate
+            {
+                delegatedM-=1;
+                capacity.set(bestDlg, capacity.get(bestDlg)-1);
+                copyAiItems.remove(taskView);
+                // assign the task
+
+                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
+                {
+                    mInstance.adapter.setMList(mInstance.mList);
+                    mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
+                    int finalI = tasksIndx;
+                    int finalNew_device = bestDlg;
+                    AiItemsViewModel finalTaskView = taskView;
+                    mInstance.runOnUiThread(() ->
+                            mInstance.adapter.updateActiveModel(
+                                    finalTaskView.getCurrentModel() ,
+                                    finalNew_device,
+                                    1,
+                                    finalTaskView,
+                                    finalI// this is the index of mlist
+                            ));
+                }
+                try {
+                    sleep(30);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }// this is to make sure the device is updated
+                sortedCurModels.removeIf(modl -> modl.id==(assignedModel.id));
+            }
+
+        }
+
+    }
+
 
 
 
@@ -449,8 +540,9 @@ import static java.lang.Math.min;
 
         double selectedTRatio= selected_combinations[selected_combinations.length - 1];
         double nextTris =selectedTRatio*mInstance.orgTrisAllobj; // the last input is the ratio of current nextTris to the max_total_tris of objects with highest quality
-        curIteration=mInstance.curBysIters;
-        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
+        // Following Code used for Bayesian, we don't need this now
+//        curIteration=mInstance.curBysIters;
+//        mInstance.bysTratioLog.set(curIteration,selectedTRatio );
 
         // = Arrays.copyOfRange(selected_combinations, 0, selected_combinations.length - 1);
         List<Integer> capacity = new ArrayList();
@@ -471,8 +563,13 @@ import static java.lang.Math.min;
         int delegatedM=mInstance.mList.size();// num of current tasks
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>(copuCurModels);// to make sure current models are sorted based on their avg infTime
         while(delegatedM!=0){// do this till all tasks are assingned t their best delegate
+            if(sortedCurModels.isEmpty()){
+                // Finish allocation
+                break;
+            }
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
+
             int bestDlg=assignedModel.delegate;
             for (AiItemsViewModel item : copyAiItems) {
                 if (item.getID()==assignedModel.getID()){
@@ -489,7 +586,7 @@ import static java.lang.Math.min;
                 copyAiItems.remove(taskView);
                 // assign the task
 
-                if (bestDlg != taskView.getCurrentDevice() && taskView.getCurrentDevice()!=3 )// this means that the model should be updated
+                if (bestDlg != taskView.getCurrentDevice())// this means that the model should be updated
                 {
                     mInstance.adapter.setMList(mInstance.mList);
                     mInstance.recyclerView_aiSettings.setAdapter(mInstance.adapter);
@@ -514,6 +611,7 @@ import static java.lang.Math.min;
             }
             else{// capacity is zero , so remove all AIs from sorted list with the same capacity index
                 sortedCurModels.removeIf(modl -> modl.delegate.equals(bestDlg));
+                //Here, current task is did not allocate
             }
         }
 
@@ -548,6 +646,7 @@ import static java.lang.Math.min;
 
 
     }
+
 
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
        // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
@@ -587,8 +686,8 @@ import static java.lang.Math.min;
 //                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
 //                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
 
-                mInstance.bysRewardsLog.set(curIteration,reward);
-                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
+//                mInstance.bysRewardsLog.set(curIteration,reward);
+//                mInstance.bysAvgLcyLog.set(curIteration,avgLatency);
 
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
