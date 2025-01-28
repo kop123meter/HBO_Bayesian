@@ -688,9 +688,10 @@ import static java.lang.Math.min;
                 double reward=0;
 
 
-                if(mInstance.bys_baseline1_2)// this is for HBO compared to the frist two baselines
-                 reward =mInstance. avgq - (mInstance.reward_weight*avgLatency);
-
+                if(mInstance.bys_baseline1_2) {// this is for HBO compared to the frist two baselines
+                    reward = mInstance.avgq - (mInstance.reward_weight * avgLatency);
+                    mInstance.avgl = avgLatency;
+                }
                 else // this is for baseline #3 without triangle count change
                     reward=- (avgLatency);// I don't use weight here becuase there is no use
 
@@ -705,7 +706,12 @@ import static java.lang.Math.min;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;
-                mInstance.avg_reward=   reward;
+                Log.d("fast_sc", "reward from  by:   " + reward);
+                synchronized (mInstance){
+                    mInstance.avg_reward=   reward;
+                    mInstance.notify();
+                }
+
 //                TextView posText_app_hbo = (TextView)mInstance. findViewById(R.id.app_bt);
 //                posText_app_hbo.setText("B_t: "+ Double.toString(reward));
 

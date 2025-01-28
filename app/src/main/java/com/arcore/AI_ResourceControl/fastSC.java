@@ -10,41 +10,22 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-public class FastDelegateRequestRunnable implements Runnable{
-    private final ModelRequest modelRequest;
-    int objC;
-    double sensitivity[] ;
-    float objquality[];
-    double tris_share[];
+public class fastSC extends Thread {
 
-    private final Context context;
-    private final ModelRequestManager mInstance;
-
-    private double remining_task;
-
-    public String send_message;
+    private final MainActivity mainActivity;
+    private String send_message;
 
     private double[] delegate_array = new double[4];
+    private volatile boolean isRunning = true;
 
-    private final int BUFFER_SIZE = 160000;
 
 
-    public FastDelegateRequestRunnable(ModelRequest modelRequest, ModelRequestManager mInstance, double remain_task) {
-        this.modelRequest = modelRequest;
+    public fastSC(MainActivity mainActivity){
+        this.mainActivity = mainActivity;
 
-        this.context = modelRequest.getAppContext();
-
-        this.mInstance = mInstance;
-
-        this.remining_task = remain_task;
-        objC=modelRequest.activityMain.objectCount+1;
-        sensitivity = new double[objC];
-        tris_share = new double[objC];
-        objquality= new float[objC];
 
     }
 
-    @Override
     public void run() {
         Log.d("fast_sc","Fast Delegate is starting");
         try {
@@ -52,13 +33,13 @@ public class FastDelegateRequestRunnable implements Runnable{
                 throw new InterruptedException("Thread was interrupted");
             }
             try {
-                Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
+                Socket socket = new Socket(mainActivity.server_IP_address, mainActivity.server_PORT);
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
                 String message = in.readLine();
 
-                while (true){
+                while (isRunning){
                     Log.d("fast_sc","Message:     " + message);
                     boolean finish_flag = false;
                     if(message!=null) {
@@ -74,7 +55,9 @@ public class FastDelegateRequestRunnable implements Runnable{
                         out.flush();
                         send_message = "";
                     }
-                    message = in.readLine();
+                    while (message==null) {
+                        message = in.readLine();
+                    }
                 }
 
             }catch(Exception e){
@@ -86,28 +69,34 @@ public class FastDelegateRequestRunnable implements Runnable{
             Thread.currentThread().interrupt();
         }
 
-
+    }
+    public void stopThread() {
+        isRunning = false;
     }
 
     /**
      * Function: Get Status for Server
      */
     public String getQualityAndLatency(){
-        return  "state:" + modelRequest.activityMain.avgq + "," + calculate_Latency();
+        double quality = calculateMeanQuality();
+        double latency = calculate_Latency();
+        String msg = "state:" + quality + "," +latency;
+
+        return msg;
     }
 
     /**
      * Transfer received message from server
      */
 
-    public boolean transferMessage(String message){
+    public boolean transferMessage(String message) throws InterruptedException {
         String reset = "reset";
         String action = "action:";
         String finish_flag = "finish";
 
 
         if(message.startsWith(reset)) {
-            send_message = getQualityAndLatency() + "," + modelRequest.getRemaining_task();
+            send_message = getQualityAndLatency() + "," + mainActivity.mList.size();
         }
 
         else if(message.startsWith(action)){
@@ -124,29 +113,22 @@ public class FastDelegateRequestRunnable implements Runnable{
                 }
                 delegate_array[3] = Double.parseDouble(parts[3].trim());
                 Log.d("fast_sc","CPU:  " + delegate_array[0]
-                                        + "GPU:    "+delegate_array[1]
-                                        + "NPU:    " + delegate_array[2]
-                                        + "Triangle Count" + delegate_array[3]);
-                modelRequest.all_delegates = delegate_array;
-                Log.d("fast_sc","Starting to send message to main");
-                Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
-                msg.obj = modelRequest;
-                modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
-                Log.d("fast_sc","Send success and waiting for new reward");
-                synchronized (modelRequest.activityMain){
-                    while (modelRequest.activityMain.avg_reward == 0){
-//                    Log.d("fast_sc","avg_reward: " + modelRequest.activityMain.avg_reward);
-                        try{
-                            modelRequest.activityMain.wait();
-                        }catch(InterruptedException e){
-                            Log.d("fast_sc", "Error  " + e);
-                            break;
-                        }
-                    }
-                }
+                        + "GPU:    "+delegate_array[1]
+                        + "NPU:    " + delegate_array[2]
+                        + "Triangle Count" + delegate_array[3]);
 
-                Log.d("fast_sc","Reward:    " + modelRequest.activityMain.avg_reward);
-                modelRequest.activityMain.avg_reward = 0;
+                Log.d("fast_sc","Starting to update model");
+                updateModelAndTris(delegate_array);
+
+//                Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
+//                msg.obj = modelRequest;
+//                modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
+                Log.d("fast_sc","Send success and waiting for new reward");
+//                while (modelRequest.activityMain.avg_reward == 0){
+////                    Log.d("fast_sc","avg_reward: " + modelRequest.activityMain.avg_reward);
+//                }
+//                Log.d("fast_sc","Reward:    " + modelRequest.activityMain.avg_reward);
+//                modelRequest.activityMain.avg_reward = 0;
                 send_message = getQualityAndLatency();
 
             }
@@ -157,32 +139,43 @@ public class FastDelegateRequestRunnable implements Runnable{
         return false;
     }
 
+    /**
+     * Function: Update Model resources based on the action toke by agent
+     * Call the function we defined in bayesian by Nilofar
+     */
+
+    public void updateModelAndTris(double[] delegate_array){
+        bayesian update_Helper = new bayesian(this.mainActivity);
+        update_Helper.apply_delegate_tris_for_Agent(delegate_array);
+
+    }
+
 
     public float calculateMeanQuality( ) {
 
         float sumQual=0;
-        for (int ind = 0; ind < modelRequest.activityMain.objectCount; ind++)
+        for (int ind = 0; ind < mainActivity.objectCount; ind++)
         {
-            int i =  modelRequest.activityMain.excelname.indexOf( modelRequest.activityMain.renderArray.get(ind).fileName);
-            float gamma = modelRequest.activityMain.excel_gamma.get(i);
-            float a = modelRequest.activityMain.excel_alpha.get(i);
-            float b = modelRequest.activityMain.excel_betta.get(i);
-            float c = modelRequest.activityMain.excel_c.get(i);
-            float d = modelRequest.activityMain.renderArray.get(ind).return_distance();
-            float curQ = modelRequest.activityMain.ratioArray.get(ind);
+            int i =  mainActivity.excelname.indexOf( mainActivity.renderArray.get(ind).fileName);
+            float gamma = mainActivity.excel_gamma.get(i);
+            float a = mainActivity.excel_alpha.get(i);
+            float b = mainActivity.excel_betta.get(i);
+            float c = mainActivity.excel_c.get(i);
+            float d = mainActivity.renderArray.get(ind).return_distance();
+            float curQ = mainActivity.ratioArray.get(ind);
 
 
             float deg_error = (float) Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000)) / 1000;
-            float max_nrmd = modelRequest.activityMain.excel_maxd.get(i);
+            float max_nrmd = mainActivity.excel_maxd.get(i);
 
             float cur_degerror = deg_error / max_nrmd;
             float quality= 1- cur_degerror;
-            objquality[ind]=quality;
+//            objquality[ind]=quality;
             sumQual+=quality;
 
 
         }
-        return sumQual/modelRequest.activityMain.objectCount;
+        return sumQual/mainActivity.objectCount;
     }
     public float Calculate_deg_er(float a,float b,float creal,float d,float gamma, float r1) {
 
@@ -195,7 +188,7 @@ public class FastDelegateRequestRunnable implements Runnable{
 
     public double calculate_Latency(){
 
-        int Ai_count = modelRequest.activityMain.mList.size();
+        int Ai_count = mainActivity.mList.size();
         double avg_AIlatencyPeriod=0;
         double[] AI_latency = new double[Ai_count];
         double meanRt = 0;
@@ -203,22 +196,22 @@ public class FastDelegateRequestRunnable implements Runnable{
 
         for (int aiIndx = 0; aiIndx < Ai_count; aiIndx++) {
 
-            double[] t_h = modelRequest.activityMain.getResponseT(aiIndx);
+            double[] t_h = mainActivity.getResponseT(aiIndx);
             meanRt = t_h[0];
             meanThr = t_h[1];
 
             while (meanThr > 500 ||meanThr < 0.5) // we wanna get a correct value
-            { t_h=modelRequest.activityMain.getResponseT(aiIndx);
+            { t_h=mainActivity.getResponseT(aiIndx);
                 meanThr = t_h[1];
                 meanRt = t_h[0];
             }
 
             AI_latency[aiIndx] = meanRt;
 
-            AiItemsViewModel taskView=modelRequest.activityMain.mList.get(aiIndx);
+            AiItemsViewModel taskView=mainActivity.mList.get(aiIndx);
             // first find the best offline AI response Time = EXPECTED RESPONSE TIme
-            int indq = modelRequest.activityMain.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));
-            double expected_time = modelRequest.activityMain.excel_BestofflineAIRT.get(indq);
+            int indq = mainActivity.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));
+            double expected_time = mainActivity.excel_BestofflineAIRT.get(indq);
             // find the actual response Time
             double actual_rpT=meanRt;
 
@@ -226,9 +219,11 @@ public class FastDelegateRequestRunnable implements Runnable{
 
 
         }
-       return avg_AIlatencyPeriod/ modelRequest.activityMain.mList.size();
+        return avg_AIlatencyPeriod/ mainActivity.mList.size();
 
     }
+
+
 
 
 }

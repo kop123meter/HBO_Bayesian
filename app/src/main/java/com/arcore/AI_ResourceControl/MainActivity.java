@@ -127,7 +127,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.1.2";
+    String server_IP_address = "192.168.1.3";
     int server_PORT = 12345;
 
     // Using the following variable to track the position
@@ -2745,6 +2745,19 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         //prediction REQ
         Timer t = new Timer();
 
+
+//        fastSC fsc = new fastSC(MainActivity.this);
+//        Log.d("fast_sc", "FAST Thread has setting");
+//        if(switchToggleStream.isChecked() && RL_COUNTER == 0){
+//            Log.d("fast_sc", "FAST Thread has setting");
+//            fsc.start();
+//            RL_COUNTER = 1;
+//        }
+//        else if(!switchToggleStream.isChecked()){
+//            fsc.stopThread();
+//        }
+
+
         t.scheduleAtFixedRate(
                 new TimerTask() {
 
@@ -2780,7 +2793,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //                            else
 //                                new baseline(MainActivity.this).run(); // this is throughput wise baseline- periodically checks if throughput goes below the threshold it will decimate all the objects
 
-                        } else
+                        }
+                        else if(alg == 2){
+
+                        }
+                        else
                             new survey(MainActivity.this).run();
 
                     }

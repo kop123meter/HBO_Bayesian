@@ -267,6 +267,7 @@ public class balancer implements Runnable {
          * As we original design, we may need to use Bayesian optimization to get a basement policy for RL
          * Then, we will let our agent start to play
          */
+        fastSC fsc = new fastSC(mInstance);
         if(mInstance.RL_COUNTER == 0){
             ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "fast"), false, false);
             mInstance.RL_COUNTER = 1;
