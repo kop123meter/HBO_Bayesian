@@ -93,7 +93,7 @@ public class FastDelegateRequestRunnable implements Runnable{
      * Function: Get Status for Server
      */
     public String getQualityAndLatency(){
-        return  "state:" + modelRequest.activityMain.avgq + "," + calculate_Latency();
+        return  "state:" + modelRequest.activityMain.avgq + "," + modelRequest.activityMain.avgl;
     }
 
     /**

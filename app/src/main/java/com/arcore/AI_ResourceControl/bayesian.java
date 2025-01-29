@@ -685,6 +685,7 @@ import static java.lang.Math.min;
             public void onFinish() {
                 avgLatency= (double) (Math.round((double) (avgLatency * 1000))) / 1000;
                 // this is to include fixed possible noise over the first 7 iterations
+
                 double reward=0;
 
 
@@ -706,7 +707,6 @@ import static java.lang.Math.min;
                     //reward-=0.15;
 
                 reward=(double) (Math.round((double) (reward * 1000))) / 1000;
-                Log.d("fast_sc", "reward from  by:   " + reward);
                 synchronized (mInstance){
                     mInstance.avg_reward=   reward;
                     mInstance.notify();
@@ -721,7 +721,7 @@ import static java.lang.Math.min;
               //  send_thread connectionThread = new send_thread(reward);
               //   connectionThread.start();
 //                System.out.println("reward is "+ reward);
-                Log.d("Bayesian Msg",  "from bayesian: reward = " + String.valueOf(reward));
+                Log.d("fast_sc",  "from bayesian: reward = " + String.valueOf(reward));
             }
         };
 
@@ -1111,6 +1111,7 @@ import static java.lang.Math.min;
 
 // avg_AIperK is to calculate average of all AI model  response time  per period
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+//            mInstance.avgl = avgAIltcy;
             boolean isempty=mInstance.avg_AIperK.isEmpty();
             if(isempty==false &&  mInstance.avg_AIperK.size()>2)// to check noisy data for more than two data points
             {
