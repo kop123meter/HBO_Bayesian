@@ -195,7 +195,19 @@ public class DelegateRequestRunnable implements Runnable {
                         long endTime = System.currentTimeMillis();
                         //  Log.d("DelegateReq", "Buffer write time: " + (endTime - startTime) + " milliseconds");
                         Log.d("DelegateRequest Msg", "Get into the area 6!");
-                        while (modelRequest.activityMain.avg_reward == 0);
+                        // Using Synchronized to modify avg reward veriable
+                        synchronized (modelRequest.activityMain){
+                            while (modelRequest.activityMain.avg_reward == 0){
+//                    Log.d("fast_sc","avg_reward: " + modelRequest.activityMain.avg_reward);
+                                try{
+                                    modelRequest.activityMain.wait();
+                                }catch(InterruptedException e){
+                                    Log.d("fast_sc", "Error  " + e);
+                                    break;
+                                }
+                            }
+                        }
+//                        while (modelRequest.activityMain.avg_reward == 0);
                         //    Log.d("data received on java client, reward is: ", String.valueOf(modelRequest.activityMain.avg_reward));
                         Log.d("DelegateRequest Msg",  "from Delegate: ave_reward = " + String.valueOf(modelRequest.activityMain.avg_reward));
                         String msg_toserver="reward/"+String.valueOf(modelRequest.activityMain.avg_reward);
