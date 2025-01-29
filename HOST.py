@@ -16,7 +16,7 @@ class TwoClientsServer:
     MAX_ITER = 15 # 15
     EXPLORATION_n = 5
     NUM_TASKS = 5
-    PORT = 1909
+    PORT = 2020  
 
 
     def __init__(self):
@@ -27,8 +27,8 @@ class TwoClientsServer:
         self.stop_event = threading.Event()
         self.server_socket = None
         self.client_threads = []
-
-
+        
+        
     def run(self):
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,22 +36,22 @@ class TwoClientsServer:
             self.server_socket.bind(('0.0.0.0', self.PORT))
             self.server_socket.listen(5)
 
-
+           
             while True:
                 print("SERVER: Waiting for the Python client...")
 
                 python_client = PythonClient(num_tasks=self.NUM_TASKS,
                                          max_iter=self.MAX_ITER,
-                                         host='192.168.1.3',
+                                         host='192.168.1.2',
                                          port=self.PORT,
                                          output_dir=self.output_dir,
                                          stop_event=self.stop_event)
-
+            
                 self.client_threads.append(python_client)
                 python_client.start()
                 client_socket2, addr2 = self.server_socket.accept()
                 print(f"SERVER: Python client connected: {addr2[0]} \n        now Waiting for Android client...")
-
+                
                 print(python_client.is_alive)
                 client_socket1, addr1 = self.server_socket.accept()
                 print(f"SERVER: Android client connected: {addr1[0]}")
@@ -63,13 +63,13 @@ class TwoClientsServer:
                 android_handler = ClientHandler(client_socket1, client_socket2, is_android=True, output_dir=self.output_dir, stop_event=self.stop_event)
                 android_handler.start()
                 self.client_threads.append(android_handler)
-
+            
                 while android_handler.is_done == False:
                     time.sleep(1)
 
         except Exception as e:
             print(f"SERVER: Exception: {e}")
-
+       
 
     def stop(self):
         self.stop_event.set()
@@ -77,7 +77,7 @@ class TwoClientsServer:
             self.server_socket.close()
         for thread in self.client_threads:
             thread.join()
-
+        
         red_printer = printer("red")
         red_printer.print("SERVER: All sockets closed and threads terminated.")
 
@@ -89,7 +89,7 @@ class PythonClient(threading.Thread):
         self.stop_event = stop_event
 
     def run(self):
-        time.sleep(1)  # wait for the server to be ready to accept
+        time.sleep(1)  # wait for the server to be ready to accept 
         self.runner.main()
 
 
@@ -102,16 +102,16 @@ class ClientHandler(threading.Thread):
         self.output_dir = output_dir
         self.stop_event = stop_event
         self.is_done = False
-
+        
         if is_android:
             color_printer = printer('green')
         else:
             color_printer = printer('yellow')
         self.print = color_printer.print
-
+    
         red_printer = printer('red')
         self.printRed = red_printer.print
-
+                        
     def run(self):
         try:
             if self.is_android:
@@ -125,20 +125,20 @@ class ClientHandler(threading.Thread):
             self.client_socket.close()
             self.is_done = True
             self.other_client_socket.close()
-
-
+            
+            
     def python_client(self):
         while not self.stop_event.is_set():
             input_data = self.client_socket.recv(1024).decode().strip()
             if not input_data:
                 break
             self.print(f"SERVER: Received from Python: {input_data}")
-
+            
             if "status/" in input_data:
                 pass
             else:
                 self.other_client_socket.sendall((input_data + '\n').encode())
-
+            
     def android_client(self):
         while not self.stop_event.is_set():
             input_data = self.client_socket.recv(1024).decode().strip()
@@ -146,15 +146,15 @@ class ClientHandler(threading.Thread):
                 self.printRed("SERVER: android client 'not input_data'")
                 break
             self.print(f"SERVER: Received from Android: {input_data}")
-
+            
             if "thermal/" in input_data:
                 filename = 'thermal_data.csv'
                 filepath = os.path.join('./', self.output_dir, filename)
                 with open(filepath, "a") as out:
                     out.write(input_data[len('thermal/'):] + '\n')
-
+                    
             elif "delegate/" in input_data:
-                self.other_client_socket.sendall((input_data + '\n').encode())
+                self.other_client_socket.sendall((input_data + '\n').encode()) 
             else:
                 self.other_client_socket.sendall((input_data + '\n').encode())
 
@@ -240,12 +240,12 @@ class BayesianOptimizationRunner:
             {'name': 'var_3', 'type': 'continuous', 'domain': [0, 1]},
             {'name': 'var_4', 'type': 'continuous', 'domain': [0.2, 1]}
         ]
-
+        
         constraints = [
                     {'name': 'constr_1', 'constraint': 'x[:,0] + x[:,1] + x[:,2] - 1'},
                     {'name': 'constr_2', 'constraint': '-x[:,0] - x[:,1] - x[:,2] + 0.999'}
                     ]
-
+        
         current_time = datetime.now()
         if self.output_dir is None:
             self.output_dir = current_time.strftime("%H_%M")
@@ -317,10 +317,10 @@ class BayesianOptimizationRunner:
             self.client_socket.connect((self.HOST, self.PORT))
             self.run()
             self.print(f"OPTIMIZER:  Done!")
-
+    
     def setNumTasks(self, num_tasks):
         self.NUM_TASKS = num_tasks
-
+    
     def getNumTasks(self):
         return self.NUM_TASKS
 
@@ -351,7 +351,7 @@ class printer:
 if __name__ == "__main__":
     colorama.init(autoreset=True)
     server = TwoClientsServer()
-
+    
     try:
         server.run()
     except KeyboardInterrupt:

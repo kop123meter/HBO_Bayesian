@@ -58,7 +58,7 @@ import com.google.common.collect.ListMultimap;
 
 public class balancer implements Runnable {
 
-    boolean hbo_trigger=true;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
+    boolean hbo_trigger=false;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
     //boolean offload_trigger = true; // After first HBO, we need to trigger offloading and once one offloading done
                                     // we need set this flag back to false until next HBO finished
     private double sendResponseTimeCode = -1000000; //set this flag to judge the data we send to data collector server

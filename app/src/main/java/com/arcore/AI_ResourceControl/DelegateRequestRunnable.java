@@ -15,6 +15,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.Buffer;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
@@ -29,6 +30,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class DelegateRequestRunnable implements Runnable {
 
     private final ModelRequest modelRequest;
+    private AlertDialog currentDialog;
+    private boolean isDialogShowing = false;
 
     // Context needed to save the image in the internal storage
     private final Context context;
@@ -85,7 +88,8 @@ public class DelegateRequestRunnable implements Runnable {
                 //@@@pc address
                 modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
 
-                Socket socket = new Socket(modelRequest.activityMain.server_IP_address, modelRequest.activityMain.server_PORT);
+
+                Socket socket = new Socket("192.168.1.2", 2020);
                 // Open output stream
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
@@ -94,13 +98,35 @@ public class DelegateRequestRunnable implements Runnable {
                 //mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
 
                 ///nill test to trigger HBO-> we write a code to python server and then activate it
+//                CountDownLatch latch = new CountDownLatch(1);
+//
+//                modelRequest.activityMain.runOnUiThread(() -> {
+//                    AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
+//                    builder.setTitle("HBO message")
+//                            .setMessage("HBO Started?")
+//                            .setPositiveButton("OK", (dialog, which) -> {
+//                                latch.countDown(); // 释放锁存器
+//                                dialog.dismiss();
+//                            })
+//                            .setNegativeButton("Cancel", (dialog, which) -> {
+//                                dialog.dismiss();
+//                            })
+//                            .show();
+//                });
+//
+//                try {
+//                    latch.await();
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
 
-                String activate_msg = "delegate/activate:" + remining_task;
-                Log.d("HBO_MSG", "Remaining Task: " + remining_task);
-                out.println(activate_msg);
-                Log.d("HBO_MSG","Send Active MSG" + activate_msg);
-                //flush stream
-                out.flush();
+//                String activate_msg = "delegate/activate:" + remining_task;
+//                Log.d("HBO_MSG", "Remaining Task: " + remining_task);
+//                out.println(activate_msg);
+//                Log.d("HBO_MSG","Send Active MSG" + activate_msg);
+//                //flush stream
+//                out.flush();
+                showSingleDialog(out);
 
                 // Send remaining Task Num to Optimize
 
@@ -174,7 +200,8 @@ public class DelegateRequestRunnable implements Runnable {
                             Log.d("DelegateRequest Msg", "Get into the area 4!");
                         }
 
-                        else {// find the delegate to apply
+                        else {
+                            // find the delegate to apply
                             // Create a double array to store the converted elements
                             Log.d("DelegateRequest Msg", "Get into the area 5!");
                             double[] doubleArray = new double[elements.length];
@@ -363,5 +390,43 @@ public class DelegateRequestRunnable implements Runnable {
 //
 //
 //    }
+public void showSingleDialog(PrintWriter out) {
+    if (isDialogShowing || currentDialog != null) {
+        return; // 已有弹窗在显示，直接返回
+    }
+
+    modelRequest.activityMain.runOnUiThread(() -> {
+        AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
+        builder.setTitle("HBO message")
+                .setMessage("HBO has finished!")
+                .setPositiveButton("OK", (dialog, which) -> {
+                    isDialogShowing = false;
+                    currentDialog = null;
+                    dialog.dismiss();
+                    // 用户点击OK后执行后续操作
+                    sendActivateMessage(remining_task,out);
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> {
+                    isDialogShowing = false;
+                    currentDialog = null;
+                    dialog.dismiss();
+                })
+                .setOnDismissListener(dialog -> {
+                    isDialogShowing = false;
+                    currentDialog = null;
+                });
+
+        currentDialog = builder.create();
+        currentDialog.show();
+        isDialogShowing = true;
+    });
+}
+
+    private void sendActivateMessage(double remainingTask, PrintWriter out) {
+        String activate_msg = "delegate/activate:" + remainingTask;
+        Log.d("HBO_MSG", "Send Active MSG: " + activate_msg);
+        out.println(activate_msg);
+        out.flush();
+    }
 
 }
