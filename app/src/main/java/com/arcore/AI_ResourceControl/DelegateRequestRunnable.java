@@ -36,6 +36,8 @@ public class DelegateRequestRunnable implements Runnable {
     // Context needed to save the image in the internal storage
     private final Context context;
 
+
+
     String bayesian_delg="";
 
     private final ModelRequestManager mInstance;
@@ -78,6 +80,32 @@ public class DelegateRequestRunnable implements Runnable {
 
 // for using the local memory undo the comment
         Log.d("DelegateRequest", "Entering Runnable");
+        if(modelRequest.activityMain.Delgate_COUNTER == 0) {
+            // That means we need to wait for user to move to far area
+            modelRequest.activityMain.Delgate_COUNTER = 1;
+            CountDownLatch latch = new CountDownLatch(1);
+            modelRequest.activityMain.runOnUiThread(() -> {
+                AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
+                builder.setTitle("HBO message")
+                        .setMessage("HBO Started?")
+                        .setPositiveButton("OK", (dialog, which) -> {
+                            latch.countDown();
+                            dialog.dismiss();
+                        })
+                        .setNegativeButton("Cancel", (dialog, which) -> {
+                            dialog.dismiss();
+                        })
+                        .show();
+            });
+
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        modelRequest.activityMain.curBysIters=0;
+
         try {
 
             if (Thread.interrupted()) {
@@ -87,7 +115,7 @@ public class DelegateRequestRunnable implements Runnable {
             try {
                 //@@@pc address
                 modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
-
+                Log.d("DelegateRequest Msg", "Beginning Iters:     " + modelRequest.activityMain.curBysIters);
 
                 Socket socket = new Socket("192.168.1.2", 2020);
                 // Open output stream
@@ -98,35 +126,17 @@ public class DelegateRequestRunnable implements Runnable {
                 //mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
 
                 ///nill test to trigger HBO-> we write a code to python server and then activate it
-//                CountDownLatch latch = new CountDownLatch(1);
-//
-//                modelRequest.activityMain.runOnUiThread(() -> {
-//                    AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
-//                    builder.setTitle("HBO message")
-//                            .setMessage("HBO Started?")
-//                            .setPositiveButton("OK", (dialog, which) -> {
-//                                latch.countDown(); // 释放锁存器
-//                                dialog.dismiss();
-//                            })
-//                            .setNegativeButton("Cancel", (dialog, which) -> {
-//                                dialog.dismiss();
-//                            })
-//                            .show();
-//                });
-//
-//                try {
-//                    latch.await();
-//                } catch (InterruptedException e) {
-//                    e.printStackTrace();
-//                }
 
-//                String activate_msg = "delegate/activate:" + remining_task;
-//                Log.d("HBO_MSG", "Remaining Task: " + remining_task);
-//                out.println(activate_msg);
-//                Log.d("HBO_MSG","Send Active MSG" + activate_msg);
-//                //flush stream
-//                out.flush();
-                showSingleDialog(out);
+
+
+
+                String activate_msg = "delegate/activate:" + remining_task;
+                Log.d("HBO_MSG", "Remaining Task: " + remining_task);
+                out.println(activate_msg);
+                Log.d("HBO_MSG","Send Active MSG" + activate_msg);
+                //flush stream
+                out.flush();
+//                showSingleDialog(out);
 
                 // Send remaining Task Num to Optimize
 
@@ -163,7 +173,8 @@ public class DelegateRequestRunnable implements Runnable {
                 Log.d("DelegateRequest Msg","reading 1");
                 while (read1 == -1) // wait and listen
                     read1 = socketInputStream1.read(buffer1);
-                Log.d("DelegateRequest Msg","done reading");
+                Log.d("DelegateRequest Msg","done reading" + "     " + modelRequest.activityMain.curBysIters);
+
 
                 // this is just for the exploration phase , it recieves all the
 //                    if (phase.equals("exploration")){
@@ -211,6 +222,7 @@ public class DelegateRequestRunnable implements Runnable {
                             }
                             modelRequest.all_delegates = doubleArray;
                         }
+
 
 
 
@@ -308,7 +320,7 @@ public class DelegateRequestRunnable implements Runnable {
                 modelRequest.activityMain.afterHbo_counter =0;// we restart this
 
                 long endTime2 = System.currentTimeMillis();
-                Log.d("DelegateRequest", "Total execution Time: " + (endTime2 - startTime2) + " milliseconds");
+                Log.d("DelegateRequest Msg", "Total execution Time: " + (endTime2 - startTime2) + " milliseconds");
 
 
 
@@ -361,72 +373,7 @@ public class DelegateRequestRunnable implements Runnable {
 //
 //    }
 
-//    public void send_reward_toserver(double reward){
-//
-//        try {
-//
-//            //@@@pc address
-//            Socket socket = new Socket(modelRequest.activityMain.server_IP_address, 4444);
-//            // Open output stream
-//            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-//            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-//            //send reward result
-//            //int reward=2000;
-//            String msg_toserver="sending_rewards:"+reward;
-//
-//            out.println(msg_toserver);
-//            //flush stream
-//            out.flush();
-//
-//            while (!((new String(in.readLine())).equals("File received"))) ;// when file is recieved, we close the socket
-//
-//            out.close();
-//        }
-//        catch (UnknownHostException e) {
-//            e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//
-//
-//    }
-public void showSingleDialog(PrintWriter out) {
-    if (isDialogShowing || currentDialog != null) {
-        return; // 已有弹窗在显示，直接返回
-    }
 
-    modelRequest.activityMain.runOnUiThread(() -> {
-        AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
-        builder.setTitle("HBO message")
-                .setMessage("HBO has finished!")
-                .setPositiveButton("OK", (dialog, which) -> {
-                    isDialogShowing = false;
-                    currentDialog = null;
-                    dialog.dismiss();
-                    // 用户点击OK后执行后续操作
-                    sendActivateMessage(remining_task,out);
-                })
-                .setNegativeButton("Cancel", (dialog, which) -> {
-                    isDialogShowing = false;
-                    currentDialog = null;
-                    dialog.dismiss();
-                })
-                .setOnDismissListener(dialog -> {
-                    isDialogShowing = false;
-                    currentDialog = null;
-                });
 
-        currentDialog = builder.create();
-        currentDialog.show();
-        isDialogShowing = true;
-    });
-}
-
-    private void sendActivateMessage(double remainingTask, PrintWriter out) {
-        String activate_msg = "delegate/activate:" + remainingTask;
-        Log.d("HBO_MSG", "Send Active MSG: " + activate_msg);
-        out.println(activate_msg);
-        out.flush();
-    }
 
 }

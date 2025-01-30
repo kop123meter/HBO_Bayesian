@@ -33,6 +33,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+ import java.util.concurrent.CountDownLatch;
  import java.util.logging.Handler;
  import java.util.stream.Collectors;
 
@@ -58,7 +59,7 @@ import com.google.common.collect.ListMultimap;
 
 public class balancer implements Runnable {
 
-    boolean hbo_trigger=false;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
+    boolean hbo_trigger=true;// this enables autonomous HBO activation , make sure it's true, I temporary made it false
     //boolean offload_trigger = true; // After first HBO, we need to trigger offloading and once one offloading done
                                     // we need set this flag back to false until next HBO finished
     private double sendResponseTimeCode = -1000000; //set this flag to judge the data we send to data collector server
@@ -266,14 +267,7 @@ public class balancer implements Runnable {
         // Test output of B_t and Triangle count:
         current_tris = mInstance.total_tris;
         //System.out.println("B_t:"+reward+"  " + "Triangle Count:" + current_tris);
-        /**
-         * As we original design, we may need to use Bayesian optimization to get a basement policy for RL
-         * Then, we will let our agent start to play
-         */
-//        if(mInstance.RL_COUNTER == 0){
-//            ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "fast"), false, false);
-//            mInstance.RL_COUNTER = 1;
-//        }
+
 
 
 /**
@@ -288,7 +282,7 @@ public class balancer implements Runnable {
                     mInstance.best_BT = (reward + mInstance.best_BT) / 2;
 
                 double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
-                if (perc_error > 0.05 || perc_error < -0.1)// below is the function of server button
+                if (perc_error > 0.2 || perc_error < -0.2)// below is the function of server button
                 // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
                 {
                     mInstance.hbo_trigger_false_counter++;
@@ -297,6 +291,7 @@ public class balancer implements Runnable {
                     {
 
                         mInstance.hbo_trigger_false_counter = 0;
+
                         mInstance.runOnUiThread(() -> {
                             AlertDialog.Builder builder = new AlertDialog.Builder(mInstance);
                             builder.setTitle("HBO message")
@@ -310,6 +305,7 @@ public class balancer implements Runnable {
                                     .show();
                             Log.d("HandlerExample", "This is running on the main thread.");
                         });
+
                         ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
                         mInstance.deleg_req += 1;
                     }

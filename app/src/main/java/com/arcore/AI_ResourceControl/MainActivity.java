@@ -114,7 +114,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
     public int HBO_COUNTER = 0;
-    public int RL_COUNTER = 0;
+    public int Delgate_COUNTER = 0; // used for going to far area
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
     private final int MAX_THREAD_POOL_SIZE = 10;
@@ -2240,10 +2240,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);
                                     }//
                                     // comment below lines if you want to deactive HBO auto trigger
-                                    Thread.sleep(700);
+                                    Thread.sleep(100);
 //
 //hbo trigger to run a baseline
-                                    if (objectCount == 0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
+                                    if (objectCount == 0 && deleg_req==0)// just for HBO trigger we want one-time activation and then it will be autonomously working in balance.java code having hbo_trigger=true
                                     {
                                         // if(objectCount%2==0){//uncomment  for HBO baseline periodic
                                         ModelRequestManager.getInstance().add(new ModelRequest(getApplicationContext(), MainActivity.this, deleg_req, "delegate"), false, false);

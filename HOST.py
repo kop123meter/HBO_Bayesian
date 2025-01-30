@@ -16,7 +16,7 @@ class TwoClientsServer:
     MAX_ITER = 15 # 15
     EXPLORATION_n = 5
     NUM_TASKS = 5
-    PORT = 2020  
+    PORT = 2020
 
 
     def __init__(self):
