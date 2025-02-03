@@ -52,6 +52,18 @@
             android:layout_height="wrap_content"
             android:text="obj_num"
             android:textColor="#BBDEFB" />
+        <TextView
+            android:id="@+id/dist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="current_dist:"
+            android:textColor="#BBDEFB" />
+        <TextView
+            android:id="@+id/origin_dist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="original_dist:"
+            android:textColor="#BBDEFB" />
 
 
     </com.google.android.material.appbar.AppBarLayout>

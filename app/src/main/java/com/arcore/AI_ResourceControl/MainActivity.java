@@ -114,6 +114,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
     public int HBO_COUNTER = 0;
+    public double original_distance = 0;
+    public boolean last_dist_flag = false;
+    public int last_index = 0;
     public int Delgate_COUNTER = 0; // used for going to far area
     private final BitmapUpdaterApi bitmapUpdaterApi = new BitmapUpdaterApi();
     private final int SEEKBAR_INCREMENT = 10;
@@ -123,6 +126,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private final TimeUnit KEEP_ALIVE_TIME_UNIT = TimeUnit.MILLISECONDS;
     private final BlockingQueue<Runnable> mWorkQueue = new LinkedBlockingQueue<Runnable>();
     public double[] all_delegates_LstHBO = new double[30];
+
     public int objectCount = 0;
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
@@ -413,6 +417,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 */
             } else if (tempModelRequest.req.equals("delegate")) {
 // this is for delegate req
+
                 avg_AIperK.clear();
                 bayesian bys = new bayesian(MainActivity.this);
                 if (bys_baseline1_2)
@@ -735,6 +740,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         TextView posText_app_hbo = (TextView) findViewById(R.id.app_bt);
 //        posText_app_hbo.setText("MIR: 0" );
         posText_app_hbo.setText("B_t: 0");
+
+        TextView posdist = (TextView)findViewById(R.id.dist);
+        posdist.setText("Current Dist: " + 0);
+        TextView posOriginalDist = (TextView)findViewById(R.id.origin_dist);
+        posOriginalDist.setText("Original Dist: " + 0);
 
 
         //create the file to store user score data
@@ -2214,6 +2224,13 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //                                        reParamList.clear();
 //                                        // to start over data collection
 //                                        decTris.clear();
+                                        double avg_dist = 0;
+                                        for(int i = 0; i < objectCount; i++){
+                                                avg_dist += renderArray.get(i).return_distance();
+
+                                        }
+                                        original_distance = avg_dist / objectCount;
+                                        posOriginalDist.setText("Original Dist: " + original_distance);
                                         this.cancel();
                                         //  hboTrigTimer.start();// //uncomment  for HBO baseline periodic
 
@@ -2265,6 +2282,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
                             @Override
                             public void onFinish() {
+
                             }
                         };
                         final boolean[] startObject = {false};

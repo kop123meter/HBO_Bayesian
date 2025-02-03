@@ -12,16 +12,20 @@ import android.os.Message;
 import android.util.Log;
 
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 
 public class ModelRequestManager {
+
 
     static final int DOWNLOAD_FAILED = -1;
     static final int DOWNLOAD_PENDING = 1;
@@ -48,6 +52,14 @@ public class ModelRequestManager {
 
     private final int MAX_THREAD_POOL_SIZE = 50;
 
+
+
+
+    // Used for motivation experiments 3 to shutdown current runnable
+    private static Future<?>[] current_threads = new Future<?>[50];
+    private static HashMap<Integer,Integer> threads_map = new HashMap<>();
+
+    private static int thread_counter = 0;
 
 
 
@@ -164,11 +176,12 @@ public class ModelRequestManager {
                     double remain_Task = modelRequest.getRemaining_task();
                     dlgRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
+                    threads_map.put(modelRequest.getID(),thread_counter);
                     // un comment parallelism and start sequential  decimation
                     //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                    //  new DelegateRequestRunnable(modelRequest, Instance).run();
-                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
-
+                    current_threads[thread_counter] = Instance.mDownloadThreadPool.submit(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
+                    thread_counter++;
                 }
                 else if( modelRequest.req!=null && modelRequest.req .equals("decimate")){ // this is to decimate model
                     /*
@@ -228,6 +241,11 @@ public void clear(){
         repeatedRequestList.clear();
         mWorkQueue.clear();
         dlgRequestList.clear();
+}
+
+public void shutdownThread(int id){
+        int thread_index = threads_map.get(id);
+        current_threads[thread_index].cancel(true);
 }
 
 

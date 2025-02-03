@@ -15,6 +15,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.Buffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -35,6 +36,9 @@ public class DelegateRequestRunnable implements Runnable {
 
     // Context needed to save the image in the internal storage
     private final Context context;
+    private Socket socket;
+    private PrintWriter out;
+    private BufferedInputStream socketInputStream1;
 
 
 
@@ -78,6 +82,7 @@ public class DelegateRequestRunnable implements Runnable {
     @Override
     public void run() {
 
+
 // for using the local memory undo the comment
         Log.d("DelegateRequest", "Entering Runnable");
         if(modelRequest.activityMain.Delgate_COUNTER == 0) {
@@ -89,6 +94,7 @@ public class DelegateRequestRunnable implements Runnable {
                 builder.setTitle("HBO message")
                         .setMessage("HBO Started?")
                         .setPositiveButton("OK", (dialog, which) -> {
+                            modelRequest.activityMain.Delgate_COUNTER = 2;
                             latch.countDown();
                             dialog.dismiss();
                         })
@@ -104,7 +110,7 @@ public class DelegateRequestRunnable implements Runnable {
                 e.printStackTrace();
             }
         }
-        modelRequest.activityMain.curBysIters=0;
+
 
         try {
 
@@ -117,9 +123,9 @@ public class DelegateRequestRunnable implements Runnable {
                 modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
                 Log.d("DelegateRequest Msg", "Beginning Iters:     " + modelRequest.activityMain.curBysIters);
 
-                Socket socket = new Socket("192.168.1.2", 2020);
+                socket = new Socket("192.168.1.2", 2020);
                 // Open output stream
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
 
@@ -144,7 +150,7 @@ public class DelegateRequestRunnable implements Runnable {
 
 
                 ////
-                BufferedInputStream socketInputStream1;
+
                 socketInputStream1 = new BufferedInputStream(socket.getInputStream());
                 byte[] buffer1 = new byte[BUFFER_SIZE];
                 int read1;
@@ -155,22 +161,12 @@ public class DelegateRequestRunnable implements Runnable {
                 int max_iteration=modelRequest.activityMain.max_iteration;// we define it in python client 15 iterations and the last applying the best
 
 
-                //This is for test
-                // Read from input stream and send back everything received
-//                while ((read1 = socketInputStream1.read(buffer1)) != -1) {
-//                    String receivedData = new String(buffer1, 0, read1);
-//                    Log.d("DelegateRequest Msg", "Received: " + receivedData);
-//
-//                    // Send back the received data
-//                    out.println("Android ECO: ["+receivedData+"]");
-//                    out.flush();
-//                }
-
 
 
 
                 read1 = socketInputStream1.read(buffer1);
                 Log.d("DelegateRequest Msg","reading 1");
+
                 while (read1 == -1) // wait and listen
                     read1 = socketInputStream1.read(buffer1);
                 Log.d("DelegateRequest Msg","done reading" + "     " + modelRequest.activityMain.curBysIters);
@@ -180,6 +176,11 @@ public class DelegateRequestRunnable implements Runnable {
 //                    if (phase.equals("exploration")){
                 // out = new PrintWriter(socket.getOutputStream(), true);
                 while (read1 != -1) {//the msg is ready from the python client
+                    if(Thread.currentThread().isInterrupted()){
+                        break;
+                    }
+
+
                     String message = new String(buffer1, 0, read1);
                     Log.d("DelegateRequest Msg","msg: "+message);
                     // you need to gain the msg either from file stored in java_cleint.txt or the direct msg from java that comes from python client
@@ -222,6 +223,9 @@ public class DelegateRequestRunnable implements Runnable {
                             }
                             modelRequest.all_delegates = doubleArray;
                         }
+                        if(modelRequest.activityMain.curBysIters == -1){
+                            modelRequest.activityMain.curBysIters =0;
+                        }
 
 
 
@@ -256,6 +260,8 @@ public class DelegateRequestRunnable implements Runnable {
                         out.flush();
                         exploration_phase -= 1;
                         Log.d("DelegateRequest Msg", "Current Iter:" +modelRequest.activityMain.curBysIters );
+
+
                         if(modelRequest.activityMain.curBysIters==max_iteration-1)// should be done all the time after last HBO iteration
                         //&& modelRequest.activityMain.objectCount==1)// this is done just for one time
                         {
@@ -324,13 +330,14 @@ public class DelegateRequestRunnable implements Runnable {
 
 
 
-                SystemClock.sleep(1000*60*10); //wait before closing the connection (to collect thermal data)
-                socketInputStream1.close();
-//                    outM.close();
-//                    in.close();
-                //fout.close();
-                out.close();
-                socket.close();
+               // SystemClock.sleep(1000*60*10); //wait before closing the connection (to collect thermal data)
+                closeSocket();
+//                socketInputStream1.close();
+////                    outM.close();
+////                    in.close();
+//                //fout.close();
+//                out.close();
+//                socket.close();
 
 //                    modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
                 ModelRequestManager.dlgRequestList.remove(modelRequest);
@@ -343,14 +350,39 @@ public class DelegateRequestRunnable implements Runnable {
             }
 
         } catch (InterruptedException e) {
-
             Log.d("DelegateRequest outer try", e.getMessage());
+            return;
         } finally {
 
         }
 
 
     }//run
+    private void closeSocket() {
+        try {
+
+
+            if (socketInputStream1 != null) {
+                socketInputStream1.close();
+            }
+            if (out != null) {
+                String end_flag = "finished";
+                out.println(end_flag);
+                Log.d("DelegateRequest", "send finished.");
+                Thread.sleep(10000);
+                out.close();
+            }
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+            }
+            Log.d("DelegateRequest", "Socket successfully closed.");
+        } catch (IOException e) {
+            Log.e("DelegateRequest", "Error closing socket: " + e.getMessage());
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
 //    public void decimateall(float ratio){
 //
@@ -372,7 +404,6 @@ public class DelegateRequestRunnable implements Runnable {
 //        }
 //
 //    }
-
 
 
 

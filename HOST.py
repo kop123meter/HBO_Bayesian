@@ -52,7 +52,7 @@ class TwoClientsServer:
                 client_socket2, addr2 = self.server_socket.accept()
                 print(f"SERVER: Python client connected: {addr2[0]} \n        now Waiting for Android client...")
                 
-                print(python_client.is_alive)
+                # print(python_client.is_alive)
                 client_socket1, addr1 = self.server_socket.accept()
                 print(f"SERVER: Android client connected: {addr1[0]}")
 
@@ -136,11 +136,15 @@ class ClientHandler(threading.Thread):
             
             if "status/" in input_data:
                 pass
-            else:
+            
+            elif self.other_client_socket.fileno() != -1:
                 self.other_client_socket.sendall((input_data + '\n').encode())
             
     def android_client(self):
         while not self.stop_event.is_set():
+            if self.client_socket.fileno() == -1:
+                self.printRed("SERVER: Android client socket is already closed.")
+                break
             input_data = self.client_socket.recv(1024).decode().strip()
             if not input_data:
                 self.printRed("SERVER: android client 'not input_data'")
@@ -155,7 +159,9 @@ class ClientHandler(threading.Thread):
                     
             elif "delegate/" in input_data:
                 self.other_client_socket.sendall((input_data + '\n').encode()) 
-            else:
+            elif "finished" in input_data:
+                break
+            elif self.other_client_socket.fileno() != -1:
                 self.other_client_socket.sendall((input_data + '\n').encode())
 
 
@@ -310,6 +316,7 @@ class BayesianOptimizationRunner:
             return None
         else:
             received_data = self.client_socket.recv(1024).decode()
+            
             return received_data
 
     def main(self):

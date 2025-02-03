@@ -42,8 +42,9 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.pow;
 import static java.lang.Math.sqrt;
+ import static java.lang.Thread.*;
 
-import android.annotation.SuppressLint;
+ import android.annotation.SuppressLint;
  import android.app.AlertDialog;
  import android.os.Looper;
  import android.util.Log;
@@ -83,7 +84,7 @@ public class balancer implements Runnable {
     double tMin[] ;
     int missCounter=3;//means at least 4 noises
    // int aiIndx;
-   TextView posText_re,posText_thr,posText_q,posText_app_hbo;
+   TextView posText_re,posText_thr,posText_q,posText_app_hbo, posText_currentDist, postText_originalDist;
     double reward=0;
 
     // Used for collect B_t & triangle count
@@ -115,7 +116,9 @@ public class balancer implements Runnable {
         posText_q= mInstance.findViewById(R.id.app_quality);
         posText_thr= mInstance.findViewById(R.id.app_thr);
        // posText_mir= mInstance.findViewById(R.id.app_bt);
-        posText_app_hbo  = mInstance. findViewById(R.id.app_bt);
+        posText_app_hbo  = mInstance.findViewById(R.id.app_bt);
+        posText_currentDist = mInstance.findViewById(R.id.dist);
+        postText_originalDist = mInstance.findViewById(R.id.origin_dist);
     }
 
     @SuppressLint("SuspiciousIndentation")
@@ -268,21 +271,57 @@ public class balancer implements Runnable {
         current_tris = mInstance.total_tris;
         //System.out.println("B_t:"+reward+"  " + "Triangle Count:" + current_tris);
 
+        //Get current distance
+//        if(mInstance.original_distance!=0){
+//            double sum = 0;
+//            for(int i = 0; i < mInstance.objectCount; i++){
+//                sum += mInstance.renderArray.get(i).return_distance();
+//            }
+//            double current_dist = sum / mInstance.objectCount;
+//            mInstance.runOnUiThread(() -> {
+//                posText_currentDist.setText("Current Dist: " + current_dist);
+//            });
+//            double dist_change = mInstance.original_distance - current_dist;
+//            if(mInstance.deleg_req!=0) {
+//                if (dist_change > 0.1 || dist_change < -0.1) {
+//                    ModelRequestManager.getInstance().shutdownThread(mInstance.deleg_req - 1);
+//                    Log.d("DelegateDebug", "Current Request has shut down!");
+//                    ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+//                    mInstance.deleg_req += 1;
+//                    mInstance.original_distance = current_dist;
+//                    mInstance.runOnUiThread(() -> {
+//                        postText_originalDist.setText("Original Dist: " + current_dist);
+//                    });
+//                }
+//            }
+//        }
+
 
 
 /**
  * Following code are used for HBO project
  */
-        if(hbo_trigger) {
 
-            if (mInstance.best_BT != 0 && mInstance.curBysIters == -1) {// if it's not in the middle of another Bayesian
+        if(hbo_trigger) {
+            //mInstance.best_BT != 0 && mInstance.curBysIters == -1
+            if(mInstance.last_dist_flag){
+                if(mInstance.last_index == 0) {
+                    ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+                    mInstance.deleg_req += 1;
+                    mInstance.last_index += 1;
+                }
+            }
+            else if (mInstance.Delgate_COUNTER == 2) {// if it's not in the middle of another Bayesian
 
 
                 if (mInstance.afterHbo_counter <= 3)// this is to adjust the reward and remove any noises for the first three data collected after HBO activation
                     mInstance.best_BT = (reward + mInstance.best_BT) / 2;
 
                 double perc_error = (mInstance.best_BT - reward) / mInstance.best_BT;
-                if (perc_error > 0.2 || perc_error < -0.2)// below is the function of server button
+                                    mInstance.runOnUiThread(() -> {
+                        postText_originalDist.setText("Perc_Error: " + perc_error);
+                    });
+                if (perc_error > 0.001 || perc_error < -0.001)// below is the function of server button
                 // if BT gets worst by object addition, error becomes higher negative, if we farther awa, error becomes positive
                 {
                     mInstance.hbo_trigger_false_counter++;
@@ -300,18 +339,26 @@ public class balancer implements Runnable {
                                         dialog.dismiss();
                                     })
                                     .setNegativeButton("Cancel", (dialog, which) -> {
+                                        mInstance.last_dist_flag = true;
                                         dialog.dismiss();
                                     })
                                     .show();
                             Log.d("HandlerExample", "This is running on the main thread.");
                         });
-
-                        ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
-                        mInstance.deleg_req += 1;
+                       ModelRequestManager.getInstance().shutdownThread(mInstance.deleg_req - 1);
+                        try {
+                            sleep(2000);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        if(!mInstance.last_dist_flag) {
+                            ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+                            mInstance.deleg_req += 1;
+                        }
                     }
                 } else
                     mInstance.hbo_trigger_false_counter = 0;// we want to get 5 Bts consecutively with error
-            }
+           } // if
         }
 
 
@@ -1709,7 +1756,7 @@ public class balancer implements Runnable {
            // mInstance.trisDec.put(mInstance.total_tris,true);
 
             j = track_obj[i][j];
-            Thread.sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
+            sleep(sleepTime);// added to prevent the crash happens while redrawing all the objects at the same time
 
 
         }
