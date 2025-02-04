@@ -472,17 +472,21 @@ import static java.lang.Math.min;
         PriorityQueue<AIModel> sortedCurModels = new PriorityQueue<>((a, b) -> Double.compare(b.avgInfTime, a.avgInfTime));
         sortedCurModels.addAll(copuCurModels);
         int change_device_flag = 1; // This flag is used for changing device allocation
+        int bestDlg = -1;
         while(delegatedM!=0){
             // Try its best to apply delegate to the suggested delegates
             AiItemsViewModel taskView = null;
             AIModel assignedModel = sortedCurModels.poll();
+            if(sortedCurModels.isEmpty())
+                break;
 
-            int bestDlg = -1;
+
 
             if(change_device_flag == 1){
                 bestDlg = get_max_capacity_index(capacity);
                 change_device_flag = 0;
             }
+
 
 
             for (AiItemsViewModel item : copyAiItems) {

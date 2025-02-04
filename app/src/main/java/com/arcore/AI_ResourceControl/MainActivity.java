@@ -123,11 +123,12 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     private final TimeUnit KEEP_ALIVE_TIME_UNIT = TimeUnit.MILLISECONDS;
     private final BlockingQueue<Runnable> mWorkQueue = new LinkedBlockingQueue<Runnable>();
     public double[] all_delegates_LstHBO = new double[30];
+
     public int objectCount = 0;
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.1.2";
+    String server_IP_address = "192.168.1.3";
     int server_PORT = 12345;
 
     // Using the following variable to track the position
