@@ -6,6 +6,9 @@ import static java.lang.Thread.sleep;
 
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
+import android.hardware.Sensor;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.media.Image;
 import android.net.Uri;
 import android.opengl.Matrix;
@@ -111,10 +114,15 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     // Set the AI task List for server and MAX Tasks
     public static List<AiItemsViewModel> serverList = new ArrayList<>();
+
+    // Test for KalmanFilter
+    private KalmanFilter kalmanfilter;
+
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
     public int HBO_COUNTER = 0;
     public double original_distance = 0;
+
     public boolean last_dist_flag = false;
     public int last_index = 0;
     public int Delgate_COUNTER = 0; // used for going to far area
@@ -512,8 +520,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     /// for python bridge
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
 
 //        try {
 //            Process process = Runtime.getRuntime().exec("su -c setenforce 0");
@@ -741,10 +752,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //        posText_app_hbo.setText("MIR: 0" );
         posText_app_hbo.setText("B_t: 0");
 
-        TextView posdist = (TextView)findViewById(R.id.dist);
-        posdist.setText("Current Dist: " + 0);
-        TextView posOriginalDist = (TextView)findViewById(R.id.origin_dist);
-        posOriginalDist.setText("Original Dist: " + 0);
 
 
         //create the file to store user score data
@@ -1110,6 +1117,30 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             writer.write(sbb.toString());
             System.out.println("done!");
 
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
+        String FILEPATH_Model_Data = currentFolder + File.separator + "ModelData" + fileseries + ".csv";
+
+
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("time");
+            sbb.append(',');
+            sbb.append("acceleration");
+            sbb.append(',');
+            sbb.append("angularVelocity");
+//            sbb.append("sensitivity");
+            sbb.append(',');
+            sbb.append("position");
+            sbb.append(',');
+            sbb.append("rotation");
+            sbb.append(',');
+            sbb.append("visible_triangle");
+            sbb.append('\n');
+            writer.write(sbb.toString());
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
         }
@@ -2230,7 +2261,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
                                         }
                                         original_distance = avg_dist / objectCount;
-                                        posOriginalDist.setText("Original Dist: " + original_distance);
                                         this.cancel();
                                         //  hboTrigTimer.start();// //uncomment  for HBO baseline periodic
 
@@ -2760,6 +2790,44 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         });
 
 
+        // Initialize Kalman filter
+//        kalmanfilter = new KalmanFilter(this);
+//        TextView posPredict = findViewById(R.id.predict_triangle);
+//        Runnable predictionTask = new Runnable() {
+//            @Override
+//            public void run() {
+//
+//                // 预测三角形数量
+//                double predictTris = countVisibleTris(kalmanfilter.getPredictedViewMatrix());
+//                double maxTris = 0;
+//                for(int i = 0; i < objectCount; i++){
+//                    Vector3 worldPosition = renderArray.get(i).baseAnchor.getWorldPosition();
+//                    if(isObjectVisible(worldPosition)){
+//                        maxTris += o_tris.get(i);
+//                    }
+//                }
+//                kalmanfilter.setActualTris(maxTris);
+//
+//                // 更新 UI
+//                runOnUiThread(() -> {
+//                    posPredict.setText("Pre_tris: " + predictTris);
+//                });
+//
+//                Log.d("predict_msg", "Actual Tris: "+ maxTris + "  Predict Tris: " + predictTris);
+//
+//                // 100 毫秒后再次执行（可根据需要调整频率）
+//                handler.postDelayed(this, 100);
+//            }
+//        };
+
+// 启动定时预测任务
+//        handler.post(predictionTask);
+
+
+
+
+
+
         //prediction REQ
         Timer t = new Timer();
 
@@ -2808,7 +2876,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 2000);
 
 
-    }
+    } // end On create.
 
     double getThroughput() {
         Log.d("size", String.valueOf(mList.size()));
@@ -3174,6 +3242,12 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     @Override
     public void onNothingSelected(AdapterView<?> parent) {
 
+    }
+
+    @Override
+    public void onResume(){
+        super.onResume();
+//        kalmanfilter.startSensorUpdates();
     }
 
     // pay attention to process 2
@@ -4916,7 +4990,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 2000);
     }
 
-    private boolean isObjectVisible(Vector3 worldPosition) {
+    public ArFragment getFragment(){
+        return fragment;
+    }
+
+    public boolean isObjectVisible(Vector3 worldPosition) {
         float[] var2 = new float[16];
         Frame frame = fragment.getArSceneView().getArFrame(); // OK not used
         Camera camera = frame.getCamera();
@@ -4927,6 +5005,54 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         float[] viewmtx = new float[16];
         camera.getViewMatrix(viewmtx, 0);
         Matrix.multiplyMM(var2, 0, projmtx, 0, viewmtx, 0);
+
+        float var5 = worldPosition.x;
+        float var6 = worldPosition.y;
+        float var7 = worldPosition.z;
+
+        float var8 = var5 * var2[3] + var6 * var2[7] + var7 * var2[11] + 1.0f * var2[15];
+        if (var8 < 0f) {
+            return false;
+        }
+
+        Vector3 var9 = new Vector3();
+        var9.x = var5 * var2[0] + var6 * var2[4] + var7 * var2[8] + 1.0f * var2[12];
+        var9.x = var9.x / var8;
+        if (var9.x < -1f || var9.x > 1f) {
+            return false;
+        }
+
+        var9.y = var5 * var2[1] + var6 * var2[5] + var7 * var2[9] + 1.0f * var2[13];
+        var9.y = var9.y / var8;
+        if (var9.y < -1f || var9.y > 1f) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public double countVisibleTris(float[] predictedViewMatrix){
+        double sum_tris = 0;
+        for(int i = 0; i < objectCount; i++){
+            Vector3 worldPosition = renderArray.get(i).baseAnchor.getWorldPosition();
+            if(predict_IsObjectVisible(worldPosition,predictedViewMatrix)){
+                sum_tris += o_tris.get(i);
+            }
+        }
+        return sum_tris;
+    }
+
+    public boolean predict_IsObjectVisible(Vector3 worldPosition,float[] predictedViewMatrix) {
+        float[] var2 = new float[16];
+        Frame frame = fragment.getArSceneView().getArFrame(); // OK not used
+        Camera camera = frame.getCamera();
+
+        float[] projmtx = new float[16];
+        camera.getProjectionMatrix(projmtx, 0, 0.1f, 100.0f);
+
+//        float[] viewmtx = new float[16];
+//        camera.getViewMatrix(viewmtx, 0);
+        Matrix.multiplyMM(var2, 0, projmtx, 0, predictedViewMatrix, 0);
 
         float var5 = worldPosition.x;
         float var6 = worldPosition.y;
@@ -5256,45 +5382,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         }
 
-        /**
-         * Send Bt and Total triangle count to sever to measure
-         * @param totaltris
-         * @param Bt
-         */
-        public void sendDataToServer(double totaltris,double Bt){
-            Socket socket = null;
-            PrintWriter out = null;
-            String serverIp = "";
-            int serverPort = 3434;
-
-            try {
-                socket = new Socket(serverIp, serverPort);
-
-                out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
-
-                // create new data message
-                String dataToSend = "totaltris=" + totaltris + "&bt=" + Bt;
-                Log.d("Send Data: ",dataToSend);
-
-                // send data
-                out.println(dataToSend);
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    // 关闭输出流和Socket
-                    if (out != null) {
-                        out.close();
-                    }
-                    if (socket != null) {
-                        socket.close();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
 
 
     }

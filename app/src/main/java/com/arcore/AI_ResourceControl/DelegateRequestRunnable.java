@@ -5,6 +5,7 @@ import android.content.Context;
 import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
+import android.widget.TextView;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -127,6 +128,7 @@ public class DelegateRequestRunnable implements Runnable {
                 // Open output stream
                 out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                TextView posIter = modelRequest.activityMain.findViewById(R.id.iteration);
 
 
                 //mInstance.mDownloadThreadPool.execute(new ThermalDataCollectionRunnable(context, socket));
@@ -176,6 +178,9 @@ public class DelegateRequestRunnable implements Runnable {
 //                    if (phase.equals("exploration")){
                 // out = new PrintWriter(socket.getOutputStream(), true);
                 while (read1 != -1) {//the msg is ready from the python client
+                    modelRequest.activityMain.runOnUiThread(() -> {
+                        posIter.setText("iteration: " + modelRequest.activityMain.curBysIters);
+                    });
                     if(Thread.currentThread().isInterrupted()){
                         break;
                     }
@@ -271,11 +276,13 @@ public class DelegateRequestRunnable implements Runnable {
                             if(modelRequest.activityMain.HBO_COUNTER == 0){
                                 modelRequest.activityMain.HBO_COUNTER += 1;
                             }
+                            CountDownLatch latch_end = new CountDownLatch(1);
                             modelRequest.activityMain.runOnUiThread(() -> {
                                 AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
                                 builder.setTitle("HBO message")
                                         .setMessage("HBO has finished!")
                                         .setPositiveButton("OK", (dialog, which) -> {
+                                            latch_end.countDown();
                                             dialog.dismiss();
                                         })
                                         .setNegativeButton("Cancel", (dialog, which) -> {
@@ -284,7 +291,13 @@ public class DelegateRequestRunnable implements Runnable {
                                         .show();
                                 Log.d("HandlerExample", "This is running on the main thread.");
                             });
+                            try {
+                                latch_end.await();
+                            }catch (Exception e){
+                                Log.d("delegate_error", e.getMessage());
+                            }
                         }
+
                         modelRequest.activityMain.curBysIters += 1;
                         modelRequest.activityMain.avg_reward = 0; // restart the reWARD
 
@@ -331,13 +344,13 @@ public class DelegateRequestRunnable implements Runnable {
 
 
                // SystemClock.sleep(1000*60*10); //wait before closing the connection (to collect thermal data)
-                closeSocket();
-//                socketInputStream1.close();
-////                    outM.close();
-////                    in.close();
-//                //fout.close();
-//                out.close();
-//                socket.close();
+                //closeSocket();
+                socketInputStream1.close();
+//                    outM.close();
+//                    in.close();
+                //fout.close();
+                out.close();
+                socket.close();
 
 //                    modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
                 ModelRequestManager.dlgRequestList.remove(modelRequest);

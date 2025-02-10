@@ -50,20 +50,40 @@
             android:id="@+id/objnum"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="obj_num"
+            android:text="obj_num:"
             android:textColor="#BBDEFB" />
         <TextView
-            android:id="@+id/dist"
+            android:id="@+id/iteration"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="current_dist:"
+            android:text="iteration:"
             android:textColor="#BBDEFB" />
         <TextView
-            android:id="@+id/origin_dist"
+            android:id="@+id/max_triangle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="original_dist:"
+            android:text="T_max:"
             android:textColor="#BBDEFB" />
+        <TextView
+            android:id="@+id/predict_triangle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pre_tris:"
+            android:textColor="#BBDEFB" />
+
+        <TextView
+            android:id="@+id/linear_speed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="L_speed:"
+            android:textColor="#BBDEFB" />
+        <TextView
+            android:id="@+id/rotate_speed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="R_speed:"
+            android:textColor="#BBDEFB" />
+
 
 
     </com.google.android.material.appbar.AppBarLayout>

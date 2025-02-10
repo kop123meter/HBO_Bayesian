@@ -176,12 +176,13 @@ public class ModelRequestManager {
                     double remain_Task = modelRequest.getRemaining_task();
                     dlgRequestList.offer(modelRequest);
                     Log.d("ModelRequest", "Sending ID " + modelRequest.getID() + " out to execute.");
-                    threads_map.put(modelRequest.getID(),thread_counter);
+                    //threads_map.put(modelRequest.getID(),thread_counter);
                     // un comment parallelism and start sequential  decimation
                     //Instance.mDownloadThreadPool.execute(new ModelRequestRunnable(modelRequest, Instance));
                    //  new DelegateRequestRunnable(modelRequest, Instance).run();
-                    current_threads[thread_counter] = Instance.mDownloadThreadPool.submit(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
-                    thread_counter++;
+//                    current_threads[thread_counter] = Instance.mDownloadThreadPool.submit(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
+//                    thread_counter++;
+                    Instance.mDownloadThreadPool.execute(new DelegateRequestRunnable(modelRequest, Instance,remain_Task));
                 }
                 else if( modelRequest.req!=null && modelRequest.req .equals("decimate")){ // this is to decimate model
                     /*
