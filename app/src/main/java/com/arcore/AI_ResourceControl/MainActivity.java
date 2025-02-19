@@ -7,8 +7,12 @@ import static java.lang.Thread.sleep;
 import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.hardware.Sensor;
+import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.media.Image;
 import android.net.Uri;
 import android.opengl.Matrix;
@@ -16,10 +20,12 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
+import android.util.SizeF;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -44,6 +50,7 @@ import com.google.ar.core.Camera;
 import com.google.ar.core.Frame;
 import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
+import com.google.ar.core.Pose;
 import com.google.ar.core.Trackable;
 import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.NotYetAvailableException;
@@ -106,8 +113,24 @@ bes
 */
 
 
-public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
+public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener, SensorEventListener {
+    private SensorManager sensorManager;
+    float[] linear_velocity = new float[3];
+    float[] rotate_velocity = new float[3];
+    boolean linear_flag = false;
+    boolean rotate_flag = false;
+    // Alpha use for estimating the velocity
+    private double v_alpha = 0.5;
+    private  float[] v_hat_previous =  new float[3]; // V_k-1
+    private  float[] w_hat_previous =  new float[3]; // W_k-1
+    private int linear_counter = 0;
+    private int angular_counter = 0;
 
+    private Sensor accelerometer, gyroscope;
+    private HandlerThread sensorThread;
+    private Handler sensorHandler;
+
+    private long lastTimestamp = 0;
     static List<AiItemsViewModel> mList = new ArrayList<>();
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
     // on onTracking is called. Needed for DynamicBitmapSource
@@ -116,7 +139,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public static List<AiItemsViewModel> serverList = new ArrayList<>();
 
     // Test for KalmanFilter
-    private KalmanFilter kalmanfilter;
+    public KalmanFilter ekf = new KalmanFilter();
+    public boolean kalman_trigger_flag = false;
 
     public static int MAX_SERVER_AITASK_NUMS = 1;
 
@@ -523,6 +547,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
+
 
 
 
@@ -1124,19 +1151,36 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         String FILEPATH_Model_Data = currentFolder + File.separator + "ModelData" + fileseries + ".csv";
 
 
-        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, false))) {
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH_Model_Data, false))) {
 
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("acceleration");
+            sbb.append("linear_x");
             sbb.append(',');
-            sbb.append("angularVelocity");
-//            sbb.append("sensitivity");
+            sbb.append("linear_y");
             sbb.append(',');
-            sbb.append("position");
+            sbb.append("linear_z");
             sbb.append(',');
-            sbb.append("rotation");
+            sbb.append("rotation_x");
+            sbb.append(',');
+            sbb.append("rotation_y");
+            sbb.append(',');
+            sbb.append("rotation_z");
+            sbb.append(',');
+            sbb.append("rotation_q1");
+            sbb.append(',');
+            sbb.append("rotation_q2");
+            sbb.append(',');
+            sbb.append("rotation_q3");
+            sbb.append(',');
+            sbb.append("rotation_q4");
+            sbb.append(',');
+            sbb.append("camera_x");
+            sbb.append(',');
+            sbb.append("camera_y");
+            sbb.append(',');
+            sbb.append("camera_z");
             sbb.append(',');
             sbb.append("visible_triangle");
             sbb.append('\n');
@@ -1144,6 +1188,69 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         } catch (FileNotFoundException e) {
             System.out.println(e.getMessage());
         }
+        // Write FOV
+        String TAG = "CameraFOV";
+        CameraManager cameraManager = (CameraManager)getSystemService(CAMERA_SERVICE);
+        float horizontalFov = 0;
+        float verticalFov = 0;
+        float focalLength = 0;
+        float sensorWidth =0;
+        float sensorHigh = 0;
+
+        try {
+            String[] cameraIdList = cameraManager.getCameraIdList();
+            for (int i = 0; i < cameraIdList.length; i++) {
+                Log.v(TAG, "valid camera id: " + cameraIdList[i]);
+                CameraCharacteristics cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraIdList[i]);
+                // Judge which index is the rear camera
+                int lensFacing = cameraCharacteristics.get(CameraCharacteristics.LENS_FACING);
+                if(lensFacing == CameraCharacteristics.LENS_FACING_BACK){
+                    // Get sensor size
+                    SizeF sensorSize = cameraCharacteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
+                    float[] floats = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+                    Log.d(TAG, "focal Lengths: " + Arrays.toString(floats));
+                    focalLength = cameraCharacteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)[0];
+                    horizontalFov = (float) (2 * Math.toDegrees(Math.atan(sensorSize.getWidth() / (2 * focalLength))));
+                    verticalFov = (float) (2 * Math.toDegrees(Math.atan(sensorSize.getHeight() / (2 * focalLength))));
+                    sensorWidth = sensorSize.getWidth();
+                    sensorHigh = sensorSize.getHeight();
+                    Log.d(TAG, "horizontalFov: " + horizontalFov + ", verticalFov: " + verticalFov);
+                    break;
+                }
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        String FILEPATH_FOV_Data = currentFolder + File.separator + "fovData" + fileseries + ".csv";
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH_FOV_Data, false))) {
+            StringBuilder sbb = new StringBuilder();
+            sbb.append("horizontalFov");
+            sbb.append(',');
+            sbb.append("verticalFov");
+            sbb.append(',');
+            sbb.append("sensorWidth");
+            sbb.append(',');
+            sbb.append("sensorHigh");
+            sbb.append(',');
+            sbb.append("focal Lengths");
+            sbb.append('\n');
+            writer.write(sbb.toString());
+            StringBuilder fov_data = new StringBuilder();
+            fov_data.append(Float.toString(horizontalFov));
+            fov_data.append(',');
+            fov_data.append(Float.toString(verticalFov));
+            fov_data.append(',');
+            fov_data.append(Float.toString(sensorWidth));
+            fov_data.append(',');
+            fov_data.append(Float.toString(sensorHigh));
+            fov_data.append(',');
+            fov_data.append(Float.toString(focalLength));
+            fov_data.append('\n');
+            writer.write(fov_data.toString());
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        }
+
 
         try {// te recieve the AI offline analysis on respone time
 
@@ -2790,38 +2897,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         });
 
 
-        // Initialize Kalman filter
-//        kalmanfilter = new KalmanFilter(this);
-//        TextView posPredict = findViewById(R.id.predict_triangle);
-//        Runnable predictionTask = new Runnable() {
-//            @Override
-//            public void run() {
-//
-//                // 预测三角形数量
-//                double predictTris = countVisibleTris(kalmanfilter.getPredictedViewMatrix());
-//                double maxTris = 0;
-//                for(int i = 0; i < objectCount; i++){
-//                    Vector3 worldPosition = renderArray.get(i).baseAnchor.getWorldPosition();
-//                    if(isObjectVisible(worldPosition)){
-//                        maxTris += o_tris.get(i);
-//                    }
-//                }
-//                kalmanfilter.setActualTris(maxTris);
-//
-//                // 更新 UI
-//                runOnUiThread(() -> {
-//                    posPredict.setText("Pre_tris: " + predictTris);
-//                });
-//
-//                Log.d("predict_msg", "Actual Tris: "+ maxTris + "  Predict Tris: " + predictTris);
-//
-//                // 100 毫秒后再次执行（可根据需要调整频率）
-//                handler.postDelayed(this, 100);
-//            }
-//        };
 
-// 启动定时预测任务
-//        handler.post(predictionTask);
 
 
 
@@ -2874,9 +2950,47 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 },
                 0,      // run first occurrence immediately
                 2000);
+        sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+
+        sensorThread = new HandlerThread("SensorThread", android.os.Process.THREAD_PRIORITY_BACKGROUND);
+        sensorThread.start();
+
+        sensorHandler = new Handler(sensorThread.getLooper());
+
+
+        sensorHandler.post(() -> {
+            sensorManager.registerListener(MainActivity.this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
+            sensorManager.registerListener(MainActivity.this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
+        });
 
 
     } // end On create.
+
+    public void writeDataForMeasure(double[] predictPosition, double[] realPosition, float[] linear, float[] rotate){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String currentFolder =getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "ModelData"+fileseries+".csv";
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(dateFormat.format(new Date()));
+            sb.append(',');
+            sb.append(Arrays.toString(predictPosition).replaceAll("[\\[\\] ]", ""));
+            sb.append(',');
+            sb.append(Arrays.toString(realPosition).replaceAll("[\\[\\] ]", ""));
+            sb.append(',');
+            sb.append(Arrays.toString(linear).replaceAll("[\\[\\] ]", ""));
+            sb.append(',');
+            sb.append(Arrays.toString(rotate).replaceAll("[\\[\\] ]", ""));
+            sb.append('\n');
+            writer.write(sb.toString());
+
+        }catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+        }
+
+    }
 
     double getThroughput() {
         Log.d("size", String.valueOf(mList.size()));
@@ -5111,6 +5225,86 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             buttonPopAiTask.setVisibility(View.VISIBLE);
             textNumOfAiTasks.setVisibility(View.VISIBLE);
         }
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        Log.d("sensorData","changed!");
+
+        float dt = (event.timestamp - lastTimestamp) * 1e-9f;
+        if (event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
+            for(int i = 0; i < 3;i++) {
+                linear_velocity[i] += event.values[i] * dt;
+            }
+            if(linear_counter == 0){
+                v_hat_previous = linear_velocity;
+            }
+            linear_counter++;
+            linear_flag = true;
+        }else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
+            for(int i = 0; i < 3;i++) {
+                rotate_velocity[i] = event.values[i] ;
+            }
+            rotate_flag = true;
+        }
+        lastTimestamp = event.timestamp;
+
+//
+//        Frame frame = getFragment().getArSceneView().getArFrame();
+//        if(frame == null) return;
+//        Pose pose = frame.getCamera().getPose();
+//
+//        if(kalman_trigger_flag) {
+//
+//            ekf.predict(0.016, floatToDoubleArray(rotate_velocity), floatToDoubleArray(linear_velocity));
+//            double[] measuredPose = {pose.tx(), pose.ty(), pose.tz(), pose.qw(), pose.qx(), pose.qy(), pose.qz()};
+//            double[] mP = {pose.tx(), pose.ty(), pose.tz()};
+//            double[] predictedPosition = ekf.getPosition();
+//
+//            new Thread(() -> {
+//                writeDataForMeasure(predictedPosition, mP,linear_velocity, rotate_velocity);
+//            }).start();
+//
+//
+//            ekf.update(measuredPose);
+//
+//            float[] viewMatrix = doubleToFloatArray(ekf.getViewMatrix());
+//            double predictTris = countVisibleTris(viewMatrix);
+//            TextView posPreTris = findViewById(R.id.predict_triangle);
+//
+//            posPreTris.setText("preTris: " + predictTris);
+//
+////           writeDataForMeasure(ekf.getPosition(),measuredPose);
+//
+//
+//        }else{
+//           kalman_trigger_flag = true;
+//            double[] measurement = new double[]{pose.tx(), pose.ty(), pose.tz(), pose.qw(), pose.qx(), pose.qy(), pose.qz()};
+//           ekf.setInitialStates(measurement);
+//        }
+    }
+
+    public static double[] floatToDoubleArray(float[] floatArray) {
+        if (floatArray == null) return null;
+        double[] doubleArray = new double[floatArray.length];
+        for (int i = 0; i < floatArray.length; i++) {
+            doubleArray[i] = floatArray[i]; // 自动类型转换
+        }
+        return doubleArray;
+    }
+
+    public static float[] doubleToFloatArray(double[] doubleArray) {
+        if (doubleArray == null) return null;
+        float[] floatArray = new float[doubleArray.length];
+        for (int i = 0; i < doubleArray.length; i++) {
+            floatArray[i] = (float) doubleArray[i];
+        }
+        return floatArray;
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int i) {
+
     }
 
     ;

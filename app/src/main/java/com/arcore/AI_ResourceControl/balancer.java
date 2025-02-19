@@ -39,6 +39,7 @@ import java.util.logging.Handler;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.abs;
+import static java.lang.Math.floorMod;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.nextDown;
@@ -51,8 +52,13 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
+import android.opengl.Matrix;
 import android.os.Looper;
 import android.util.Log;
+import android.util.SizeF;
 import android.widget.TextView;
 
 import com.google.ar.core.Frame;
@@ -63,6 +69,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 
 import org.checkerframework.checker.index.qual.LengthOf;
+import org.w3c.dom.Text;
 
 
 public class balancer implements Runnable, SensorEventListener {
@@ -134,13 +141,9 @@ public class balancer implements Runnable, SensorEventListener {
         posText_thr= mInstance.findViewById(R.id.app_thr);
         // posText_mir= mInstance.findViewById(R.id.app_bt);
         posText_app_hbo  = mInstance. findViewById(R.id.app_bt);
-        posLinear = mInstance.findViewById(R.id.linear_speed);
-        posRotate = mInstance.findViewById(R.id.rotate_speed);
         posVisibleTris = mInstance.findViewById(R.id.max_triangle);
 
-        sensorManager = (SensorManager) mInstance.getSystemService(mInstance.SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
+
     }
 
     @SuppressLint("SuspiciousIndentation")
@@ -170,8 +173,6 @@ public class balancer implements Runnable, SensorEventListener {
 
         double period_init_tris = mInstance.total_tris;// this is the starting triangle count
 
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_FASTEST);
 
 
         for (int i = 0; i < mInstance.objectCount; i++) {
@@ -347,7 +348,7 @@ public class balancer implements Runnable, SensorEventListener {
 
 
         writequality();
-        sensorManager.unregisterListener(this);
+
 
     }
 
@@ -1385,9 +1386,9 @@ public class balancer implements Runnable, SensorEventListener {
             sb.append(',');
             sb.append(Arrays.toString(rotate_velocity).replaceAll("[\\[\\] ]", "")); // Rotate velocity
             sb.append(',');
-            sb.append(Arrays.toString(camera_position).replaceAll("[\\[\\] ]", "")); // Camera position
-            sb.append(',');
             sb.append(Arrays.toString(rotation).replaceAll("[\\[\\] ]", ""));       // Rotation (quaternion)
+            sb.append(',');
+            sb.append(Arrays.toString(camera_position).replaceAll("[\\[\\] ]", "")); // Camera position
             sb.append(",");
             double max_tris = posVisibleTriangle();
             sb.append(max_tris);
@@ -1399,6 +1400,8 @@ public class balancer implements Runnable, SensorEventListener {
         }
 
     }
+
+
 
     public void writequality(){
 
@@ -1795,20 +1798,28 @@ public class balancer implements Runnable, SensorEventListener {
     }
 
 
+
+
     @Override
     public void onSensorChanged(SensorEvent event) {
         Log.d("sensorData","changed!");
+        float dt = (event.timestamp - lastTimestamp) * 1e-9f;
         if (event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
-            System.arraycopy(event.values, 0, linear_velocity, 0, 3);
+            for(int i = 0; i < 3;i++) {
+                linear_velocity[i] += event.values[i] * dt;
+            }
         }else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
-            System.arraycopy(event.values, 0, rotate_velocity, 0, 3);
+            for(int i = 0; i < 3;i++) {
+                rotate_velocity[i] = event.values[i] ;
+            }
         }
+        lastTimestamp = event.timestamp;
 
         Frame frame = mInstance.getFragment().getArSceneView().getArFrame();
         Pose pose = frame.getCamera().getPose();
-
         camera_position = new float[]{pose.tx(), pose.ty(), pose.tz()};
         System.arraycopy(pose.getRotationQuaternion(), 0, rotation, 0, 4);
+
         writeDataForModel();
     }
 
@@ -1826,6 +1837,9 @@ public class balancer implements Runnable, SensorEventListener {
         }
         return maxTris;
     }
+
+
+
 }
 
 

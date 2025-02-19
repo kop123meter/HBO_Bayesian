@@ -86,14 +86,14 @@ public class DelegateRequestRunnable implements Runnable {
 
 // for using the local memory undo the comment
         Log.d("DelegateRequest", "Entering Runnable");
-        if(modelRequest.activityMain.Delgate_COUNTER == 0) {
+
             // That means we need to wait for user to move to far area
-            modelRequest.activityMain.Delgate_COUNTER = 1;
+
             CountDownLatch latch = new CountDownLatch(1);
             modelRequest.activityMain.runOnUiThread(() -> {
                 AlertDialog.Builder builder = new AlertDialog.Builder(modelRequest.activityMain);
                 builder.setTitle("HBO message")
-                        .setMessage("HBO Started?")
+                        .setMessage("HBO Start?")
                         .setPositiveButton("OK", (dialog, which) -> {
                             modelRequest.activityMain.Delgate_COUNTER = 2;
                             latch.countDown();
@@ -110,7 +110,6 @@ public class DelegateRequestRunnable implements Runnable {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-        }
 
 
         try {
@@ -124,7 +123,7 @@ public class DelegateRequestRunnable implements Runnable {
                 modelRequest.activityMain.curBysIters=0;// reset it for the next runs of Bayesian
                 Log.d("DelegateRequest Msg", "Beginning Iters:     " + modelRequest.activityMain.curBysIters);
 
-                socket = new Socket("192.168.1.2", 2020);
+                socket = new Socket("192.168.10.191", 2020);
                 // Open output stream
                 out = new PrintWriter(socket.getOutputStream(), true);
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));

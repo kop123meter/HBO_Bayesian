@@ -42,7 +42,7 @@ class TwoClientsServer:
 
                 python_client = PythonClient(num_tasks=self.NUM_TASKS,
                                          max_iter=self.MAX_ITER,
-                                         host='192.168.1.2',
+                                         host='192.168.10.191',
                                          port=self.PORT,
                                          output_dir=self.output_dir,
                                          stop_event=self.stop_event)

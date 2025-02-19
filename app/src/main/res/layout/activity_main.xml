@@ -70,22 +70,18 @@
             android:layout_height="wrap_content"
             android:text="Pre_tris:"
             android:textColor="#BBDEFB" />
-
         <TextView
-            android:id="@+id/linear_speed"
+            android:id="@+id/linear_v"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="L_speed:"
+            android:text="L:"
             android:textColor="#BBDEFB" />
         <TextView
-            android:id="@+id/rotate_speed"
+            android:id="@+id/rotate_v"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="R_speed:"
+            android:text="Rv:"
             android:textColor="#BBDEFB" />
-
-
-
     </com.google.android.material.appbar.AppBarLayout>
 
     <!--    <include-->

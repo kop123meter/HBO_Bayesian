@@ -1,290 +1,250 @@
 package com.arcore.AI_ResourceControl;
 
-import android.content.Context;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
-import android.opengl.Matrix;
-import android.util.Log;
+import org.apache.commons.math3.linear.*;
 
-import com.google.ar.sceneform.math.Vector3;
-import com.google.common.base.Verify;
+public class KalmanFilter{
 
-public class KalmanFilter implements SensorEventListener{
-    private String TAG = "kalman filter";
-    private float[] state = new float[9];
-    private float[][] P = new float[9][9];
-    private float[][] F = new float[9][9];
-    private float[][] H = new float[9][9];
-    private float[][] Q = new float[9][9];
-    private float[][] R = new float[9][9];
-    private SensorManager sensorManager;
-    private Sensor accelerometer;
-    private Sensor gyroscope;
+    private RealVector state;
+    private RealMatrix P;
+    private RealMatrix Q;
+    private RealMatrix R;
+    private RealMatrix H;
 
-    private double actualTris;
-
-    private MainActivity context;
-
-    private double dt = 0.016;
-
-    public KalmanFilter(MainActivity context){
-        initialize();
-        this.context = context;
-        sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
-        gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
-        startSensorUpdates();
-
+    public KalmanFilter() {
+//        state = new ArrayRealVector(new double[]{0, 0, 0, 1, 0, 0, 0, 0, 0, 0}); // [px, py, pz, qw, qx, qy, qz, vx, vy, vz]
+        P = MatrixUtils.createRealIdentityMatrix(7).scalarMultiply(0.1);
+        Q = MatrixUtils.createRealIdentityMatrix(7).scalarMultiply(0.01);
+        R = MatrixUtils.createRealIdentityMatrix(7).scalarMultiply(0.1);
+        H = new Array2DRowRealMatrix(7, 7);
+        H.setSubMatrix(new double[][]{
+                {1, 0, 0, 0, 0, 0, 0},  // x
+                {0, 1, 0, 0, 0, 0, 0},  // y
+                {0, 0, 1, 0, 0, 0, 0},  // z
+                {0, 0, 0, 1, 0, 0, 0},  // qw
+                {0, 0, 0, 0, 1, 0, 0},  // qx
+                {0, 0, 0, 0, 0, 1, 0},   // qy
+                {0, 0, 0, 0, 0, 0, 1},   // qz
+        }, 0, 0);
     }
 
-    public void startSensorUpdates() {
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
-        sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
+    public void setInitialStates(double[] mesurements){
+        state = new ArrayRealVector(mesurements);
     }
 
-    public void stopSensorUpdates(){
-        sensorManager.unregisterListener(this);
-    }
 
-    public void initialize(){
-        for (int i = 0; i < 9; i++) {
-            F[i][i] = 1;
-            P[i][i] = 1;
-            Q[i][i] = 0.1f;
-            state[i] = 0;
-        }
-        for (int i = 0; i < 6; i++) {
-            R[i][i] = 0.5f;
-        }
+    public void predict(double dt, double[] angularVelocity, double[] linearVelocity) {
+        double[] pos = state.getSubVector(0, 3).toArray();
+        double[] quat = state.getSubVector(3, 4).toArray();
 
-        H[0][3] = 1; // vx
-        H[1][4] = 1; // vy
-        H[2][5] = 1; // vz
-        H[3][6] = 1; // θx
-        H[4][7] = 1; // θy
-        H[5][8] = 1; // θz
-    }
 
-    public void predict(float[] acceleration, float[] angularVelocity) {
-       // Flute sensor data
 
-        // 更新速度
-        state[3] += (float) (acceleration[0] * dt);
-        state[4] += (float) (acceleration[1] * dt);
-        state[5] += (float) (acceleration[2] * dt);
+        double[] omega = new double[]{
+                angularVelocity[0] * 0.5 * dt,
+                angularVelocity[1] * 0.5 * dt,
+                angularVelocity[2] * 0.5 * dt
+        };
+        double qw = quat[0] - omega[0] * quat[1] - omega[1] * quat[2] - omega[2] * quat[3];
+        double qx = quat[1] + omega[0] * quat[0] + omega[2] * quat[2] - omega[1] * quat[3];
+        double qy = quat[2] + omega[1] * quat[0] - omega[2] * quat[1] + omega[0] * quat[3];
+        double qz = quat[3] + omega[2] * quat[0] + omega[1] * quat[1] - omega[0] * quat[2];
+        quat = new double[]{qw, qx, qy, qz};
 
-        // 更新位置
-        state[0] += (float) (state[3] * dt);
-        state[1] += (float) (state[4] * dt);
-        state[2] += (float) (state[5] * dt);
 
-        // 更新旋转角度（角速度积分）
-        state[6] += (float) (angularVelocity[0] * dt); // θx
-        state[7] += (float) (angularVelocity[1] * dt); // θy
-        state[8] += (float) (angularVelocity[2] * dt); // θz
+        // Transfer to world speed
+        double[][] rotation_matrix = quaternionToRotationMatrix(quat);
+        double[] vel = applyRotation(rotation_matrix,linearVelocity);
 
-        P = matrixAdd(matrixMultiply(F, matrixMultiply(P, transpose(F))), Q);
-    }
-
-    public void update(float[] measurement) {
-        float[][] Ht = transpose(H);
-        float[][] S = matrixAdd(matrixMultiply(H, matrixMultiply(P, Ht)), R);
-        float[][] K = matrixMultiply(P, matrixMultiply(Ht, inverse(S))); // Kalman
-
-        float[] predictedTris = matrixMultiply(H, state);
-        float[] y = matrixSubtract(measurement, predictedTris); // Measure residence
-
-        // Get actual tris
-        y[0] += (float) (actualTris - predictedTris[0]);
-
-        state = matrixAdd(state, matrixMultiply(K, y));                   // update status
-
-        float[][] I = identityMatrix(9);
-        P = matrixMultiply(matrixSubtract(I, matrixMultiply(K, H)), P);   // update matrix P
-    }
-
-    public float[] getPredictedViewMatrix() {
-        float[] viewMatrix = new float[16];
-        Matrix.setIdentityM(viewMatrix, 0);
-
-        Matrix.rotateM(viewMatrix, 0, (float) Math.toDegrees(state[8]), 0, 0, 1);
-        Matrix.rotateM(viewMatrix, 0, (float) Math.toDegrees(state[7]), 0, 1, 0);
-        Matrix.rotateM(viewMatrix, 0, (float) Math.toDegrees(state[6]), 1, 0, 0);
-
-        Matrix.translateM(viewMatrix, 0, -state[0], -state[1], -state[2]);
-
-        return viewMatrix;
-    }
-
-    private double[] matrixAdd(double[] a, double[] b) {
-        double[] result = new double[a.length];
-        for (int i = 0; i < a.length; i++) {
-            result[i] = a[i] + b[i];
-        }
-        return result;
-    }
-
-    private double[] matrixSubtract(double[] a, double[] b) {
-        double[] result = new double[a.length];
-        for (int i = 0; i < a.length; i++) {
-            result[i] = a[i] - b[i];
-        }
-        return result;
-    }
-
-    @Override
-    public void onSensorChanged(SensorEvent event) {
-        float[] acceleration = new float[3];
-        float[] angularVelocity = new float[3];
-
-        if (event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
-            System.arraycopy(event.values, 0, acceleration, 0, 3);
-        } else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
-            System.arraycopy(event.values, 0, angularVelocity, 0, 3);
+        for (int i = 0; i < 3; i++) {
+            pos[i] += vel[i] * dt;
         }
 
-        predict(acceleration, angularVelocity);
 
-        float[] measurement = new float[]{acceleration[0], acceleration[1], acceleration[2], angularVelocity[0], angularVelocity[1], angularVelocity[2]};
-        update(measurement);
 
-        float[] predictedViewMatrix = getPredictedViewMatrix();
-        Log.d(TAG, "Predicted Position: x = " + state[0] + ", y = " + state[1] + ", z = " + state[2]);
-        Log.d(TAG, "Direction (theta): " + state[6] + ", " + state[7] + ", " + state[8]);
+//        double norm = Math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz);
+//        for (int i = 0; i < 4; i++) {
+//            quat[i] /= norm;
+//        }
 
+        // update states
+        state.setSubVector(0, new ArrayRealVector(pos));
+        state.setSubVector(3, new ArrayRealVector(quat));
+
+
+        // update covariance  matrix
+        RealMatrix F = MatrixUtils.createRealIdentityMatrix(7);
+
+//        RealMatrix dPos_dQuat = computePositionJacobian(state.getSubVector(3, 4).toArray(), dt);
+//        F.setSubMatrix(dPos_dQuat.getData(), 0, 3);
+//        RealMatrix dQuat_dOmega = computeQuaternionJacobian(state.getSubVector(3, 4).toArray(), angularVelocity, dt);
+//        F.setSubMatrix(dQuat_dOmega.getData(), 3, 3);
+
+
+        P = F.multiply(P).multiply(F.transpose()).add(Q);
     }
 
-    @Override
-    public void onAccuracyChanged(Sensor sensor, int i) {
 
-    }
-    private float[][] matrixAdd(float[][] A, float[][] B) {
-        int rows = A.length, cols = A[0].length;
-        float[][] result = new float[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                result[i][j] = A[i][j] + B[i][j];
-            }
+    public void update(double[] measurement) {
+        RealVector z = new ArrayRealVector(measurement);  // Measured value
+        RealVector y = z.subtract(H.operate(state));  // Compute covariance
+
+        RealMatrix S = H.multiply(P).multiply(H.transpose()).add(R);
+
+        double innovationNorm = S.getNorm();
+        double threshold = 5;
+
+        if (innovationNorm > threshold) {
+            Q = Q.scalarMultiply(1.2);
+            R = R.scalarMultiply(0.9);
+        } else {
+            Q = Q.scalarMultiply(0.9);
+            R = R.scalarMultiply(1.1);
         }
-        return result;
+        RealMatrix K = P.multiply(H.transpose()).multiply(new LUDecomposition(S).getSolver().getInverse());
+
+        state = state.add(K.operate(y));  // update state
+        P = MatrixUtils.createRealIdentityMatrix(7).subtract(K.multiply(H)).multiply(P);
+    }
+    public double[] getPosition(){
+        return state.getSubVector(0, 3).toArray();
     }
 
-    private float[] matrixAdd(float[] A, float[] B) {
-        float[] result = new float[A.length];
-        for (int i = 0; i < A.length; i++) {
-            result[i] = A[i] + B[i];
-        }
-        return result;
-    }
-    private float[][] matrixSubtract(float[][] A, float[][] B) {
-        int rows = A.length, cols = A[0].length;
-        float[][] result = new float[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                result[i][j] = A[i][j] - B[i][j];
-            }
-        }
-        return result;
-    }
 
-    private float[] matrixSubtract(float[] A, float[] B) {
-        float[] result = new float[A.length];
-        for (int i = 0; i < A.length; i++) {
-            result[i] = A[i] - B[i];
-        }
-        return result;
-    }
+    public double[] getViewMatrix() {
+        double[] pos = state.getSubVector(0, 3).toArray();
+        double[] quat = state.getSubVector(3, 4).toArray();
 
-    private float[][] matrixMultiply(float[][] A, float[][] B) {
-        int rows = A.length, cols = B[0].length, common = B.length;
-        float[][] result = new float[rows][cols];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                for (int k = 0; k < common; k++) {
-                    result[i][j] += A[i][k] * B[k][j];
-                }
-            }
-        }
-        return result;
+        double[][] viewMatrix = new double[4][4];
+        double qw = quat[0], qx = quat[1], qy = quat[2], qz = quat[3];
+
+        viewMatrix[0][0] = 1 - 2 * (qy * qy + qz * qz);
+        viewMatrix[0][1] = 2 * (qx * qy - qw * qz);
+        viewMatrix[0][2] = 2 * (qx * qz + qw * qy);
+        viewMatrix[0][3] = -pos[0];
+
+        viewMatrix[1][0] = 2 * (qx * qy + qw * qz);
+        viewMatrix[1][1] = 1 - 2 * (qx * qx + qz * qz);
+        viewMatrix[1][2] = 2 * (qy * qz - qw * qx);
+        viewMatrix[1][3] = -pos[1];
+
+        viewMatrix[2][0] = 2 * (qx * qz - qw * qy);
+        viewMatrix[2][1] = 2 * (qy * qz + qw * qx);
+        viewMatrix[2][2] = 1 - 2 * (qx * qx + qy * qy);
+        viewMatrix[2][3] = -pos[2];
+
+        viewMatrix[3][3] = 1;
+
+        return new double[]{
+                viewMatrix[0][0], viewMatrix[0][1], viewMatrix[0][2], viewMatrix[0][3],
+                viewMatrix[1][0], viewMatrix[1][1], viewMatrix[1][2], viewMatrix[1][3],
+                viewMatrix[2][0], viewMatrix[2][1], viewMatrix[2][2], viewMatrix[2][3],
+                0, 0, 0, 1
+        };
     }
 
-    private float[] matrixMultiply(float[][] A, float[] B) {
-        float[] result = new float[A.length];
-        for (int i = 0; i < A.length; i++) {
-            for (int j = 0; j < B.length; j++) {
-                result[i] += A[i][j] * B[j];
-            }
-        }
-        return result;
+    public static double[][] quaternionToRotationMatrix(double[] q) {
+        double qw = q[0], qx = q[1], qy = q[2], qz = q[3];
+
+        double[][] R = new double[3][3];
+
+        R[0][0] = 1 - 2 * (qy * qy + qz * qz);
+        R[0][1] = 2 * (qx * qy - qw * qz);
+        R[0][2] = 2 * (qx * qz + qw * qy);
+
+        R[1][0] = 2 * (qx * qy + qw * qz);
+        R[1][1] = 1 - 2 * (qx * qx + qz * qz);
+        R[1][2] = 2 * (qy * qz - qw * qx);
+
+        R[2][0] = 2 * (qx * qz - qw * qy);
+        R[2][1] = 2 * (qy * qz + qw * qx);
+        R[2][2] = 1 - 2 * (qx * qx + qy * qy);
+
+        return R;
     }
 
-    private float[][] transpose(float[][] A) {
-        int rows = A.length, cols = A[0].length;
-        float[][] result = new float[cols][rows];
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                result[j][i] = A[i][j];
-            }
-        }
-        return result;
-    }
+    public static double[] applyRotation(double[][] R, double[] localVelocity) {
+        double[] worldVelocity = new double[3];
 
-    private float[][] inverse(float[][] A) {
-        int n = A.length;
-        float[][] I = identityMatrix(n);
-        float[][] augmented = new float[n][2 * n];
-
-        // Augment the matrix with the identity matrix
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                augmented[i][j] = A[i][j];
-                augmented[i][j + n] = I[i][j];
-            }
-        }
-
-        // Gauss-Jordan elimination
-        for (int i = 0; i < n; i++) {
-            float diagElement = augmented[i][i];
-            if (Math.abs(diagElement) < 1e-6) {
-                Log.e(TAG, "Matrix inversion failed: singular matrix detected.");
-                return identityMatrix(n);
-            }
-            for (int j = 0; j < 2 * n; j++) {
-                augmented[i][j] /= diagElement;
-            }
-            for (int k = 0; k < n; k++) {
-                if (k != i) {
-                    float factor = augmented[k][i];
-                    for (int j = 0; j < 2 * n; j++) {
-                        augmented[k][j] -= factor * augmented[i][j];
-                    }
-                }
-            }
+        for (int i = 0; i < 3; i++) {
+            worldVelocity[i] = R[i][0] * localVelocity[0] +
+                    R[i][1] * localVelocity[1] +
+                    R[i][2] * localVelocity[2];
         }
 
-        // Extract the inverse matrix
-        float[][] inverse = new float[n][n];
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                inverse[i][j] = augmented[i][j + n];
-            }
-        }
-        return inverse;
+        return worldVelocity;
     }
 
-    private float[][] identityMatrix(int size) {
-        float[][] I = new float[size][size];
-        for (int i = 0; i < size; i++) {
-            I[i][i] = 1.0f;
-        }
-        return I;
+
+    public RealMatrix computeQuaternionJacobian(double[] quat, double[] angularVelocity, double dt) {
+        double wx = angularVelocity[0];
+        double wy = angularVelocity[1];
+        double wz = angularVelocity[2];
+
+        // 构建 Omega(ω) 矩阵
+        double[][] omega = {
+                {0, -wx, -wy, -wz},
+                {wx, 0, wz, -wy},
+                {wy, -wz, 0, wx},
+                {wz, wy, -wx, 0}
+        };
+
+        RealMatrix omegaMatrix = new Array2DRowRealMatrix(omega);
+
+
+        RealMatrix identity = MatrixUtils.createRealIdentityMatrix(4);
+        RealMatrix jacobian = identity.add(omegaMatrix.scalarMultiply(0.5 * dt));
+
+        return jacobian;
     }
 
-    public void setActualTris(double tris){
-        actualTris = tris;
+
+
+    public RealMatrix computePositionJacobian(double[] quat, double dt) {
+        double qw = quat[0], qx = quat[1], qy = quat[2], qz = quat[3];
+
+        // Define the partial derivatives of the rotation matrix w.r.t quaternion elements
+        double[][] dR_dqw = {
+                { 0, -2*qz,  2*qy},
+                { 2*qz,  0, -2*qx},
+                {-2*qy,  2*qx,  0}
+        };
+        double[][] dR_dqx = {
+                { 0,  2*qy,  2*qz},
+                { 2*qy, -4*qx, -2*qw},
+                { 2*qz,  2*qw, -4*qx}
+        };
+        double[][] dR_dqy = {
+                {-4*qy,  2*qx,  2*qw},
+                { 2*qx,  0,  2*qz},
+                {-2*qw,  2*qz, -4*qy}
+        };
+        double[][] dR_dqz = {
+                {-4*qz, -2*qw,  2*qx},
+                { 2*qw, -4*qz,  2*qy},
+                { 2*qx,  2*qy,  0}
+        };
+
+        // Convert to RealMatrix
+        RealMatrix dR_dqw_Matrix = new Array2DRowRealMatrix(dR_dqw);
+        RealMatrix dR_dqx_Matrix = new Array2DRowRealMatrix(dR_dqx);
+        RealMatrix dR_dqy_Matrix = new Array2DRowRealMatrix(dR_dqy);
+        RealMatrix dR_dqz_Matrix = new Array2DRowRealMatrix(dR_dqz);
+
+        // Local velocity in the body frame (assuming it is known)
+        double[] velocity = {1, 1, 1}; // Replace with actual velocity
+        RealMatrix vMatrix = new Array2DRowRealMatrix(velocity);
+
+        // Compute Jacobian matrix: J = [dR/dqw * v, dR/dqx * v, dR/dqy * v, dR/dqz * v]
+        RealMatrix J = new Array2DRowRealMatrix(3, 4);
+        J.setColumnVector(0, dR_dqw_Matrix.multiply(vMatrix).getColumnVector(0).mapMultiply(dt));
+        J.setColumnVector(1, dR_dqx_Matrix.multiply(vMatrix).getColumnVector(0).mapMultiply(dt));
+        J.setColumnVector(2, dR_dqy_Matrix.multiply(vMatrix).getColumnVector(0).mapMultiply(dt));
+        J.setColumnVector(3, dR_dqz_Matrix.multiply(vMatrix).getColumnVector(0).mapMultiply(dt));
+
+        return J;
     }
+
+
+
 
 
 
