@@ -115,22 +115,28 @@ bes
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener, SensorEventListener {
     private SensorManager sensorManager;
-    float[] linear_velocity = new float[3];
-    float[] rotate_velocity = new float[3];
+    float[] linear_velocity = {0, 0, 0};
+    float[] rotate_velocity = {0, 0, 0};
     boolean linear_flag = false;
     boolean rotate_flag = false;
     // Alpha use for estimating the velocity
-    private double v_alpha = 0.5;
-    private  float[] v_hat_previous =  new float[3]; // V_k-1
-    private  float[] w_hat_previous =  new float[3]; // W_k-1
-    private int linear_counter = 0;
-    private int angular_counter = 0;
-
+    public int linear_counter = 0;
+    public int angular_counter = 0;
+    public int predict_counter = 0;
+    public float predictAlpha = 0.5F;
+    public   double[] v_hat =  new double[3]; // V_k-1
+    public  double[] w_hat =  new double[3]; // W_k-1
+    public double[] pos = new double[3];
+    public double[] quat = new double[4];
+    public double[] lastQuat;
+    public float[] lastPosition;
+    public double lastVY = 0;
     private Sensor accelerometer, gyroscope;
     private HandlerThread sensorThread;
     private Handler sensorHandler;
 
     private long lastTimestamp = 0;
+    public long lastPredictionTime = 0;
     static List<AiItemsViewModel> mList = new ArrayList<>();
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
     // on onTracking is called. Needed for DynamicBitmapSource
@@ -1156,33 +1162,33 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             StringBuilder sbb = new StringBuilder();
             sbb.append("time");
             sbb.append(',');
-            sbb.append("linear_x");
+            sbb.append("p_qw");
             sbb.append(',');
-            sbb.append("linear_y");
+            sbb.append("p_qx");
             sbb.append(',');
-            sbb.append("linear_z");
+            sbb.append("p_qy");
             sbb.append(',');
-            sbb.append("rotation_x");
+            sbb.append("p_qz");
             sbb.append(',');
-            sbb.append("rotation_y");
+            sbb.append("p_x");
             sbb.append(',');
-            sbb.append("rotation_z");
+            sbb.append("p_y");
             sbb.append(',');
-            sbb.append("rotation_q1");
+            sbb.append("p_z");
             sbb.append(',');
-            sbb.append("rotation_q2");
+            sbb.append("qw");
             sbb.append(',');
-            sbb.append("rotation_q3");
+            sbb.append("qx");
             sbb.append(',');
-            sbb.append("rotation_q4");
+            sbb.append("qy");
             sbb.append(',');
-            sbb.append("camera_x");
+            sbb.append("qz");
             sbb.append(',');
-            sbb.append("camera_y");
+            sbb.append("x");
             sbb.append(',');
-            sbb.append("camera_z");
+            sbb.append("y");
             sbb.append(',');
-            sbb.append("visible_triangle");
+            sbb.append("z");
             sbb.append('\n');
             writer.write(sbb.toString());
         } catch (FileNotFoundException e) {
@@ -2949,7 +2955,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
                 },
                 0,      // run first occurrence immediately
-                2000);
+                1000);
         sensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
         gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
@@ -2964,7 +2970,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             sensorManager.registerListener(MainActivity.this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
             sensorManager.registerListener(MainActivity.this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
         });
-
 
     } // end On create.
 
@@ -5236,15 +5241,13 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             for(int i = 0; i < 3;i++) {
                 linear_velocity[i] += event.values[i] * dt;
             }
-            if(linear_counter == 0){
-                v_hat_previous = linear_velocity;
-            }
-            linear_counter++;
+
             linear_flag = true;
         }else if (event.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
             for(int i = 0; i < 3;i++) {
                 rotate_velocity[i] = event.values[i] ;
             }
+
             rotate_flag = true;
         }
         lastTimestamp = event.timestamp;
