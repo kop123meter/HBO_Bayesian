@@ -453,29 +453,32 @@ public class balancer implements Runnable {
         qz /= norm;
         temp_quat = new double[]{qw, qx, qy, qz};
         double[][] rotation_matrix = quaternionToRotationMatrix(temp_quat);
+        Log.d("EMADebug", "Y-Axis: " + Arrays.toString(rotation_matrix[1]));
         double[] vel = applyRotation(rotation_matrix, mInstance.v_hat);
 
         // Compute next position for camera
         double[] predictPosition = new double[3];
         for (int i = 0; i < 3; i++) {
 //            currentPosition[i] += (float) (vel[i] * dt);
-            if(i==1){
-                if (Math.abs(vel[1]) < 0.1) {
-                    predictPosition[i] = currentPosition[i] + vel[i] * dt;
-                } else {
-                    double accel = (vel[1] - mInstance.lastVY) / dt;
-                    predictPosition[i] = currentPosition[i] + vel[1] * dt + 0.5 * accel * dt * dt;
-                }
-            }else {
+//            if(i==1){
+//                if (Math.abs(vel[1]) < 0.1) {
+//                    predictPosition[i] = currentPosition[i] + vel[i] * dt;
+//                } else {
+//                    double accel = (vel[1] - mInstance.lastVY) / dt;
+//                    predictPosition[i] = currentPosition[i] + vel[1] * dt + 0.5 * accel * dt * dt;
+//                }
+//            }else {
                 predictPosition[i] = currentPosition[i] + vel[i] * dt;
-            }
+            //}
         }
         mInstance.lastVY = vel[1];
         mInstance.pos = predictPosition;
         mInstance.quat = temp_quat;
         rotation = currentQuat;
         camera_position = currentPosition;
-
+        Log.d("EMADebug", "Actual Y: " + camera_position[1] +
+                ", Predicted Y: " + predictPosition[1] + ", lastVY: " + mInstance.lastVY);
+        Log.d("EMADebug", "Matrix Y: " + Arrays.toString(rotation_matrix[1]));
         writeDataForModel();
     }
 

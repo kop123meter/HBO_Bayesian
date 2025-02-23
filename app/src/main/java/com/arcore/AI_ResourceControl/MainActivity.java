@@ -123,7 +123,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public int linear_counter = 0;
     public int angular_counter = 0;
     public int predict_counter = 0;
-    public float predictAlpha = 0.5F;
+    public float predictAlpha = 0.3F;
     public   double[] v_hat =  new double[3]; // V_k-1
     public  double[] w_hat =  new double[3]; // W_k-1
     public double[] pos = new double[3];
