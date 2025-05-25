@@ -245,7 +245,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
     val tempAdd = serverAddress();
 
 
-    val serverIP = "192.168.1.2"  // IP address of the server
+    val serverIP = "192.168.1.6"  // IP address of the server
     val serverPort = 4545        // Port number of the server
     var retryCount = 3               // Number of times to retry sending the image
     var networkLatency: Long = 0     // Network latency in milliseconds

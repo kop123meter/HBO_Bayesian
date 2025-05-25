@@ -327,7 +327,7 @@ public class balancer implements Runnable {
         // I set offload_control_flag to execute offloading once since I need to collect the data to
         //Compare with original Design
         if (mInstance.hbo_is_done && mInstance.offload_execute && mInstance.offload_control_flag) {
-            Log.d("OFFLOAD_MSG", "Start Offloading");
+
             // This means we have done the one HBO
             // At this time, we need to run offload
             // To run offload, we need to get the kTh max latency
@@ -335,6 +335,7 @@ public class balancer implements Runnable {
             // And we don't want to run hbo when we offload our task
             // Set the trigger to false first
             int kTh_Task = mInstance.kthTask;
+            Log.d("OFFLOAD_MSG", "Start Offloading" + kTh_Task);
             //Log.d("OFFLOAD_MSG", "Current Kth Task   "+ kTh_Task);
             hbo_trigger = false;
             // Only proceed if we haven't processed all tasks

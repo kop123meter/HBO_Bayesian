@@ -155,7 +155,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     String experiment_time;
     int afterHbo_counter = 0;// counts steps after we run balancer after the end of hbo iteration
     int exploration_phase = 5;// initially 5 to explore 5 delegates on pyhon client
-    int iteration = 15;// num of iterations after exploration
+    int iteration = 50;// num of iterations after exploration
     int max_iteration = iteration + exploration_phase + 1;// was 15+ originally => last +1 is for applying the best reward
     List<Double> bysTratioLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
     List<Double> bysRewardsLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));//holds log of bayesian rewards for each iteration
