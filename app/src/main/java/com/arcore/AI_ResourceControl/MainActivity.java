@@ -126,7 +126,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public List<Double> avg_reponseT = new ArrayList<>();
     public double avg_reward = 0;// this is the bayesian average reward
 
-    String server_IP_address = "192.168.10.122";
+    String server_IP_address = "192.168.1.6";
     int server_PORT = 1909;
 
     // Using the following variable to track the position
@@ -150,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     int hbo_trigger_false_counter = 0; // counts the # we wait for any possible noise for B_T calculation
 
     int offload_trigger_counter = 0;
-    double reward_weight = 2.5; //was 0.02 before for non normalized vals
+    double reward_weight = 1.5; //was 0.02 before for non normalized vals
     double last_latencyInstanceN = 0;// keeps the latency of AI1 instance to check the noises in bayesian class
     String bayesian_delegate = "";
     int deleg_req = 0;

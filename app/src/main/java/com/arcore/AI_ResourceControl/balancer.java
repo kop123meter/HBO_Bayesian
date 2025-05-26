@@ -279,6 +279,10 @@ public class balancer implements Runnable {
 //        } catch (IOException e) {
 //            throw new RuntimeException(e);
 //        }
+        if(mInstance.deleg_req == 0){
+            ModelRequestManager.getInstance().add(new ModelRequest(mInstance.getApplicationContext(), mInstance, mInstance.deleg_req, "delegate"), false, false);
+            mInstance.deleg_req += 1;
+        }
 
 
         if(hbo_trigger) {
@@ -1524,6 +1528,8 @@ public class balancer implements Runnable {
 
         return idx;
     }
+
+
 
     public void writequality(){
 

@@ -235,7 +235,7 @@ import static java.lang.Math.min;
             ///test I'm working on this as of now
             // this is to apply 3 diff delegates to an AI task and each time
             // collect 5 period of AI inference data and at the end calculate the average and write it to
-            CountDownTimer sceneTimer = new CountDownTimer(30000, 3000){
+            CountDownTimer sceneTimer = new CountDownTimer(2000, 500){
 //                    (10000, 5000){
                     //oroginal was this (60000, 3000) {//is  better (50000, 5000) {
                 @Override
