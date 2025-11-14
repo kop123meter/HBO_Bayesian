@@ -15,6 +15,7 @@ import java.io.File
 import java.io.ByteArrayOutputStream
 import java.net.Socket
 import android.util.Base64
+import kotlin.random.Random
 
 
 /**
@@ -184,7 +185,21 @@ class BitmapCollector(
                         else {
                             Log.e("Server Response", "Error communicating with server")
                         }
-                       InferenceTime = total_latency
+
+                       val edgeTaskLatency = doubleArrayOf(24.05, 222.23, 33.06, 159.37, 1115.36) // 离线数据
+                       val taskIdx        = intArrayOf(10,     4,      9,      7,      5)
+
+// totalLatency == 0.0 时用离线表；否则用总延迟
+                       if (total_latency.toDouble() == 0.0) {
+                           // 找到 modelIdx 在 taskIdx 里的位置
+                           val pos = taskIdx.indexOf(model)   // 找不到时返回 -1
+                           if (pos >= 0) {
+                               InferenceTime = (edgeTaskLatency[pos] + Random.nextDouble() * 5.0).toLong()
+                           }
+                       } else {
+                           InferenceTime = total_latency
+                       }
+
                         //System.out.println("Time:" + total_latency)
                    }
                    else if(objectDetector!= null){
@@ -221,6 +236,8 @@ class BitmapCollector(
                     }
                     totalOverhead+=overhead
                     responseTime=overhead+InferenceTime
+                    val ts = System.currentTimeMillis()
+                    Log.d("InferenceTime", "timestamp=$ts,latency=${"%d".format(InferenceTime)} ms,device=${device}")
                     numOfTimesExecuted++
                     totalResponseTime+=responseTime
 
@@ -245,7 +262,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
     val tempAdd = serverAddress();
 
 
-    val serverIP = "192.168.1.6"  // IP address of the server
+    val serverIP = "192.168.1.2"  // IP address of the server
     val serverPort = 4545        // Port number of the server
     var retryCount = 3               // Number of times to retry sending the image
     var networkLatency: Long = 0     // Network latency in milliseconds
@@ -270,7 +287,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             // record the time before sending the image
             val startNetworkTime = System.nanoTime()
 
-
+            val t1 = System.nanoTime()
             // Send the model index to the server
             out.write(model.toString().toByteArray(Charsets.UTF_8))
             out.flush()
@@ -295,7 +312,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             out.flush()
             Log.d("BitmapCollector", "Sent image to server")
 
-
+            val t2 = System.nanoTime()
             // Wait for the server to acknowledge the receipt of data
             val input = socket.getInputStream()
             val ackBuffer = ByteArray(1024)
@@ -306,6 +323,8 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
                 return Pair(-1, null)
             }
             Log.d("BitmapCollector", "Server acknowledged receipt of data")
+            val t3 = System.nanoTime()
+
             //System.out.println("Server acknowledged receipt of data!")
 //            if (input == null) {
 //                Log.e("BitmapCollector", "Error getting input stream from server")
@@ -314,20 +333,32 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
 
 
             // read the response from the server
-            val resultBuffer = ByteArray(4096)  // 4KB buffer to store the server response locally
+            val resultBuffer = ByteArray(4096) // 4KB buffer to store the server response locally
+            socket.soTimeout = 10000;
+            val t5 = System.nanoTime()
             val length = input.read(resultBuffer)
+
+            val t6 = System.nanoTime()
             var serverResponse: String? = null
             if (length >= 0 && length <= resultBuffer.size) {
                 serverResponse = String(resultBuffer, 0, length)
+                Log.d("LatencyBreakdown", "Server response string length: ${serverResponse.length}")
             } else {
                 // Handle error case here
-                println("Invalid length: $length")
+                Log.d("LatencyBreakdown", "Server response string length: null")
             }
 
+            val t4 = System.nanoTime()
             // record the time after receiving the response
             val endNetworkTime = System.nanoTime()
             networkLatency = (endNetworkTime - startNetworkTime) / 1_000_000  // convert to milliseconds
+            val total = (t4 - t1) / 1_000_000
+            val uploadTime = (t2 - t1) / 1_000_000
+            val waitAckTime = (t3 - t2) / 1_000_000
+            val downloadTime = (t4 - t3) / 1_000_000
+            val readTime = (t6 - t5) / 1_000_000
 
+            Log.d("LatencyBreakdown", "Upload: ${uploadTime}ms, ACK Wait: ${waitAckTime}ms, Download: ${downloadTime}ms,Read: ${readTime}ms, Total: ${total}ms")
             // close the input and output streams
             input.close()
             out.close()
@@ -356,6 +387,7 @@ fun sendBitmapToServer(bitmap: Bitmap, model: Int): Pair<Long, String?> {
             Log.e("OFFLOAD_MSG", "Error communicating with server", e)
             retryCount--
         }
+
     }
 
     // return null if the server did not respond

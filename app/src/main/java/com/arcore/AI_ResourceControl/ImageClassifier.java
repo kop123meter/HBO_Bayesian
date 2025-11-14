@@ -294,6 +294,8 @@ void classifyFrame(Bitmap bitmap, SpannableStringBuilder builder) {
     if (tflite != null) {
       tflite.close();
       tflite = new Interpreter(tfliteModel, tfliteOptions);
+    }else{
+      tflite = new Interpreter(tfliteModel, tfliteOptions);
     }
   }
 
@@ -324,8 +326,12 @@ void classifyFrame(Bitmap bitmap, SpannableStringBuilder builder) {
   }
   /** Run AI model on Sever */
   public void useRemote(){
+    if (tflite != null) {
+      tflite.close();  // 正确释放本地资源
+      tflite = null;
+    }
     device = "SERVER";
-    recreateInterpreter();
+//    recreateInterpreter();
   }
   public void setNumThreads(int numThreads) {
     tfliteOptions.setNumThreads(numThreads);

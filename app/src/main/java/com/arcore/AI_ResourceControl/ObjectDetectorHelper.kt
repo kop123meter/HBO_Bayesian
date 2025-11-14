@@ -67,6 +67,8 @@ class ObjectDetectorHelper(
 
         else if(currentDelegate==2)
             return "NNAPI"
+        else if(currentDelegate==3)
+            return "SERVER"
 
         return "CPU"
     }

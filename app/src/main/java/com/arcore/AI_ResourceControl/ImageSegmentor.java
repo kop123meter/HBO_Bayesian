@@ -171,7 +171,9 @@ public abstract class ImageSegmentor {
      if (tflite != null) {
       tflite.close();
       tflite = new Interpreter(tfliteModel, tfliteOptions);
-    }
+    }else{
+       tflite = new Interpreter(tfliteModel, tfliteOptions);
+     }
   }
 
   public void useGpu() {
@@ -199,9 +201,12 @@ public abstract class ImageSegmentor {
   }
 
   public void useRemote(){
-
+    if (tflite != null) {
+      tflite.close();  // 正确释放本地资源
+      tflite = null;
+    }
     device = "SERVER";
-    recreateInterpreter();
+//    recreateInterpreter();
   }
 
 

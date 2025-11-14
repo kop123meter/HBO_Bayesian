@@ -49,7 +49,10 @@ import static java.lang.Math.min;
  import android.util.Log;
  import android.widget.TextView;
 
+ import org.checkerframework.checker.index.qual.LengthOf;
+
  public class bayesian implements Runnable {
+     long overHead = 0;
      double avgLatency=0;// this is for the baseline average latency
     private final MainActivity mInstance;
      double meanRt = 0;
@@ -438,6 +441,11 @@ import static java.lang.Math.min;
 
 
     public void apply_delegate_tris(double []selected_combinations1) {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+           long start_point = System.currentTimeMillis();
+        mInstance.begin_action_timeStamp = System.currentTimeMillis();
+
+//        Log.d("PeriodFlag", "Start remaing part: " + dateFormat.format(new Date()));
 
            mInstance.avg_AIperK.clear();// restart data collection
            mInstance.last_latencyInstanceN =0;
@@ -617,18 +625,24 @@ import static java.lang.Math.min;
 
 ///*temp deactive to make sure of heuristic func works
 
+        long end_point = System.currentTimeMillis();
+        mInstance.begin_measure_timeStamp = System.currentTimeMillis();
+//        Log.d("PeriodFlag", "End remaing part: " + dateFormat.format(new Date()));
 
+        overHead = end_point - start_point;
         // Start the timer for COLLECTING DATA OF ai INFERENCE
+        mInstance.measureFlag = true;
         startSceneTimer();// this has the loop of i=0 to i=3 in it
 
 
 
     }
 
+
     void startSceneTimer() { // THIS IS TO APPLY JUST ONE INSTANCE OF DELEGATE AND CALCULATE REWARD AT THE END
        // original CountDownTimer sceneTimer = new CountDownTimer(21000, 3000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
       // original of Dec 2023 tests CountDownTimer sceneTimer = new CountDownTimer(18000, 2000) {// 25 TIMES (50000/2000) DATA COLLECTION EVERY 5S ,
-        CountDownTimer sceneTimer = new CountDownTimer(10000, 2000) {
+        CountDownTimer sceneTimer = new CountDownTimer(8000, 2000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 writeRT();
@@ -636,6 +650,7 @@ import static java.lang.Math.min;
 
             @Override
             public void onFinish() {
+                mInstance.measureFlag = false;
                 avgLatency= (double) (Math.round((double) (avgLatency * 1000))) / 1000;
                 // this is to include fixed possible noise over the first 7 iterations
                 double reward=0;
@@ -1012,12 +1027,14 @@ import static java.lang.Math.min;
         mInstance.avgq = calculateMeanQuality();
 
         try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+            int task_num = 0;
             for (int i=0;i<mInstance.mList.size();i++)
             {
 
 
                 AiItemsViewModel taskView=mInstance.mList.get(i);
                 int deviceIdx = taskView.getCurrentDevice();
+
 
                 // first find the best offline AI response Time = EXPECTED RESPONSE TIme
                 int indq = mInstance.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
@@ -1027,6 +1044,21 @@ import static java.lang.Math.min;
 
 
                 meanRt = mInstance.mList.get(i).getTot_rps();
+
+                if (deviceIdx == 3) {
+                    //Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
+                    //Since I only have one GPU, the GPU also has a queue to execute the inference
+                    // When we have one more inferences at same time, we need to get the true latency for the
+                    // waiting Task
+                    if (meanRt == 0) {
+                        meanRt = mInstance.offload_task_latency[i];
+                    } else {
+                        //Update new latency
+                        mInstance.offload_task_latency[i] = meanRt;
+                    }
+                    meanRt = meanRt + mInstance.payload;
+
+                }
                 //double[] t_h = mInstance.getResponseT(i);
 
                 while (meanRt==0) { // we wanna get a correct value and avoid noisy
@@ -1049,9 +1081,13 @@ import static java.lang.Math.min;
                 // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
                 //meanRt = t_h[0];
                 // calculate the latency
+//                if(deviceIdx !=3){
+                    //normalized over curr time this is because we want to have this value minimized
+                avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
+//                task_num++;
+//                }
 
 
-                avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;//normalized over curr time this is because we want to have this value minimized
 
 //                if(deviceIdx != 3){
 //                    avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT ;
@@ -1091,6 +1127,7 @@ import static java.lang.Math.min;
             //In this case we only consider the local reward.
 
             double avgAIltcy= avg_AIlatencyPeriod/ mInstance.mList.size();
+//              double avgAIltcy= avg_AIlatencyPeriod/ task_num;
 //            int reamain_tasks = mInstance.mList.size() - mInstance.serverList.size();
 //            if(reamain_tasks != 0) {
 //                avgAIltcy = avg_AIlatencyPeriod_local /reamain_tasks;
@@ -1117,7 +1154,7 @@ import static java.lang.Math.min;
             sb.append(",").append(mInstance.total_tris);
             sb.append(",").append(mInstance.avgq);
             sb.append(",").append( avgAIltcy).append(",").append(avgLatency).append(",").append( mInstance.curBysIters+1).append(",").append( mInstance.reward_weight);
-
+            sb.append(",").append(overHead);
             sb.append('\n');
             writer.write(sb.toString());
             System.out.println("done!");

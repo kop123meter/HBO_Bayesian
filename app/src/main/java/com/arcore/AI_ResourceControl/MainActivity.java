@@ -46,6 +46,8 @@ import com.google.ar.core.TrackingState;
 import com.google.ar.core.exceptions.NotYetAvailableException;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.Node;
+
+import com.google.ar.sceneform.assets.RenderableSource;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.rendering.ModelRenderable;
 import com.google.ar.sceneform.rendering.Renderable;
@@ -106,6 +108,13 @@ bes
 
 public class MainActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener {
 
+    public double payload = 0;
+
+    public boolean measureFlag = false;
+
+    public int offloadTIme = 0;
+    public long begin_action_timeStamp;
+    public long begin_measure_timeStamp;
     static List<AiItemsViewModel> mList = new ArrayList<>();
     // BitmapUpdaterApi gets bitmap version of ar camera frame each time
     // on onTracking is called. Needed for DynamicBitmapSource
@@ -121,6 +130,8 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     public boolean distance_changed_flag = false;
     public int kthTask = 0; // to record the k Th max latency
     public double old_reward = 0; // Record old reward to help offloading
+    public int changeWaitTime = 0;
+    public int hbo_finish_time = 0;
     public double remin_reward = 0;
     public int previous_device = -1; // Record previous device index before we start next turn
 
@@ -155,7 +166,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
     String experiment_time;
     int afterHbo_counter = 0;// counts steps after we run balancer after the end of hbo iteration
     int exploration_phase = 5;// initially 5 to explore 5 delegates on pyhon client
-    int iteration = 50;// num of iterations after exploration
+    int iteration = 15;// num of iterations after exploration
     int max_iteration = iteration + exploration_phase + 1;// was 15+ originally => last +1 is for applying the best reward
     List<Double> bysTratioLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));
     List<Double> bysRewardsLog = new ArrayList<>(Collections.nCopies(max_iteration, 0d));//holds log of bayesian rewards for each iteration
@@ -808,6 +819,55 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             sbb.append("time,7m,PID,USER,PR,NI,VIRT,[RES],SHR,S,%CPU,%MEM,TIME,ARGS");
 
 
+            sbb.append('\n');
+            writer.write(sbb.toString());
+
+//            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+        }
+
+        // Record for the Statical baseline (e.g, All-perefered resources with High Quality)
+
+        String myFilePath = currentFolder + File.separator + "StaticalData" + fileseries + ".csv";
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(myFilePath, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+
+            sbb.append("Time,model1,device1,latency1,model2,device2,latency2,model3,device3,latency3," +
+                    "model4,device4,latency4,model5,device5,latency5,model6,device6,latency6,type");
+            sbb.append('\n');
+            writer.write(sbb.toString());
+
+//            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+        }
+
+        myFilePath = currentFolder + File.separator + "overheadData" + fileseries + ".csv";
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(myFilePath, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+
+            sbb.append("Time,model1,device1,latency1,model2,device2,latency2,model3,device3,latency3," +
+                    "model4,device4,latency4,model5,device5,latency5,model6,device6,latency6,mean");
+            sbb.append('\n');
+            writer.write(sbb.toString());
+
+//            System.out.println("done!");
+
+        } catch (FileNotFoundException e) {
+//            System.out.println(e.getMessage());
+        }
+
+        myFilePath = currentFolder + File.separator + "timeStamps" + fileseries + ".csv";
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(myFilePath, false))) {
+
+            StringBuilder sbb = new StringBuilder();
+
+            sbb.append("sH,eH,aH,mH");
             sbb.append('\n');
             writer.write(sbb.toString());
 
@@ -1664,12 +1724,18 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         placeObjectButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View view) {
 
+                Log.d("ARDEBUG", currentModel);
+//                Log.d("GLB_Upgrade", String.valueOf(excelname.indexOf(currentModel)));
+                double original_tris = 0;
+                if (excelname.indexOf(currentModel) != -1){
+                    original_tris = excel_tris.get(excelname.indexOf(currentModel));
+                }
+                Log.d("ARDEBUG", "Otris: " + String.valueOf(original_tris));
 
-                double original_tris = excel_tris.get(excelname.indexOf(currentModel));
                 renderArray.add(objectCount, new decimatedRenderable(modelSpinner.getSelectedItem().toString(), original_tris));
 
 
-                addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount));
+                addObject(Uri.parse("models/" + currentModel + ".glb"), renderArray.get(objectCount));
 
 //nill temporary oct 24
 //                    renderArray[objectCount] = new decimatedRenderable(modelSpinner.getSelectedItem().toString());
@@ -4287,23 +4353,55 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
         try {
-            CompletableFuture<Void> renderableFuture =
-                    ModelRenderable.builder()
-                            .setSource(fragment.getContext(), model)
-                            // Nill oct 24. remove fillament for
-                            //  .setIsFilamentGltf(true)
-                            .build()
-                            .thenAccept(renderable -> addNodeToScene(fragment, anchor, renderable, renderArrayObj))
-                            .exceptionally((throwable -> {
-                                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                                builder.setMessage(throwable.getMessage())
-                                        .setTitle("Codelab error!");
-                                AlertDialog dialog =
-                                        builder.create();
-                                dialog.show();
-                                return null;
-                            }));
+//            CompletableFuture<Void> renderableFuture =
+//                    ModelRenderable.builder()
+//                            .setSource(fragment.getContext(), model)
+//                            // Nill oct 24. remove fillament for
+////                              .setIsFilamentGltf(true)
+//                            .build()
+//                            .thenAccept(renderable -> addNodeToScene(fragment, anchor, renderable, renderArrayObj))
+//                            .exceptionally((throwable -> {
+//                                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+//                                builder.setMessage(throwable.getMessage())
+//                                        .setTitle("Codelab error!");
+//                                AlertDialog dialog =
+//                                        builder.create();
+//                                dialog.show();
+//                                return null;
+//                            }));
 
+//
+            RenderableSource source = RenderableSource.builder()
+                    .setSource(
+                            fragment.getContext(),
+                            model,                     // Uri.parse("models/xxx.glb")
+                            RenderableSource.SourceType.GLB
+                    )
+                    .setScale(1.0f)                  // 可以先用 0.01
+                    .setRecenterMode(RenderableSource.RecenterMode.ROOT)
+                    .build();
+
+            CompletableFuture<ModelRenderable> renderableFuture =
+                    ModelRenderable.builder()
+                            .setSource(fragment.getContext(), source)
+                            .setRegistryId(model)
+                            .build();
+
+            renderableFuture
+                    .thenAccept(renderable -> {
+                        Log.d("ARDEBUG", "Model loaded, submeshCount = " + renderable.getSubmeshCount());
+                        addNodeToScene(fragment, anchor, renderable, renderArrayObj);
+                    })
+                    .exceptionally(throwable -> {
+                        Log.e("ARDEBUG", "Failed to load model: " + throwable.getMessage(), throwable);
+
+                        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                        builder.setMessage(throwable.getMessage())
+                                .setTitle("Codelab error!");
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                        return null;
+                    });
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -5232,11 +5330,11 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //                } catch (Exception e) {
 //                    e.printStackTrace();
 //                }
-            Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(j).fileName + ratioArray.get(j) + ".sfb"));
+            Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(j).fileName + ratioArray.get(j) + ".glb")); //sfb
 
 
             if (ratioArray.get(j) == 1f)// for the times when perc_reduc is 1, we show the original object
-                objUri = Uri.parse("models/" + renderArray.get(j).fileName + ".sfb");
+                objUri = Uri.parse("models/" + renderArray.get(j).fileName + ".glb"); //sfb
 
             android.content.Context context = fragment.getContext();
             if (context != null) {

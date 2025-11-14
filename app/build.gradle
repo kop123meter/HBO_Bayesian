@@ -77,6 +77,10 @@ android {
     }
 
 }
+configurations.all {
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+}
+
 
 dependencies {
 
@@ -89,7 +93,7 @@ dependencies {
    // implementation 'com.google.ar:core:1.32.0'
     //implementation 'com.google.ar:core:'
     // nill added tmp
-    implementation files('libs/guava-31.1-jre.jar')
+//    implementation files('libs/guava-31.1-jre.jar')
 
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 //    implementation 'androidx.appcompat:appcompat:1.5.0'
@@ -99,6 +103,9 @@ dependencies {
 //    implementation 'com.google.android.material:material:1.6.1'
     implementation 'com.google.android.material:material:1.0.0'
     implementation "com.google.ar.sceneform.ux:sceneform-ux:1.7.0"
+    implementation files('libs/guava-31.1-jre.jar')
+    implementation 'com.google.ar.sceneform:assets:1.7.0'
+
     implementation files('libs/Jama-1.0.1.jar')
 //    implementation files('libs/jep-4.1.1.jar')
 //    implementation files('libs/jython.jar')

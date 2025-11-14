@@ -1,10 +1,16 @@
 package com.arcore.AI_ResourceControl;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.CountDownTimer;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.util.Log;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.io.BufferedInputStream;
@@ -14,7 +20,10 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.Buffer;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * if you wanna test hbo vs baselines, make baseline1_2 flag true
@@ -28,6 +37,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class DelegateRequestRunnable implements Runnable {
 
     private final ModelRequest modelRequest;
+
+
+
+//    private volatile CountDownTimer sceneTimer;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final AtomicBoolean timerFinished = new AtomicBoolean(false);
+
+    boolean sendFlag = false;
 
     // Context needed to save the image in the internal storage
     private final Context context;
@@ -47,6 +64,9 @@ public class DelegateRequestRunnable implements Runnable {
     static final int DOWNLOAD_PENDING = 1;
     static final int DOWNLOAD_STARTED = 2;
     static final int DOWNLOAD_COMPLETE = 3;
+
+    private long lastApplyTime = -1;
+    private long currentApplyTime = -1;
 
     boolean baseline1_2=true;// when we wanna run bayesian + two baselines we set this true here and in the activity main
 
@@ -82,6 +102,7 @@ public class DelegateRequestRunnable implements Runnable {
     @SuppressLint("SuspiciousIndentation")
     @Override
     public void run() {
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
 
 // for using the local memory undo the comment
         Log.d("DelegateRequest", "Entering Runnable");
@@ -154,10 +175,26 @@ public class DelegateRequestRunnable implements Runnable {
 //                    if (phase.equals("exploration")){
                 // out = new PrintWriter(socket.getOutputStream(), true);
                 while (read1 != -1) {//the msg is ready from the python client
+//                    timerFinished.set(false);
+//                    main.post(() -> {
+//                        sceneTimer = new CountDownTimer(4000000, 1000) {
+//                            @Override
+//                            public void onTick(long l) {
+//                                sampleLatency();
+//                            }
+//
+//                            @Override
+//                            public void onFinish() {
+//                                timerFinished.set(true);
+//                                writeFinish();
+//
+//                            }
+//                        }.start();});
                     String message = new String(buffer1, 0, read1);
                     Log.d("DelegateRequest Msg","msg: "+message);
                     // you need to gain the msg either from file stored in java_cleint.txt or the direct msg from java that comes from python client
                     long startTime = System.currentTimeMillis();
+                    long hbo_beginTime = System.currentTimeMillis();
                     //  fout.write(buffer1, 0, read1);
 
                     //if (modelRequest.activityMain.curBysIters < max_iteration-1){// this is for all bayesian trials - before Dec 2023
@@ -200,18 +237,80 @@ public class DelegateRequestRunnable implements Runnable {
                         Message msg = modelRequest.getMainActivityWeakReference().get().getHandler().obtainMessage();
                         msg.obj = modelRequest;
                         modelRequest.getMainActivityWeakReference().get().getHandler().sendMessage(msg);
+//                        currentApplyTime = System.currentTimeMillis();
+//                        long period = 0;
+//                        if(lastApplyTime != -1){
+//                            period = currentApplyTime - lastApplyTime;
+//                        }
+//                        lastApplyTime = currentApplyTime;
+//                        String currentFolder = modelRequest.activityMain.getExternalFilesDir(null).getAbsolutePath();
+//                        String FILEPATH = currentFolder + File.separator + "overheadData"+modelRequest.activityMain.fileseries+".csv";
+//                        StringBuilder sb = new StringBuilder();
+//                        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))){
+//                            sb.append(currentApplyTime);
+//                            sb.append(",");
+//                            sb.append(lastApplyTime);
+//                            sb.append(",");
+//                            sb.append(period);
+//                            writer.write(sb.toString());
+//                        }catch (Exception e){
+//
+//                        }
 
                         long endTime = System.currentTimeMillis();
                         //  Log.d("DelegateReq", "Buffer write time: " + (endTime - startTime) + " milliseconds");
 
-                        while (modelRequest.activityMain.avg_reward == 0);
+
+
+                        while (modelRequest.activityMain.avg_reward == 0); // Apply & measure
+
                         //    Log.d("data received on java client, reward is: ", String.valueOf(modelRequest.activityMain.avg_reward));
                         Log.d("DelegateRequest Msg",  "from Delegate: ave_reward = " + String.valueOf(modelRequest.activityMain.avg_reward));
                         String msg_toserver="reward/"+String.valueOf(modelRequest.activityMain.avg_reward);
                         out.println(msg_toserver);
+                        sendFlag = true;
                         Log.d("DelegateRequest Msg", "Sent successfully   " + msg_toserver);
+
                         //flush stream
                         out.flush();
+                        long hbo_endTime = System.currentTimeMillis();
+                        // Log Time Stamp
+                        String currentFolder = modelRequest.activityMain.getExternalFilesDir(null).getAbsolutePath();
+                        String myFilePath = currentFolder + File.separator + "timeStamps" + modelRequest.activityMain.fileseries + ".csv";
+                        try (PrintWriter writer = new PrintWriter(new FileOutputStream(myFilePath, true))) {
+
+                            StringBuilder sbb = new StringBuilder();
+
+                            sbb.append(hbo_beginTime).append(',').append(hbo_endTime).append(',').append(modelRequest.activityMain.begin_action_timeStamp).append(",")
+                                    .append(modelRequest.activityMain.begin_measure_timeStamp);
+                            Log.d("PeriodTimeStamp", "ht:" + hbo_beginTime
+                                                            + ",et:" + hbo_endTime
+                                                            + ",at" + modelRequest.activityMain.begin_action_timeStamp
+                                                            + ",mt:" + modelRequest.activityMain.begin_measure_timeStamp);
+                            sbb.append('\n');
+                            writer.write(sbb.toString());
+
+                        } catch (FileNotFoundException e) {
+                        }
+
+
+
+
+
+
+
+                        // if the counter does not finish, we need to stop it manually.
+//                        if(!timerFinished.get()){
+//                            main.post(() ->{
+//                                if(sceneTimer != null){
+//                                    sceneTimer.cancel();
+//                                    sceneTimer = null;
+////                                    writeFinishPause();
+//                                }
+//                            });
+//                        }
+
+
                         exploration_phase -= 1;
                         Log.d("DelegateRequest Msg", "Current Iter:" +modelRequest.activityMain.curBysIters );
                         if(modelRequest.activityMain.curBysIters==max_iteration-1)// should be done all the time after last HBO iteration
@@ -223,6 +322,7 @@ public class DelegateRequestRunnable implements Runnable {
 
                             // Used to trigger Offload
                             modelRequest.activityMain.hbo_is_done = true;
+                            modelRequest.activityMain.hbo_finish_time++;
 
 
                         }
@@ -352,5 +452,133 @@ public class DelegateRequestRunnable implements Runnable {
 //
 //
 //    }
+
+
+    void sampleLatency(){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+        String currentFolder = modelRequest.activityMain.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "overheadData"+modelRequest.activityMain.fileseries+".csv";
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(dateFormat.format(new Date()));
+
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))){
+            double meanLatency = 0;
+            sb.append('\n');
+            for (int i=0;i<modelRequest.activityMain.mList.size();i++)
+            {
+
+
+                AiItemsViewModel taskView=modelRequest.activityMain.mList.get(i);
+                int deviceIdx = taskView.getCurrentDevice();
+
+
+                // first find the best offline AI response Time = EXPECTED RESPONSE TIme
+                int indq = modelRequest.activityMain.excel_BestofflineAIname.indexOf(taskView.getModels().get(taskView.getCurrentModel()));// search in excel file to find the name of current object and get access to the index of current object
+                // excel file has all information for the AI inference NAME, Delegate, and time
+                double expected_time = modelRequest.activityMain.excel_BestofflineAIRT.get(indq);
+                // find the actual response Time
+
+
+                double meanRt = modelRequest.activityMain.mList.get(i).getTot_rps();
+
+                if (deviceIdx == 3) {
+                    //Log.d("OFFLOAD_ERR", "Thr:  " + meanThr + "RT:   " + meanRt);
+                    //Since I only have one GPU, the GPU also has a queue to execute the inference
+                    // When we have one more inferences at same time, we need to get the true latency for the
+                    // waiting Task
+                    if (meanRt == 0) {
+                        meanRt = modelRequest.activityMain.offload_task_latency[i];
+                    } else {
+                        //Update new latency
+                        modelRequest.activityMain.offload_task_latency[i] = meanRt;
+                    }
+
+                }
+                //double[] t_h = mInstance.getResponseT(i);
+
+                while (meanRt==0) { // we wanna get a correct value and avoid noisy
+//                    double[] th = mInstance.getResponseT(i);
+//                    meanRt = th[0];
+//                    meanThr = th[1];
+                    meanRt = modelRequest.activityMain.mList.get(i).getTot_rps();
+                    Log.d("OFFLOAD_ERR", "Current :" + meanRt);
+                }
+
+
+
+                double actual_rpT=meanRt;
+                meanLatency += actual_rpT;
+
+
+
+                // meanRt = mInstance.getResponseT(aiIndx);// after the objects are decimated
+                //meanRt = t_h[0];
+                // calculate the latency
+//                if(deviceIdx !=3){
+                //normalized over curr time this is because we want to have this value minimized
+//                avg_AIlatencyPeriod+=(actual_rpT-expected_time)/actual_rpT;
+//                task_num++;
+//                }
+
+
+
+//                if(deviceIdx != 3){
+//                    avg_AIlatencyPeriod_local += (actual_rpT-expected_time)/actual_rpT ;
+//                }
+
+//                double tmp_lastLatency=mInstance.last_latencyInstanceN;
+//                double cur_latency=actual_rpT-expected_time;
+
+
+//                char tempFlag = 'n';
+//                if(modelRequest.activityMain.measureFlag){
+//                    tempFlag = 'm';
+//                } else if (sendFlag) {
+//                    sendFlag = false;
+//                    tempFlag = 'r';
+//                }
+
+
+                sb.append(",").append(taskView.getModels().get(taskView.getCurrentModel()))
+                        .append(",").append(taskView.getDevices().get(taskView.getCurrentDevice()))
+                        .append(",").append(actual_rpT);
+                //.append( mInstance.avg_reponseT.get(i));
+            }
+            if (modelRequest.activityMain.mList.size() == 0)
+                meanLatency = 0;
+            else {
+                meanLatency = meanLatency / modelRequest.activityMain.mList.size();
+            }
+            sb.append(',').append(meanLatency).append('\n');
+            writer.write(sb.toString());
+        }catch (Exception e){
+
+        }
+    }
+    void writeFinish(){
+        String currentFolder = modelRequest.activityMain.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "overheadData"+modelRequest.activityMain.fileseries+".csv";
+        StringBuilder sb = new StringBuilder();
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+//            long currentTime = System.currentTimeMillis();
+            sb.append(',').append("d").append('\n');
+            writer.write(sb.toString());
+        }catch (Exception e){
+
+        }
+    }
+    void writeFinishPause(){
+        String currentFolder = modelRequest.activityMain.getExternalFilesDir(null).getAbsolutePath();
+        String FILEPATH = currentFolder + File.separator + "overheadData"+modelRequest.activityMain.fileseries+".csv";
+        StringBuilder sb = new StringBuilder();
+        try (PrintWriter writer = new PrintWriter(new FileOutputStream(FILEPATH, true))) {
+//            long currentTime = System.currentTimeMillis();
+            sb.append(',').append("dd").append('\n');
+            writer.write(sb.toString());
+        }catch (Exception e){
+
+        }
+    }
 
 }
