@@ -2066,9 +2066,11 @@ public class balancer implements Runnable {
             float c = mInstance.excel_c.get(i);
             float d = mInstance.renderArray.get(ind).return_distance();
             float curQ = mInstance.ratioArray.get(ind);
-            double tris = mInstance.excel_tris.get(ind);
+            double tris = mInstance.excel_tris.get(i);
 
             totalTrisOnScreen += tris * (double) curQ;
+            Log.d("ARDEBUG", "Name: " + mInstance.renderArray.get(ind).fileName);
+
 
 
             float deg_error = (float) Math.round((float) (Calculate_deg_er(a, b, c, d, gamma, curQ) * 1000)) / 1000;
@@ -2077,7 +2079,7 @@ public class balancer implements Runnable {
             float cur_degerror = deg_error / max_nrmd;
             float quality= 1- cur_degerror;
 
-
+            Log.d("ARDEBUG",totalTrisOnScreen + ";   " + tris + ";  " + quality + ";  " + cur_degerror);
             //objquality[ind]=quality;
             sumQual+=quality;
 

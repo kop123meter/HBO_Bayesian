@@ -60,7 +60,6 @@ import com.google.common.collect.Multimap;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -68,10 +67,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -2310,14 +2306,14 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                                         renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris / 10));
                                         Log.d("HBO_MSG", "OPPS!, we trigered the decimate function");
 
-                                        Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(objectCount).fileName + "0.1.sfb"));
+                                        Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(objectCount).fileName + "0.1.glb"));
                                         addObject(objUri, renderArray.get(objectCount), xOffset, yOffset);
                                     }//
                                     //**** this is temp for survey
                                     //This line should be uncommented after survey experiment
                                     else {
                                         renderArray.add(objectCount, new decimatedRenderable(currentModel, original_tris));
-                                        addObject(Uri.parse("models/" + currentModel + ".sfb"), renderArray.get(objectCount), xOffset, yOffset);
+                                        addObject(Uri.parse("models/" + currentModel + ".glb"), renderArray.get(objectCount), xOffset, yOffset);
                                     }//
                                     // comment below lines if you want to deactive HBO auto trigger
                                     // Don't sleep too much time it may cause crushed
@@ -5177,14 +5173,15 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
     //reference renderables, cannot be changed when decimation percentage is selected
     private class refRenderable extends baseRenderable {
-        refRenderable(String filename, float tris) {
+        refRenderable(String filename, float tris, MainActivity mInstance) {
+//            this.mInstance = mInstance;
             this.fileName = filename;
             this.orig_tris = tris;
             //   this.current_tris=tris;
             setID(nextID);
             nextID++;
         }
-
+//        private final MainActivity mInstance;
         public void decimatedModelRequest(double percentageReduction, int i, boolean rd) {
             return;
         }
@@ -5266,13 +5263,13 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
             percReduction = (float) percentageReduction;
             //this is to request for new decimated objects in edge
-            ModelRequestManager.getInstance().add(new ModelRequest(cacheArray.get(id), fileName, percReduction, getApplicationContext(), MainActivity.this, id), redraw_direct, false);
+      //For  Server   //  ModelRequestManager.getInstance().add(new ModelRequest(cacheArray.get(id), fileName, percReduction, getApplicationContext(), MainActivity.this, id), redraw_direct, false);
 // this is for request for offloading to the edge : works withput image as the last argumant
             //    ModelRequestManager.getInstance().add(new ModelRequest("classifier", getApplicationContext(), MainActivity.this),redraw_direct, true);
 
 
             //April 21 Nill , istead of calling mdelreq, sinc we have already downloaded objs from screen, we can call directly redraw
-            //renderArray.get(id).redraw(id); uncomment this if you want to load from cache and aslo make cash flag (redirect label here) true
+            renderArray.get(id).redraw(id); //uncomment this if you want to load from cache and aslo make cash flag (redirect label here) true
 
 
             //Nil
@@ -5331,27 +5328,30 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 //                    e.printStackTrace();
 //                }
             Uri objUri = Uri.fromFile(new File(getExternalFilesDir(null), "/decimated" + renderArray.get(j).fileName + ratioArray.get(j) + ".glb")); //sfb
-
+            Log.d("ARDEBUG", String.valueOf(ratioArray.get(j)) + String.valueOf(objUri));
 
             if (ratioArray.get(j) == 1f)// for the times when perc_reduc is 1, we show the original object
                 objUri = Uri.parse("models/" + renderArray.get(j).fileName + ".glb"); //sfb
 
             android.content.Context context = fragment.getContext();
             if (context != null) {
-                CompletableFuture<Void> renderableFuture =
-                        ModelRenderable.builder().setSource(context, objUri)
-                                // .setSource(fragment.getContext(),objUri )
-                                //.setIsFilamentGltf(true)
-                                .build()
-                                .thenAccept(renderable -> baseAnchor.setRenderable(renderable))
-                                .exceptionally((throwable -> {
-                                    AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
-                                    builder.setMessage(throwable.getMessage())
-                                            .setTitle("Codelab error!");
-                                    AlertDialog dialog = builder.create();
-                                    dialog.show();
-                                    return null;
-                                }));
+                loadGlbModel(context, objUri);
+//                CompletableFuture<Void> renderableFuture =
+//                        ModelRenderable.builder().setSource(context, objUri)
+//                                // .setSource(fragment.getContext(),objUri )
+//                                //.setIsFilamentGltf(true)
+//                                .build()
+//                                .thenAccept(renderable -> baseAnchor.setRenderable(renderable))
+//                                .exceptionally((throwable -> {
+//                                    AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
+//                                    builder.setMessage(throwable.getMessage())
+//                                            .setTitle("Codelab error!");
+//                                    AlertDialog dialog = builder.create();
+//                                    dialog.show();
+//                                    return null;
+//                                }));
+
+
 
 
 // update tris and gu log
@@ -5361,46 +5361,50 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
         }
+        private void loadGlbModel(android.content.Context activity,final Uri objUri) {
+            // Activity 作为 context，final 方便在 lambda 里用
+//            final Activity activity = this;
 
-        /**
-         * Send Bt and Total triangle count to sever to measure
-         * @param totaltris
-         * @param Bt
-         */
-        public void sendDataToServer(double totaltris,double Bt){
-            Socket socket = null;
-            PrintWriter out = null;
-            String serverIp = "";
-            int serverPort = 3434;
+            RenderableSource source = RenderableSource.builder()
+                    .setSource(
+                            activity,
+                            objUri,
+                            RenderableSource.SourceType.GLB   // GLB 文件
+                    )
+                    .setScale(1.0f)                         // 根据模型调
+                    .setRecenterMode(RenderableSource.RecenterMode.ROOT)
+                    .build();
 
-            try {
-                socket = new Socket(serverIp, serverPort);
+            CompletableFuture<ModelRenderable> future =
+                    ModelRenderable.builder()
+                            .setSource(activity, source)
+                            .setRegistryId(objUri)
+                            .build();
 
-                out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
+            future.thenAccept(renderable -> {
+                        // 这里用的是 final 的 baseAnchor
+                        baseAnchor.setRenderable(renderable);
+                    })
+                    .exceptionally(throwable -> {
+                        // 在主线程弹对话框
+//                        activity.runOnUiThread(new Runnable() {
+//                            @Override
+//                            public void run() {
+//                                new AlertDialog.Builder(activity)
+//                                        .setMessage(throwable.getMessage())
+//                                        .setTitle("Codelab error!")
+//                                        .create()
+//                                        .show();
+//                            }
+//                        });
 
-                // create new data message
-                String dataToSend = "totaltris=" + totaltris + "&bt=" + Bt;
-                Log.d("Send Data: ",dataToSend);
-
-                // send data
-                out.println(dataToSend);
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    // 关闭输出流和Socket
-                    if (out != null) {
-                        out.close();
-                    }
-                    if (socket != null) {
-                        socket.close();
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
+                        throwable.printStackTrace();
+                        return null;
+                    });
         }
+
+
+
 
 
     }
